@@ -133,4 +133,22 @@ describe('OpenRouter tutor planner adapter', () => {
     expect(response.screenText).toBe('Click around and see what happens.');
     expect(response.voiceText).toBe('Click around and see what happens.');
   });
+
+  test('uses voice text when provider returns valid JSON with empty screen text', () => {
+    const response = parseTutorPlannerResponse(
+      JSON.stringify({
+        mode: 'idle',
+        skillSlug: 'blender',
+        voiceText: 'Hi there. What would you like to learn today?',
+        screenText: '',
+        visualTargets: [],
+        expectedNextState: 'user_asks_goal'
+      }),
+      tutorInput
+    );
+
+    expect(response.mode).toBe('idle');
+    expect(response.screenText).toBe('Hi there. What would you like to learn today?');
+    expect(response.voiceText).toBe('Hi there. What would you like to learn today?');
+  });
 });

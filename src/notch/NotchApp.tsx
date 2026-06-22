@@ -40,6 +40,9 @@ export function NotchApp() {
       readCurrentPayload: () => nativeBridge.getCurrentNotchPayload(),
       onPayload: (nextPayload) => {
         if (isMounted) {
+          if (nextPayload.state === 'captured') {
+            setQuery('');
+          }
           setPayload(nextPayload);
         }
       }

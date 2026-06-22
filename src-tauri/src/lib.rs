@@ -702,7 +702,7 @@ fn configure_notch_window(
 
 fn notch_window_size(state: Option<&str>) -> (f64, f64) {
     match state {
-        Some("captured") | Some("showing_step") => (560.0, 132.0),
+        Some("captured") | Some("showing_step") => (680.0, 172.0),
         _ => (380.0, 78.0),
     }
 }
@@ -1386,8 +1386,8 @@ mod tests {
 
     #[test]
     fn notch_window_size_expands_for_prompt_and_answer_states() {
-        assert_eq!(notch_window_size(Some("captured")), (560.0, 132.0));
-        assert_eq!(notch_window_size(Some("showing_step")), (560.0, 132.0));
+        assert_eq!(notch_window_size(Some("captured")), (680.0, 172.0));
+        assert_eq!(notch_window_size(Some("showing_step")), (680.0, 172.0));
         assert_eq!(notch_window_size(Some("thinking")), (380.0, 78.0));
         assert_eq!(notch_window_size(None), (380.0, 78.0));
     }

@@ -24,7 +24,7 @@ const tutorResponseSchema = z.object({
   mode: z.enum(['idle', 'stuck_help', 'guided_lesson']),
   skillSlug: z.string().min(1),
   voiceText: z.string().min(1),
-  screenText: z.string().min(1),
+  screenText: z.string(),
   visualTargets: z.array(visualTargetSchema),
   expectedNextState: z.string().min(1)
 });
@@ -107,6 +107,7 @@ export function parseTutorPlannerResponse(rawContent: string, input: TutorTurnIn
   return {
     ...parsed,
     skillSlug: parsed.skillSlug || input.skill.slug,
+    screenText: parsed.screenText.trim() || parsed.voiceText,
     visualTargets: safeTargets,
     providerMetadata: {
       confidenceState: confidenceState(safeTargets),

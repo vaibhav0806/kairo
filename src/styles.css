@@ -380,7 +380,7 @@ input {
   display: grid;
   gap: 10px 12px;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  height: 112px;
+  min-height: 138px;
   padding: 14px 16px;
 }
 
@@ -471,10 +471,12 @@ input {
 }
 
 .notch-prompt {
+  align-items: center;
   display: grid;
   gap: 8px;
   grid-column: 1 / -1;
   grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 44px;
 }
 
 .notch-prompt input {
