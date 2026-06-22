@@ -12,7 +12,8 @@ import {
 import {
   type ActivationState,
   activationStateToNotchPayload,
-  reduceActivationState
+  reduceActivationState,
+  tutorResponseToNotchPayload
 } from './activation/activationState';
 import { loadBrowserEnv } from './config/env';
 import { createMockTutorPlanner } from './core/mockTutor';
@@ -204,16 +205,17 @@ export function App() {
   const previewSource = resolveScreenPreview(screenCapture, mockPreviewDimensions);
 
   const showActivationState = useCallback(
-    async (nextState: ActivationState) => {
+    (nextState: ActivationState) => {
       setActivationState(nextState);
-      await nativeBridge.showNotch(activationStateToNotchPayload(nextState));
+      void nativeBridge.showNotch(activationStateToNotchPayload(nextState));
     },
     [nativeBridge]
   );
 
   const askTutor = useCallback(async (nextQuery = query) => {
     const nextThinkingState = reduceActivationState(activationState, { type: 'thinking_started' });
-    await showActivationState(nextThinkingState);
+    showActivationState(nextThinkingState);
+    let notchResponsePayload: ReturnType<typeof tutorResponseToNotchPayload> | null = null;
     try {
       const nextResponse = await orchestrator.runTextTurn({
         request: {
@@ -225,6 +227,7 @@ export function App() {
         skillSlug: env.defaultSkill
       });
       setResponse(nextResponse);
+      notchResponsePayload = tutorResponseToNotchPayload(nextResponse);
 
       const hasVisualTargets = nextResponse.visualTargets.length > 0;
       setIsOverlayActive(hasVisualTargets);
@@ -234,16 +237,18 @@ export function App() {
         void nativeBridge.hideOverlay();
       }
     } catch (error) {
-      setResponse(
-        createTutorRuntimeErrorResponse({
-          skillSlug: env.defaultSkill,
-          error
-        })
-      );
+      const errorResponse = createTutorRuntimeErrorResponse({
+        skillSlug: env.defaultSkill,
+        error
+      });
+      setResponse(errorResponse);
+      notchResponsePayload = tutorResponseToNotchPayload(errorResponse);
       setIsOverlayActive(false);
       void nativeBridge.hideOverlay();
     } finally {
-      await showActivationState(reduceActivationState(nextThinkingState, { type: 'response_ready' }));
+      const nextState = reduceActivationState(nextThinkingState, { type: 'response_ready' });
+      setActivationState(nextState);
+      void nativeBridge.showNotch(notchResponsePayload ?? activationStateToNotchPayload(nextState));
     }
   }, [
     activationState,
@@ -374,7 +379,7 @@ export function App() {
 
   const handleActivationShortcut = useCallback(async () => {
     const listeningState = reduceActivationState('idle', { type: 'shortcut_pressed' });
-    await showActivationState(listeningState);
+    showActivationState(listeningState);
     setIsOverlayActive(false);
     void nativeBridge.hideOverlay();
     const [nextActiveApp, nextPermissions, nextScreenCapture] = await Promise.all([
@@ -385,7 +390,7 @@ export function App() {
     setActiveApp(nextActiveApp);
     setPermissions(nextPermissions);
     setScreenCapture(nextScreenCapture);
-    await showActivationState(
+    showActivationState(
       reduceActivationState(listeningState, {
         type: nextScreenCapture.captured ? 'capture_complete' : 'capture_failed'
       })

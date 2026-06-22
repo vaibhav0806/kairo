@@ -1,4 +1,5 @@
 import type { NotchPayload, NotchState } from '../notch/types';
+import type { TutorResponse } from '../core/types';
 
 export type ActivationState = NotchState;
 
@@ -67,4 +68,12 @@ export function activationStateToNotchPayload(state: ActivationState): NotchPayl
   };
 
   return payloads[state];
+}
+
+export function tutorResponseToNotchPayload(response: TutorResponse): NotchPayload {
+  return {
+    state: 'showing_step',
+    title: response.mode === 'idle' ? 'Kairo is ready' : 'Kairo answered',
+    detail: response.screenText || response.voiceText
+  };
 }

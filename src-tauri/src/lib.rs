@@ -668,11 +668,7 @@ fn configure_notch_window(
     window: &tauri::WebviewWindow,
     payload: Option<&NotchPayload>,
 ) -> Result<(), String> {
-    let is_prompt_mode = payload
-        .map(|payload| payload.state == "captured")
-        .unwrap_or(false);
-    let width = if is_prompt_mode { 560.0 } else { 380.0 };
-    let height = if is_prompt_mode { 132.0 } else { 78.0 };
+    let (width, height) = notch_window_size(payload.map(|payload| payload.state.as_str()));
     window
         .set_focusable(true)
         .map_err(|error| format!("Failed to make notch focusable: {error}"))?;
@@ -702,6 +698,13 @@ fn configure_notch_window(
     }
 
     Ok(())
+}
+
+fn notch_window_size(state: Option<&str>) -> (f64, f64) {
+    match state {
+        Some("captured") | Some("showing_step") => (560.0, 132.0),
+        _ => (380.0, 78.0),
+    }
 }
 
 fn store_overlay_payload(
@@ -954,11 +957,15 @@ fn build_openrouter_messages(input: &TutorTurnInput) -> Result<Value, String> {
 async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
     let provider = provider_env("KAIRO_AI_PROVIDER", "mock");
     if provider != "openrouter" {
-        return Err("Native tutor provider is only configured for KAIRO_AI_PROVIDER=openrouter.".to_string());
+        return Err(
+            "Native tutor provider is only configured for KAIRO_AI_PROVIDER=openrouter."
+                .to_string(),
+        );
     }
 
-    let api_key = provider_env_optional("OPENROUTER_API_KEY")
-        .ok_or_else(|| "OPENROUTER_API_KEY is required for native OpenRouter tutor turns.".to_string())?;
+    let api_key = provider_env_optional("OPENROUTER_API_KEY").ok_or_else(|| {
+        "OPENROUTER_API_KEY is required for native OpenRouter tutor turns.".to_string()
+    })?;
     let model = provider_env("OPENROUTER_MODEL", "~openai/gpt-latest");
     let base_url = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
     let site_url = provider_env_optional("OPENROUTER_SITE_URL");
@@ -1204,8 +1211,9 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_openrouter_messages, parse_local_env, provider_timeout_ms, OverlayDisplayBounds,
-        TutorActiveAppContext, TutorScreenInput, TutorSkillPack, TutorTurnInput,
+        build_openrouter_messages, notch_window_size, parse_local_env, provider_timeout_ms,
+        OverlayDisplayBounds, TutorActiveAppContext, TutorScreenInput, TutorSkillPack,
+        TutorTurnInput,
     };
     use serde_json::json;
 
@@ -1300,5 +1308,13 @@ mod tests {
             "data:image/png;base64,abc123"
         );
         assert!(image_part.get("image_url").is_none());
+    }
+
+    #[test]
+    fn notch_window_size_expands_for_prompt_and_answer_states() {
+        assert_eq!(notch_window_size(Some("captured")), (560.0, 132.0));
+        assert_eq!(notch_window_size(Some("showing_step")), (560.0, 132.0));
+        assert_eq!(notch_window_size(Some("thinking")), (380.0, 78.0));
+        assert_eq!(notch_window_size(None), (380.0, 78.0));
     }
 }

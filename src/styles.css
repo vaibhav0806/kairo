@@ -374,7 +374,8 @@ input {
   width: 100%;
 }
 
-.notch-card[data-state="captured"] {
+.notch-card[data-state="captured"],
+.notch-card[data-state="showing_step"] {
   border-radius: 28px;
   display: grid;
   gap: 10px 12px;
@@ -427,8 +428,22 @@ input {
   color: #f6f8f9;
 }
 
-.notch-card[data-state="captured"] .notch-close {
+.notch-card[data-state="captured"] .notch-close,
+.notch-card[data-state="showing_step"] .notch-close {
   justify-self: end;
+}
+
+.notch-card[data-state="showing_step"] .notch-copy {
+  align-self: center;
+}
+
+.notch-card[data-state="showing_step"] span {
+  display: -webkit-box;
+  line-height: 1.25;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .notch-orb {
