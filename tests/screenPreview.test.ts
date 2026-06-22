@@ -35,10 +35,10 @@ describe('resolveScreenPreview', () => {
     });
   });
 
-  test('falls back to the mock Blender preview before the first capture', () => {
+  test('uses a neutral empty preview before the first capture', () => {
     expect(resolveScreenPreview(null, fallbackDimensions)).toEqual({
       mode: 'mock',
-      title: 'Blender viewport',
+      title: 'Current screen',
       imageSrc: undefined,
       dimensions: fallbackDimensions
     });

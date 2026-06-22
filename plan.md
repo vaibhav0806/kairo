@@ -139,11 +139,14 @@ Run typecheck, tests, and production build.
 **Reference:** Read `docs/clicky-borrowing-notes.md` first, especially the secure provider proxy and pointing protocol sections. Keep Kairo responses structured instead of copying Clicky's raw `[POINT:...]` text-tag protocol.
 
 **Scope:**
-- Add provider adapters for STT, vision, tutor planning, and TTS.
-- Keep `mock` as the default local provider.
-- Wire OpenAI-compatible vision/planning behind explicit env selection.
-- Wire Sarvam/ElevenLabs speech adapters behind explicit env selection.
-- Add confidence states, safety checks, and one-step response constraints.
+- [x] Add activation state machine for `idle -> listening -> captured -> thinking -> showing_step`.
+- [x] Replace boot-time mock Blender guidance with a real idle/background state.
+- [x] Add a tutor turn orchestrator boundary that packages screenshot context, app metadata, annotations, skill-pack content, and response constraints for a planner adapter.
+- [x] Keep `mock` as the default local provider through the orchestrator adapter.
+- [ ] Add provider adapters for STT, vision, tutor planning, and TTS.
+- [ ] Wire OpenAI-compatible vision/planning behind explicit env selection.
+- [ ] Wire Sarvam/ElevenLabs speech adapters behind explicit env selection.
+- [ ] Add provider confidence states and safety checks around real model responses.
 
 **Acceptance Criteria:**
 - Provider selection is controlled only by env.
@@ -187,3 +190,7 @@ Run typecheck, tests, and production build.
 ## Immediate Development Rule
 
 Milestone 1 intentionally avoids real API calls and real secrets. `.env.local` uses mock providers so local development can run immediately. Real provider keys should be added only to local secret files or OS keychain-backed native config. The browser app must never receive `OPENROUTER_API_KEY` or `SARVAM_API_KEY`.
+
+## Native Capability Rule
+
+Stick with Tauri through the next milestone. Any new native capability must include matching `Info.plist` usage text, entitlements when needed, TCC reset/test notes, and `codesign --entitlements` verification before UI work is considered complete.

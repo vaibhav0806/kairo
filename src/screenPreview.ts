@@ -42,7 +42,7 @@ export function resolveScreenPreview(
 
   return {
     mode: 'mock',
-    title: 'Blender viewport',
+    title: 'Current screen',
     imageSrc: undefined,
     dimensions: fallbackDimensions
   };

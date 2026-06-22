@@ -108,6 +108,19 @@ struct OverlayState {
     current_payload: Mutex<Option<OverlayPayload>>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NotchPayload {
+    state: String,
+    title: String,
+    detail: String,
+}
+
+#[derive(Default)]
+struct NotchState {
+    current_payload: Mutex<Option<NotchPayload>>,
+}
+
 #[cfg(target_os = "macos")]
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
@@ -594,6 +607,9 @@ fn configure_notch_window(window: &tauri::WebviewWindow) -> Result<(), String> {
     window
         .set_skip_taskbar(true)
         .map_err(|error| format!("Failed to keep notch out of the taskbar: {error}"))?;
+    window
+        .set_ignore_cursor_events(true)
+        .map_err(|error| format!("Failed to keep notch click-through: {error}"))?;
     let _ = window.set_shadow(false);
     window
         .set_size(LogicalSize::new(width, height))
@@ -621,6 +637,24 @@ fn store_overlay_payload(
         .current_payload
         .lock()
         .map_err(|_| "Failed to lock overlay payload state.".to_string())?;
+    *current_payload = payload;
+    Ok(())
+}
+
+fn emit_notch_payload(window: &tauri::WebviewWindow, payload: NotchPayload) -> Result<(), String> {
+    window
+        .emit("notch:update", payload)
+        .map_err(|error| format!("Failed to update notch state: {error}"))
+}
+
+fn store_notch_payload(
+    state: &State<'_, NotchState>,
+    payload: Option<NotchPayload>,
+) -> Result<(), String> {
+    let mut current_payload = state
+        .current_payload
+        .lock()
+        .map_err(|_| "Failed to lock notch payload state.".to_string())?;
     *current_payload = payload;
     Ok(())
 }
@@ -675,9 +709,17 @@ fn hide_overlay(app: tauri::AppHandle, state: State<'_, OverlayState>) -> Result
 }
 
 #[tauri::command]
-fn show_notch(app: tauri::AppHandle) -> Result<(), String> {
+fn show_notch(
+    app: tauri::AppHandle,
+    state: State<'_, NotchState>,
+    payload: Option<NotchPayload>,
+) -> Result<(), String> {
     let window = ensure_notch_window(&app)?;
     configure_notch_window(&window)?;
+    if let Some(payload) = payload {
+        store_notch_payload(&state, Some(payload.clone()))?;
+        emit_notch_payload(&window, payload)?;
+    }
     window
         .show()
         .map_err(|error| format!("Failed to show notch: {error}"))?;
@@ -692,7 +734,17 @@ fn show_notch(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn hide_notch(app: tauri::AppHandle) -> Result<(), String> {
+fn get_current_notch_payload(state: State<'_, NotchState>) -> Result<Option<NotchPayload>, String> {
+    state
+        .current_payload
+        .lock()
+        .map(|payload| payload.clone())
+        .map_err(|_| "Failed to lock notch payload state.".to_string())
+}
+
+#[tauri::command]
+fn hide_notch(app: tauri::AppHandle, state: State<'_, NotchState>) -> Result<(), String> {
+    store_notch_payload(&state, None)?;
     if let Some(window) = app.get_webview_window("notch") {
         window
             .hide()
@@ -743,6 +795,7 @@ fn log_window_startup(window: &tauri::WebviewWindow) {
 pub fn run() {
     tauri::Builder::default()
         .manage(OverlayState::default())
+        .manage(NotchState::default())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
@@ -774,6 +827,7 @@ pub fn run() {
             get_current_overlay_payload,
             hide_overlay,
             show_notch,
+            get_current_notch_payload,
             hide_notch
         ])
         .run(tauri::generate_context!())

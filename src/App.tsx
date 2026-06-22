@@ -6,8 +6,14 @@ import {
   eraseAnnotationAtPoint,
   normalizeDragToRegion
 } from './annotations/annotationTools';
+import {
+  type ActivationState,
+  activationStateToNotchPayload,
+  reduceActivationState
+} from './activation/activationState';
 import { loadBrowserEnv } from './config/env';
 import { createMockTutorPlanner } from './core/mockTutor';
+import { createTutorOrchestrator } from './core/orchestrator';
 import type { ScreenDimensions, TutorResponse, UserAnnotation } from './core/types';
 import {
   createNativeBridge,
@@ -104,6 +110,18 @@ function AnnotationLayer({
 export function App() {
   const env = loadBrowserEnv();
   const planner = useMemo(() => createMockTutorPlanner(), []);
+  const orchestrator = useMemo(
+    () =>
+      createTutorOrchestrator({
+        planner: async (input) =>
+          planner.planNextStep({
+            ...input.activeApp,
+            userQuery: input.userQuery,
+            annotations: input.annotations
+          })
+      }),
+    [planner]
+  );
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const requiredPermissions = useMemo(
     () =>
@@ -139,6 +157,7 @@ export function App() {
   });
   const [screenCapture, setScreenCapture] = useState<NativeScreenCapture | null>(null);
   const [isOverlayActive, setIsOverlayActive] = useState(false);
+  const [activationState, setActivationState] = useState<ActivationState>('idle');
   const [overlayActivationCount, setOverlayActivationCount] = useState(0);
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>('rectangle');
   const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
@@ -155,24 +174,40 @@ export function App() {
     reason: 'Shortcut not registered yet.'
   });
   const [response, setResponse] = useState<TutorResponse>(() =>
-    planner.planNextStep({
-      ...demoContext,
-      userQuery: 'Help me make my first animation',
-      annotations: []
-    })
+    planner.createIdleResponse(env.defaultSkill)
   );
   const previewSource = resolveScreenPreview(screenCapture, mockPreviewDimensions);
 
-  function askTutor() {
-    setResponse(
-      planner.planNextStep({
+  const showActivationState = useCallback(
+    async (nextState: ActivationState) => {
+      setActivationState(nextState);
+      await nativeBridge.showNotch(activationStateToNotchPayload(nextState));
+    },
+    [nativeBridge]
+  );
+
+  async function askTutor() {
+    const nextThinkingState = reduceActivationState(activationState, { type: 'thinking_started' });
+    await showActivationState(nextThinkingState);
+    const nextResponse = await orchestrator.runTextTurn({
+      request: {
         ...activeApp,
         userQuery: query,
         annotations
-      })
-    );
-    setIsOverlayActive(true);
-    setOverlayActivationCount((count) => count + 1);
+      },
+      screenCapture,
+      skillSlug: env.defaultSkill
+    });
+    setResponse(nextResponse);
+
+    const hasVisualTargets = nextResponse.visualTargets.length > 0;
+    setIsOverlayActive(hasVisualTargets);
+    if (hasVisualTargets) {
+      setOverlayActivationCount((count) => count + 1);
+    } else {
+      void nativeBridge.hideOverlay();
+    }
+    await showActivationState(reduceActivationState(nextThinkingState, { type: 'response_ready' }));
   }
 
   function pointFromPointerEvent(event: PointerEvent<HTMLElement>): AnnotationPoint {
@@ -287,7 +322,8 @@ export function App() {
 
     nativeBridge
       .registerActivationShortcut(async () => {
-        void nativeBridge.showNotch();
+        const listeningState = reduceActivationState('idle', { type: 'shortcut_pressed' });
+        await showActivationState(listeningState);
         setIsOverlayActive(false);
         void nativeBridge.hideOverlay();
         const [nextActiveApp, nextPermissions, nextScreenCapture] = await Promise.all([
@@ -298,6 +334,11 @@ export function App() {
         setActiveApp(nextActiveApp);
         setPermissions(nextPermissions);
         setScreenCapture(nextScreenCapture);
+        await showActivationState(
+          reduceActivationState(listeningState, {
+            type: nextScreenCapture.captured ? 'capture_complete' : 'capture_failed'
+          })
+        );
       })
       .then((registration) => {
         if (isMounted) {
@@ -308,7 +349,7 @@ export function App() {
     return () => {
       isMounted = false;
     };
-  }, [nativeBridge, refreshNativeContext]);
+  }, [nativeBridge, refreshNativeContext, showActivationState]);
 
   const missingPermissions = requiredPermissions.filter(
     (permission) => !isPermissionGranted(permissions, permission.key)
@@ -425,6 +466,7 @@ export function App() {
       <section className="workspace">
         <aside className="panel">
           <h2>Activation</h2>
+          <p>State: {activationState}</p>
           <p>Shortcut target: {activationShortcut.shortcut}</p>
           <p>Status: {activationShortcut.registered ? 'registered' : activationShortcut.reason}</p>
           <p>Default skill: {env.defaultSkill}</p>
@@ -489,9 +531,12 @@ export function App() {
                     draggable={false}
                     src={previewSource.imageSrc}
                   />
-                ) : (
-                  <div className="cube" />
-                )}
+                ) : previewSource.mode === 'mock' ? (
+                  <div className="screen-empty">
+                    <strong>Waiting for screen capture</strong>
+                    <span>Press the shortcut to capture the current app.</span>
+                  </div>
+                ) : null}
                 <AnnotationLayer
                   annotations={annotations}
                   draftAnnotation={draftAnnotation}

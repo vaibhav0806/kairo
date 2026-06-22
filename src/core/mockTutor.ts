@@ -5,6 +5,17 @@ export function createMockTutorPlanner() {
   const registry = createSkillPackRegistry();
 
   return {
+    createIdleResponse(skillSlug = 'blender'): TutorResponse {
+      return {
+        mode: 'idle',
+        skillSlug,
+        voiceText: 'Kairo is ready. Press the shortcut, capture your screen, then ask for help.',
+        screenText: 'Ready when you are.',
+        visualTargets: [],
+        expectedNextState: 'user_asks_question'
+      };
+    },
+
     planNextStep(request: TutorRequest): TutorResponse {
       const skill = registry.matchActiveApp(request) ?? registry.getBySlug('blender');
       const normalizedQuery = request.userQuery.toLowerCase();

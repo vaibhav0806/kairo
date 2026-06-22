@@ -1,6 +1,7 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { register as registerGlobalShortcut } from '@tauri-apps/plugin-global-shortcut';
 import type { VisualTarget } from '../core/types';
+import type { NotchPayload } from '../notch/types';
 
 export type NativeInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 export type NativeShortcutEvent = {
@@ -68,7 +69,8 @@ export type NativeBridge = {
   updateOverlay(payload: NativeOverlayPayload): Promise<void>;
   getCurrentOverlayPayload(): Promise<NativeOverlayPayload | null>;
   hideOverlay(): Promise<void>;
-  showNotch(): Promise<void>;
+  showNotch(payload?: NotchPayload): Promise<void>;
+  getCurrentNotchPayload(): Promise<NotchPayload | null>;
   hideNotch(): Promise<void>;
   registerActivationShortcut(onActivated: () => void | Promise<void>): Promise<NativeShortcutRegistration>;
 };
@@ -259,11 +261,19 @@ export function createNativeBridge(
       }
     },
 
-    async showNotch() {
+    async showNotch(payload) {
       try {
-        await invoke<void>('show_notch');
+        await invoke<void>('show_notch', { payload: payload ?? null });
       } catch {
         // Browser previews do not have a native notch window.
+      }
+    },
+
+    async getCurrentNotchPayload() {
+      try {
+        return await invoke<NotchPayload | null>('get_current_notch_payload');
+      } catch {
+        return null;
       }
     },
 

@@ -43,7 +43,7 @@ export type PercentRegion = {
 };
 
 export type TutorResponse = {
-  mode: 'stuck_help' | 'guided_lesson';
+  mode: 'idle' | 'stuck_help' | 'guided_lesson';
   skillSlug: string;
   voiceText: string;
   screenText: string;

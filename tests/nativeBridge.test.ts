@@ -211,13 +211,18 @@ describe('createNativeBridge', () => {
   });
 
   test('shows and hides the native notch assistant window', async () => {
+    const payload = {
+      state: 'listening' as const,
+      title: 'Kairo is listening',
+      detail: 'Capturing the current screen'
+    };
     const invoke = vi.fn(async () => undefined) as unknown as NativeInvoke;
     const bridge = createNativeBridge(invoke);
 
-    await expect(bridge.showNotch()).resolves.toBeUndefined();
+    await expect(bridge.showNotch(payload)).resolves.toBeUndefined();
     await expect(bridge.hideNotch()).resolves.toBeUndefined();
 
-    expect(invoke).toHaveBeenCalledWith('show_notch');
+    expect(invoke).toHaveBeenCalledWith('show_notch', { payload });
     expect(invoke).toHaveBeenCalledWith('hide_notch');
   });
 
