@@ -155,7 +155,7 @@ export function buildTutorPlannerMessages(input: TutorTurnInput): OpenRouterMess
           { type: 'text', text: userText },
           {
             type: 'image_url',
-            image_url: {
+            imageUrl: {
               url: `data:${input.screen.imageMimeType};base64,${input.screen.imageBase64}`
             }
           }

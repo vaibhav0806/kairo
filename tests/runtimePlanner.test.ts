@@ -67,7 +67,7 @@ describe('createRuntimeTutorPlanner', () => {
       mode: 'stuck_help',
       skillSlug: 'blender',
       voiceText: expect.stringContaining('provider'),
-      screenText: expect.stringContaining('Kairo could not reach the configured AI provider'),
+      screenText: expect.stringContaining('Kairo could not complete the request'),
       expectedNextState: 'provider_configuration_required',
       providerMetadata: {
         confidenceState: 'low',

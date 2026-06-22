@@ -6,6 +6,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     sync::Mutex,
+    time::Duration,
 };
 use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, State};
 use tauri_plugin_global_shortcut::ShortcutState;
@@ -867,6 +868,13 @@ fn provider_env(name: &str, fallback: &str) -> String {
     provider_env_optional(name).unwrap_or_else(|| fallback.to_string())
 }
 
+fn provider_timeout_ms(raw_value: Option<String>) -> u64 {
+    raw_value
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(30_000)
+}
+
 fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
     [
         "You are Kairo Tutor, a screen-native software tutor.".to_string(),
@@ -920,7 +928,7 @@ fn build_openrouter_messages(input: &TutorTurnInput) -> Result<Value, String> {
                         },
                         {
                             "type": "image_url",
-                            "image_url": {
+                            "imageUrl": {
                                 "url": format!("data:{mime_type};base64,{image_base64}"),
                             },
                         },
@@ -955,9 +963,16 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
     let base_url = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
     let site_url = provider_env_optional("OPENROUTER_SITE_URL");
     let app_title = provider_env("OPENROUTER_APP_TITLE", "Kairo Tutor");
+    let timeout = Duration::from_millis(provider_timeout_ms(provider_env_optional(
+        "OPENROUTER_REQUEST_TIMEOUT_MS",
+    )));
     let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
-    let mut request = reqwest::Client::new()
+    let client = reqwest::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(|error| format!("Failed to build OpenRouter client: {error}"))?;
+    let mut request = client
         .post(endpoint)
         .bearer_auth(api_key)
         .header("Content-Type", "application/json")
@@ -1188,7 +1203,11 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_local_env;
+    use super::{
+        build_openrouter_messages, parse_local_env, provider_timeout_ms, OverlayDisplayBounds,
+        TutorActiveAppContext, TutorScreenInput, TutorSkillPack, TutorTurnInput,
+    };
+    use serde_json::json;
 
     #[test]
     fn parses_local_env_values() {
@@ -1229,5 +1248,57 @@ mod tests {
         );
 
         assert!(values.is_empty());
+    }
+
+    #[test]
+    fn provider_timeout_ms_uses_positive_values_or_default() {
+        assert_eq!(provider_timeout_ms(Some("12000".to_string())), 12000);
+        assert_eq!(provider_timeout_ms(Some("0".to_string())), 30000);
+        assert_eq!(provider_timeout_ms(Some("not-a-number".to_string())), 30000);
+        assert_eq!(provider_timeout_ms(None), 30000);
+    }
+
+    #[test]
+    fn openrouter_messages_use_openrouter_image_url_shape() {
+        let input = TutorTurnInput {
+            user_query: "What should I click?".to_string(),
+            active_app: TutorActiveAppContext {
+                active_app: "Blender".to_string(),
+                bundle_id: Some("org.blenderfoundation.blender".to_string()),
+                window_title: Some("Blender".to_string()),
+            },
+            annotations: vec![],
+            screen: TutorScreenInput {
+                captured: true,
+                reason: None,
+                image_mime_type: Some("image/png".to_string()),
+                image_base64: Some("abc123".to_string()),
+                byte_length: Some(6),
+                display_bounds: Some(OverlayDisplayBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 900.0,
+                    height: 600.0,
+                    scale_factor: 2.0,
+                }),
+            },
+            skill: TutorSkillPack {
+                slug: "blender".to_string(),
+                display_name: "Blender".to_string(),
+                app_identifiers: vec!["org.blenderfoundation.blender".to_string()],
+                landmarks: json!({}),
+            },
+            constraints: vec!["Return one short tutor step.".to_string()],
+        };
+
+        let messages = build_openrouter_messages(&input).expect("messages should build");
+        let image_part = &messages[1]["content"][1];
+
+        assert_eq!(image_part["type"], "image_url");
+        assert_eq!(
+            image_part["imageUrl"]["url"],
+            "data:image/png;base64,abc123"
+        );
+        assert!(image_part.get("image_url").is_none());
     }
 }

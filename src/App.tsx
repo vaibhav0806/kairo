@@ -18,6 +18,7 @@ import { loadBrowserEnv } from './config/env';
 import { createMockTutorPlanner } from './core/mockTutor';
 import { createTutorOrchestrator } from './core/orchestrator';
 import { createRuntimeTutorPlanner } from './core/runtimePlanner';
+import { createTutorRuntimeErrorResponse } from './core/tutorErrors';
 import type { ScreenDimensions, TutorResponse, UserAnnotation } from './core/types';
 import {
   createNativeBridge,
@@ -213,25 +214,37 @@ export function App() {
   const askTutor = useCallback(async (nextQuery = query) => {
     const nextThinkingState = reduceActivationState(activationState, { type: 'thinking_started' });
     await showActivationState(nextThinkingState);
-    const nextResponse = await orchestrator.runTextTurn({
-      request: {
-        ...activeApp,
-        userQuery: nextQuery,
-        annotations
-      },
-      screenCapture,
-      skillSlug: env.defaultSkill
-    });
-    setResponse(nextResponse);
+    try {
+      const nextResponse = await orchestrator.runTextTurn({
+        request: {
+          ...activeApp,
+          userQuery: nextQuery,
+          annotations
+        },
+        screenCapture,
+        skillSlug: env.defaultSkill
+      });
+      setResponse(nextResponse);
 
-    const hasVisualTargets = nextResponse.visualTargets.length > 0;
-    setIsOverlayActive(hasVisualTargets);
-    if (hasVisualTargets) {
-      setOverlayActivationCount((count) => count + 1);
-    } else {
+      const hasVisualTargets = nextResponse.visualTargets.length > 0;
+      setIsOverlayActive(hasVisualTargets);
+      if (hasVisualTargets) {
+        setOverlayActivationCount((count) => count + 1);
+      } else {
+        void nativeBridge.hideOverlay();
+      }
+    } catch (error) {
+      setResponse(
+        createTutorRuntimeErrorResponse({
+          skillSlug: env.defaultSkill,
+          error
+        })
+      );
+      setIsOverlayActive(false);
       void nativeBridge.hideOverlay();
+    } finally {
+      await showActivationState(reduceActivationState(nextThinkingState, { type: 'response_ready' }));
     }
-    await showActivationState(reduceActivationState(nextThinkingState, { type: 'response_ready' }));
   }, [
     activationState,
     activeApp,

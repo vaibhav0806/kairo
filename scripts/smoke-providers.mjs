@@ -106,6 +106,46 @@ async function testOpenRouter(env) {
 
   console.log(`OpenRouter: ok (${model})`);
   console.log(`OpenRouter response: ${content}`);
+
+  const tinyPng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP8z8BQDwAFgwJ/lzgr4QAAAABJRU5ErkJggg==';
+  const visionPayload = await postJson(
+    `${baseUrl}/chat/completions`,
+    {
+      Authorization: `Bearer ${apiKey}`,
+      'HTTP-Referer': env.OPENROUTER_SITE_URL || 'http://localhost:5173',
+      'X-OpenRouter-Title': env.OPENROUTER_APP_TITLE || 'Kairo Tutor'
+    },
+    {
+      model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Reply with exactly: Kairo vision smoke test passed.'
+            },
+            {
+              type: 'image_url',
+              imageUrl: {
+                url: `data:image/png;base64,${tinyPng}`
+              }
+            }
+          ]
+        }
+      ],
+      temperature: 0,
+      max_tokens: 24
+    }
+  );
+  const visionContent = visionPayload?.choices?.[0]?.message?.content;
+  if (!visionContent) {
+    throw new Error('OpenRouter vision response did not include assistant content.');
+  }
+
+  console.log(`OpenRouter vision: ok (${model})`);
+  console.log(`OpenRouter vision response: ${visionContent}`);
 }
 
 async function testSarvamTts(env) {
