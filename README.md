@@ -187,10 +187,14 @@ Tauri commands:
 - `get_active_app`: returns frontmost macOS app name, bundle id, and front window title when available.
 - `get_permission_status`: returns screen/accessibility permission probes and microphone state where the WebView permission API is available.
 - `capture_screen`: blocks sensitive apps locally, captures a PNG through ScreenCaptureKit, excludes Kairo windows when macOS exposes them, and returns base64 image metadata plus display bounds/scale.
+- `show_overlay`: positions the hidden transparent overlay window over the active display, sends typed visual targets, and shows it.
+- `update_overlay`: refreshes visual targets without focusing the overlay window.
+- `hide_overlay`: hides the native overlay window.
 
 Pending native work:
 
 - Customizable shortcut settings
+- Multi-display overlay routing
 
 ## Project Structure
 
@@ -200,6 +204,7 @@ src/
   config/env.ts
   core/
   native/nativeBridge.ts
+  overlay/
   server/providers/openRouter.ts
 
 src-tauri/
@@ -232,3 +237,19 @@ scripts/
 - Preserve the learning principle: the tutor guides and points; the learner acts.
 - Stick with Tauri through the next milestone unless a verified WebKit/WKWebView blocker appears.
 - Before UI work for any new macOS native capability, update `Info.plist`, add required entitlements, document TCC reset/test notes, and verify the signed app with `codesign -d --entitlements :- path/to/Kairo\ Tutor.app`.
+
+## Native Capability Notes
+
+### Transparent Overlay Window
+
+- Tauri config: `src-tauri/tauri.conf.json` defines a hidden `overlay` window with `transparent`, `decorations: false`, `alwaysOnTop`, `skipTaskbar`, `focus: false`, `focusable: false`, and `visibleOnAllWorkspaces`.
+- Runtime hardening: `src-tauri/src/lib.rs` reapplies always-on-top, non-focusable, skip-taskbar, no-shadow, and `set_ignore_cursor_events(true)` so the overlay is click-through.
+- macOS transparent WebViews require `app.macOSPrivateApi: true` and the Rust dependency feature `tauri = { features = ["macos-private-api"] }`.
+- TCC/Info.plist: no new TCC prompt is required for drawing a transparent always-on-top overlay. Existing screen/accessibility/microphone prompts remain unchanged.
+- Entitlements: no new entitlement is required for the overlay. The signed app should still report the existing microphone entitlement:
+
+```bash
+codesign -d --entitlements :- "src-tauri/target/release/bundle/macos/Kairo Tutor.app"
+```
+
+- Verification used for this capability: `npm test -- --run`, `npm run build`, `cargo check`, `cargo test`, `npm exec tauri info`, `npm run tauri:build`, and `git diff --check`.

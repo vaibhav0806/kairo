@@ -119,11 +119,13 @@ Run typecheck, tests, and production build.
 **Reference:** Read `docs/clicky-borrowing-notes.md` first, especially the transparent overlay window and pointing protocol sections.
 
 **Scope:**
-- Transparent always-on-top overlay window.
-- Highlight boxes, arrows, underlines, spotlight, and ghost cursor.
-- User annotation tools: circle, rectangle, highlight, underline, erase.
-- Coordinate normalization for Retina scale and multiple displays.
-- Attach annotations to the next tutor request.
+- [x] Transparent always-on-top overlay window.
+- [ ] Highlight boxes, arrows, underlines, spotlight, and ghost cursor.
+- [ ] User annotation tools: circle, rectangle, highlight, underline, erase.
+- [x] Coordinate normalization contract for screen regions.
+- [ ] Coordinate normalization for Retina scale and multiple displays.
+- [ ] Attach annotations to the next tutor request.
+- [x] Render mock tutor targets as overlay elements on the screen preview.
 
 **Acceptance Criteria:**
 - Mock tutor targets render as overlays on the active display.

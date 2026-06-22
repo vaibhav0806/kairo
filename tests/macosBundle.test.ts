@@ -16,4 +16,32 @@ describe('macOS bundle permissions', () => {
     expect(infoPlist).toContain('<key>NSMicrophoneUsageDescription</key>');
     expect(infoPlist).toContain('voice input during tutoring sessions');
   });
+
+  test('configures a hidden transparent always-on-top overlay window', () => {
+    const tauriConfig = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+    const overlayWindow = tauriConfig.app.windows.find(
+      (windowConfig: { label: string }) => windowConfig.label === 'overlay'
+    );
+
+    expect(tauriConfig.app.macOSPrivateApi).toBe(true);
+    expect(overlayWindow).toMatchObject({
+      label: 'overlay',
+      title: 'Kairo Tutor Overlay',
+      url: 'index.html#/overlay',
+      transparent: true,
+      decorations: false,
+      alwaysOnTop: true,
+      visible: false,
+      skipTaskbar: true,
+      focus: false,
+      focusable: false,
+      shadow: false
+    });
+  });
+
+  test('allows both main and overlay windows in the default capability scope', () => {
+    const capability = JSON.parse(readFileSync('src-tauri/capabilities/default.json', 'utf8'));
+
+    expect(capability.windows).toEqual(expect.arrayContaining(['main', 'overlay']));
+  });
 });

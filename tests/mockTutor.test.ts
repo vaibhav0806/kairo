@@ -16,7 +16,13 @@ describe('createMockTutorPlanner', () => {
     expect(response.voiceText).toContain('click the cube');
     expect(response.visualTargets[0]).toMatchObject({
       kind: 'highlight_box',
-      targetId: 'default_cube'
+      targetId: 'default_cube',
+      screenRegion: {
+        x: 928,
+        y: 430,
+        width: 160,
+        height: 160
+      }
     });
   });
 });

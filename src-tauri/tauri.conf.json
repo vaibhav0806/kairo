@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "main",
@@ -19,6 +20,26 @@
         "minWidth": 920,
         "minHeight": 640,
         "resizable": true
+      },
+      {
+        "label": "overlay",
+        "title": "Kairo Tutor Overlay",
+        "url": "index.html#/overlay",
+        "width": 1000,
+        "height": 700,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "visibleOnAllWorkspaces": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "focus": false,
+        "focusable": false,
+        "shadow": false
       }
     ],
     "security": {

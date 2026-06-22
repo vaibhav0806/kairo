@@ -21,13 +21,25 @@ export function createMockTutorPlanner() {
               kind: 'highlight_box',
               targetId: 'default_cube',
               label: 'Default cube',
-              confidence: 0.86
+              confidence: 0.86,
+              screenRegion: {
+                x: 928,
+                y: 430,
+                width: 160,
+                height: 160
+              }
             },
             {
               kind: 'ghost_cursor',
               targetId: 'default_cube',
               label: 'AI pointer on the cube',
-              confidence: 0.86
+              confidence: 0.86,
+              screenRegion: {
+                x: 1008,
+                y: 510,
+                width: 1,
+                height: 1
+              }
             }
           ],
           expectedNextState: 'cube_selected'

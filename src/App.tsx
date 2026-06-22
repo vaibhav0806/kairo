@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadBrowserEnv } from './config/env';
 import { createMockTutorPlanner } from './core/mockTutor';
-import type { TutorResponse } from './core/types';
+import type { ScreenDimensions, TutorResponse } from './core/types';
 import {
   createNativeBridge,
   type NativeActiveApp,
@@ -10,12 +10,18 @@ import {
   type NativeScreenCapture,
   type NativeShortcutRegistration
 } from './native/nativeBridge';
+import { VisualOverlay } from './overlay/VisualOverlay';
 
 const demoContext = {
   activeApp: 'Blender',
   bundleId: 'org.blenderfoundation.blender',
   windowTitle: 'Blender',
   source: 'web-fallback' as const
+};
+
+const mockPreviewDimensions: ScreenDimensions = {
+  width: 1920,
+  height: 1080
 };
 
 function isPermissionGranted(status: NativePermissionStatus, permission: keyof NativePermissionStatus) {
@@ -75,6 +81,7 @@ export function App() {
     microphone: 'unknown'
   });
   const [screenCapture, setScreenCapture] = useState<NativeScreenCapture | null>(null);
+  const [isOverlayActive, setIsOverlayActive] = useState(false);
   const [isRequestingPermissions, setIsRequestingPermissions] = useState(false);
   const [activationShortcut, setActivationShortcut] = useState<NativeShortcutRegistration>({
     registered: false,
@@ -97,6 +104,7 @@ export function App() {
         annotations: []
       })
     );
+    setIsOverlayActive(true);
   }
 
   const refreshNativeContext = useCallback(async () => {
@@ -139,6 +147,7 @@ export function App() {
 
     nativeBridge
       .registerActivationShortcut(() => {
+        setIsOverlayActive(true);
         void refreshNativeContext();
       })
       .then((registration) => {
@@ -180,6 +189,28 @@ export function App() {
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, [missingPermissions.length, refreshPermissionStatus]);
+
+  useEffect(() => {
+    if (!isOverlayActive || response.visualTargets.length === 0) {
+      void nativeBridge.hideOverlay();
+      return undefined;
+    }
+
+    void nativeBridge.showOverlay({
+      displayBounds: screenCapture?.displayBounds ?? {
+        x: 0,
+        y: 0,
+        width: mockPreviewDimensions.width,
+        height: mockPreviewDimensions.height,
+        scaleFactor: 1
+      },
+      targets: response.visualTargets
+    });
+
+    return () => {
+      void nativeBridge.hideOverlay();
+    };
+  }, [isOverlayActive, nativeBridge, response.visualTargets, screenCapture?.displayBounds]);
 
   return (
     <main className="app-shell">
@@ -274,6 +305,7 @@ export function App() {
           <div className="screen-preview" aria-label="Mock screen preview">
             <div className="toolbar">Blender viewport</div>
             <div className="cube" />
+            <VisualOverlay targets={response.visualTargets} dimensions={mockPreviewDimensions} />
             <div className="timeline">Timeline: frame 1 - 250</div>
           </div>
 

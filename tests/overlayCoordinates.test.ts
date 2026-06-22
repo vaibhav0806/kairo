@@ -1,0 +1,48 @@
+import { describe, expect, test } from 'vitest';
+import { normalizeRegionToPercent } from '../src/overlay/coordinates';
+
+describe('overlay coordinate normalization', () => {
+  test('maps screenshot pixel regions into percentage overlay regions', () => {
+    expect(
+      normalizeRegionToPercent(
+        {
+          x: 960,
+          y: 486,
+          width: 180,
+          height: 180
+        },
+        {
+          width: 1920,
+          height: 1080
+        }
+      )
+    ).toEqual({
+      left: 50,
+      top: 45,
+      width: 9.375,
+      height: 16.666666666666664
+    });
+  });
+
+  test('clamps regions to the visible display bounds', () => {
+    expect(
+      normalizeRegionToPercent(
+        {
+          x: -120,
+          y: 900,
+          width: 420,
+          height: 300
+        },
+        {
+          width: 1000,
+          height: 1000
+        }
+      )
+    ).toEqual({
+      left: 0,
+      top: 90,
+      width: 30,
+      height: 10
+    });
+  });
+});

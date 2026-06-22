@@ -13,6 +13,11 @@ body {
   margin: 0;
 }
 
+:root.overlay-document,
+body.overlay-document {
+  background: transparent;
+}
+
 button,
 input {
   font: inherit;
@@ -186,6 +191,48 @@ input {
   content: "";
   inset: -16px;
   position: absolute;
+}
+
+.visual-overlay {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.overlay-target {
+  position: absolute;
+}
+
+.overlay-target.highlight_box {
+  border: 3px solid #53e0cf;
+  box-shadow: 0 0 0 9999px rgb(10 14 18 / 0.18);
+}
+
+.overlay-target.ghost_cursor {
+  height: 22px !important;
+  transform: translate(-4px, -4px) rotate(-22deg);
+  width: 22px !important;
+}
+
+.overlay-target.ghost_cursor::before {
+  border-bottom: 11px solid transparent;
+  border-left: 0;
+  border-right: 16px solid #ffffff;
+  border-top: 11px solid transparent;
+  content: "";
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.35));
+  left: 0;
+  position: absolute;
+  top: 0;
+}
+
+.overlay-shell {
+  background: transparent;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
 }
 
 .timeline {

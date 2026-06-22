@@ -7,12 +7,7 @@ export type ActiveAppContext = {
 export type UserAnnotation = {
   id: string;
   type: 'circle' | 'rectangle' | 'highlight' | 'underline';
-  screenRegion: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
+  screenRegion: ScreenRegion;
 };
 
 export type TutorRequest = ActiveAppContext & {
@@ -25,6 +20,26 @@ export type VisualTarget = {
   targetId: string;
   label: string;
   confidence: number;
+  screenRegion: ScreenRegion;
+};
+
+export type ScreenRegion = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type ScreenDimensions = {
+  width: number;
+  height: number;
+};
+
+export type PercentRegion = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 };
 
 export type TutorResponse = {

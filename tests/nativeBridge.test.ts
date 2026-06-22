@@ -166,6 +166,42 @@ describe('createNativeBridge', () => {
     });
   });
 
+  test('sends tutor overlay payloads to the native overlay window commands', async () => {
+    const invoke = vi.fn(async () => undefined) as unknown as NativeInvoke;
+    const bridge = createNativeBridge(invoke);
+    const payload = {
+      displayBounds: {
+        x: 0,
+        y: 0,
+        width: 1920,
+        height: 1080,
+        scaleFactor: 2
+      },
+      targets: [
+        {
+          kind: 'highlight_box' as const,
+          targetId: 'default_cube',
+          label: 'Default cube',
+          confidence: 0.86,
+          screenRegion: {
+            x: 928,
+            y: 430,
+            width: 160,
+            height: 160
+          }
+        }
+      ]
+    };
+
+    await expect(bridge.showOverlay(payload)).resolves.toBeUndefined();
+    await expect(bridge.updateOverlay(payload)).resolves.toBeUndefined();
+    await expect(bridge.hideOverlay()).resolves.toBeUndefined();
+
+    expect(invoke).toHaveBeenCalledWith('show_overlay', { payload });
+    expect(invoke).toHaveBeenCalledWith('update_overlay', { payload });
+    expect(invoke).toHaveBeenCalledWith('hide_overlay');
+  });
+
   test('registers activation shortcut and focuses the desktop window on press', async () => {
     let shortcutHandler: ((event: { state: string; shortcut: string }) => void) | undefined;
     const registerShortcut = vi.fn(async (_shortcut: string, handler) => {

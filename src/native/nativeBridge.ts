@@ -1,6 +1,7 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { register as registerGlobalShortcut } from '@tauri-apps/plugin-global-shortcut';
+import type { VisualTarget } from '../core/types';
 
 export type NativeInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
 export type NativeShortcutEvent = {
@@ -51,12 +52,22 @@ export type NativeScreenCapture = {
   };
 };
 
+export type NativeOverlayDisplayBounds = NonNullable<NativeScreenCapture['displayBounds']>;
+
+export type NativeOverlayPayload = {
+  displayBounds: NativeOverlayDisplayBounds;
+  targets: VisualTarget[];
+};
+
 export type NativeBridge = {
   getActiveApp(): Promise<NativeActiveApp>;
   getPermissionStatus(): Promise<NativePermissionStatus>;
   requestRequiredPermissions(): Promise<NativePermissionStatus>;
   openPermissionSettings(permission: NativePermissionKey): Promise<void>;
   captureScreen(): Promise<NativeScreenCapture>;
+  showOverlay(payload: NativeOverlayPayload): Promise<void>;
+  updateOverlay(payload: NativeOverlayPayload): Promise<void>;
+  hideOverlay(): Promise<void>;
   registerActivationShortcut(onActivated: () => void): Promise<NativeShortcutRegistration>;
 };
 
@@ -211,6 +222,30 @@ export function createNativeBridge(
         await invoke<void>('open_permission_settings', { permission });
       } catch {
         // Browser previews cannot open macOS System Settings.
+      }
+    },
+
+    async showOverlay(payload) {
+      try {
+        await invoke<void>('show_overlay', { payload });
+      } catch {
+        // Browser previews do not have a native overlay window.
+      }
+    },
+
+    async updateOverlay(payload) {
+      try {
+        await invoke<void>('update_overlay', { payload });
+      } catch {
+        // Browser previews do not have a native overlay window.
+      }
+    },
+
+    async hideOverlay() {
+      try {
+        await invoke<void>('hide_overlay');
+      } catch {
+        // Browser previews do not have a native overlay window.
       }
     },
 

@@ -1,6 +1,6 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{fs, process::Command};
-use tauri::{LogicalSize, Manager};
+use tauri::{Emitter, LogicalPosition, LogicalSize, Manager};
 
 #[cfg(target_os = "macos")]
 use block2::RcBlock;
@@ -65,6 +65,42 @@ struct ScreenCaptureResult {
     image_base64: Option<String>,
     byte_length: Option<usize>,
     display_bounds: Option<DisplayBounds>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScreenRegion {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OverlayDisplayBounds {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    scale_factor: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OverlayTarget {
+    kind: String,
+    target_id: String,
+    label: String,
+    confidence: f64,
+    screen_region: ScreenRegion,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OverlayPayload {
+    display_bounds: OverlayDisplayBounds,
+    targets: Vec<OverlayTarget>,
 }
 
 #[cfg(target_os = "macos")]
@@ -469,6 +505,72 @@ fn capture_screen() -> ScreenCaptureResult {
     }
 }
 
+fn overlay_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
+    app.get_webview_window("overlay")
+        .ok_or_else(|| "Kairo overlay window was not created.".to_string())
+}
+
+fn configure_overlay_window(window: &tauri::WebviewWindow, payload: &OverlayPayload) -> Result<(), String> {
+    window
+        .set_focusable(false)
+        .map_err(|error| format!("Failed to keep overlay non-focusable: {error}"))?;
+    window
+        .set_always_on_top(true)
+        .map_err(|error| format!("Failed to keep overlay above other windows: {error}"))?;
+    window
+        .set_skip_taskbar(true)
+        .map_err(|error| format!("Failed to keep overlay out of the taskbar: {error}"))?;
+    window
+        .set_ignore_cursor_events(true)
+        .map_err(|error| format!("Failed to keep overlay click-through: {error}"))?;
+    let _ = window.set_shadow(false);
+    window
+        .set_position(LogicalPosition::new(
+            payload.display_bounds.x,
+            payload.display_bounds.y,
+        ))
+        .map_err(|error| format!("Failed to position overlay: {error}"))?;
+    window
+        .set_size(LogicalSize::new(
+            payload.display_bounds.width,
+            payload.display_bounds.height,
+        ))
+        .map_err(|error| format!("Failed to size overlay: {error}"))?;
+
+    Ok(())
+}
+
+fn emit_overlay_payload(window: &tauri::WebviewWindow, payload: OverlayPayload) -> Result<(), String> {
+    window
+        .emit("overlay:update", payload)
+        .map_err(|error| format!("Failed to update overlay targets: {error}"))
+}
+
+#[tauri::command]
+fn show_overlay(app: tauri::AppHandle, payload: OverlayPayload) -> Result<(), String> {
+    let window = overlay_window(&app)?;
+    configure_overlay_window(&window, &payload)?;
+    emit_overlay_payload(&window, payload)?;
+    window
+        .show()
+        .map_err(|error| format!("Failed to show overlay: {error}"))
+}
+
+#[tauri::command]
+fn update_overlay(app: tauri::AppHandle, payload: OverlayPayload) -> Result<(), String> {
+    let window = overlay_window(&app)?;
+    configure_overlay_window(&window, &payload)?;
+    emit_overlay_payload(&window, payload)
+}
+
+#[tauri::command]
+fn hide_overlay(app: tauri::AppHandle) -> Result<(), String> {
+    let window = overlay_window(&app)?;
+    window
+        .hide()
+        .map_err(|error| format!("Failed to hide overlay: {error}"))
+}
+
 #[allow(dead_code)]
 fn _permission_status_fallback() -> PermissionStatus {
     PermissionStatus {
@@ -511,6 +613,17 @@ pub fn run() {
                 #[cfg(debug_assertions)]
                 eprintln!("Kairo Tutor startup: main window was not created");
             }
+            if let Some(window) = app.get_webview_window("overlay") {
+                let _ = window.set_focusable(false);
+                let _ = window.set_always_on_top(true);
+                let _ = window.set_skip_taskbar(true);
+                let _ = window.set_ignore_cursor_events(true);
+                let _ = window.set_shadow(false);
+                let _ = window.hide();
+            } else {
+                #[cfg(debug_assertions)]
+                eprintln!("Kairo Tutor startup: overlay window was not created");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -518,7 +631,10 @@ pub fn run() {
             get_permission_status,
             request_required_permissions,
             open_permission_settings,
-            capture_screen
+            capture_screen,
+            show_overlay,
+            update_overlay,
+            hide_overlay
         ])
         .run(tauri::generate_context!())
         .expect("error while running Kairo Tutor");
