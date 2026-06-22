@@ -159,12 +159,12 @@ input {
 }
 
 .screen-preview {
-  aspect-ratio: 16 / 9;
   background: #26313a;
   border: 1px solid #151c22;
   border-radius: 8px;
   color: #eef5f7;
-  min-height: 360px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
   position: relative;
 }
@@ -195,8 +195,25 @@ input {
   position: absolute;
 }
 
+.screen-preview-stage {
+  background: #26313a;
+  min-height: 300px;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.screen-capture-image {
+  height: 100%;
+  inset: 0;
+  object-fit: fill;
+  position: absolute;
+  user-select: none;
+  width: 100%;
+}
+
 .annotation-canvas {
-  inset: 45px 0 47px;
+  inset: 0;
   position: absolute;
   touch-action: none;
   z-index: 3;
@@ -240,7 +257,7 @@ input {
 }
 
 .visual-overlay {
-  inset: 45px 0 47px;
+  inset: 0;
   pointer-events: none;
   position: absolute;
   z-index: 2;
@@ -319,11 +336,8 @@ input {
 .timeline {
   background: #20282f;
   border-top: 1px solid #151c22;
-  bottom: 0;
-  left: 0;
   padding: 14px;
-  position: absolute;
-  right: 0;
+  position: relative;
   z-index: 5;
 }
 

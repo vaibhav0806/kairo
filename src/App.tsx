@@ -19,6 +19,7 @@ import {
 } from './native/nativeBridge';
 import { normalizeRegionToPercent } from './overlay/coordinates';
 import { VisualOverlay } from './overlay/VisualOverlay';
+import { resolveScreenPreview } from './screenPreview';
 
 const demoContext = {
   activeApp: 'Blender',
@@ -160,6 +161,7 @@ export function App() {
       annotations: []
     })
   );
+  const previewSource = resolveScreenPreview(screenCapture, mockPreviewDimensions);
 
   function askTutor() {
     setResponse(
@@ -178,14 +180,14 @@ export function App() {
 
     return {
       x: clamp(
-        ((event.clientX - bounds.left) / bounds.width) * mockPreviewDimensions.width,
+        ((event.clientX - bounds.left) / bounds.width) * previewSource.dimensions.width,
         0,
-        mockPreviewDimensions.width
+        previewSource.dimensions.width
       ),
       y: clamp(
-        ((event.clientY - bounds.top) / bounds.height) * mockPreviewDimensions.height,
+        ((event.clientY - bounds.top) / bounds.height) * previewSource.dimensions.height,
         0,
-        mockPreviewDimensions.height
+        previewSource.dimensions.height
       )
     };
   }
@@ -284,10 +286,17 @@ export function App() {
     void refreshNativeContext();
 
     nativeBridge
-      .registerActivationShortcut(() => {
+      .registerActivationShortcut(async () => {
         setIsOverlayActive(true);
         setOverlayActivationCount((count) => count + 1);
-        void refreshNativeContext();
+        const [nextActiveApp, nextPermissions, nextScreenCapture] = await Promise.all([
+          nativeBridge.getActiveApp(),
+          nativeBridge.getPermissionStatus(),
+          nativeBridge.captureScreen()
+        ]);
+        setActiveApp(nextActiveApp);
+        setPermissions(nextPermissions);
+        setScreenCapture(nextScreenCapture);
       })
       .then((registration) => {
         if (isMounted) {
@@ -456,24 +465,40 @@ export function App() {
         </aside>
 
         <section className="tutor-surface">
-          <div className="screen-preview" aria-label="Mock screen preview">
-            <div className="toolbar">Blender viewport</div>
+          <div className="screen-preview" aria-label="Screen preview">
+            <div className="toolbar">{previewSource.title}</div>
             <div
-              className={`annotation-canvas ${annotationTool === 'erase' ? 'erasing' : 'drawing'}`}
-              onPointerDown={handleAnnotationPointerDown}
-              onPointerMove={handleAnnotationPointerMove}
-              onPointerUp={handleAnnotationPointerUp}
-              onPointerCancel={() => setDraftDrag(null)}
-              role="presentation"
+              className="screen-preview-stage"
+              style={{
+                aspectRatio: `${previewSource.dimensions.width} / ${previewSource.dimensions.height}`
+              }}
             >
-              <div className="cube" />
-              <AnnotationLayer
-                annotations={annotations}
-                draftAnnotation={draftAnnotation}
-                dimensions={mockPreviewDimensions}
-              />
+              <div
+                className={`annotation-canvas ${annotationTool === 'erase' ? 'erasing' : 'drawing'}`}
+                onPointerDown={handleAnnotationPointerDown}
+                onPointerMove={handleAnnotationPointerMove}
+                onPointerUp={handleAnnotationPointerUp}
+                onPointerCancel={() => setDraftDrag(null)}
+                role="presentation"
+              >
+                {previewSource.imageSrc ? (
+                  <img
+                    alt=""
+                    className="screen-capture-image"
+                    draggable={false}
+                    src={previewSource.imageSrc}
+                  />
+                ) : (
+                  <div className="cube" />
+                )}
+                <AnnotationLayer
+                  annotations={annotations}
+                  draftAnnotation={draftAnnotation}
+                  dimensions={previewSource.dimensions}
+                />
+              </div>
+              <VisualOverlay targets={response.visualTargets} dimensions={previewSource.dimensions} />
             </div>
-            <VisualOverlay targets={response.visualTargets} dimensions={mockPreviewDimensions} />
             <div className="timeline">Timeline: frame 1 - 250</div>
           </div>
 

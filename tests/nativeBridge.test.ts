@@ -210,16 +210,23 @@ describe('createNativeBridge', () => {
     expect(invoke).toHaveBeenCalledWith('hide_overlay');
   });
 
-  test('registers activation shortcut and focuses the desktop window on press', async () => {
+  test('registers activation shortcut before focusing the desktop window on press', async () => {
     let shortcutHandler: ((event: { state: string; shortcut: string }) => void) | undefined;
+    const callOrder: string[] = [];
     const registerShortcut = vi.fn(async (_shortcut: string, handler) => {
       shortcutHandler = handler;
     }) as NativeShortcutRegistrar;
     const windowController: NativeWindowController = {
-      show: vi.fn(async () => undefined),
-      setFocus: vi.fn(async () => undefined)
+      show: vi.fn(async () => {
+        callOrder.push('show');
+      }),
+      setFocus: vi.fn(async () => {
+        callOrder.push('focus');
+      })
     };
-    const onActivated = vi.fn();
+    const onActivated = vi.fn(async () => {
+      callOrder.push('activate');
+    });
     const bridge = createNativeBridge(undefined, {
       registerShortcut,
       windowController
@@ -236,5 +243,6 @@ describe('createNativeBridge', () => {
     expect(windowController.show).toHaveBeenCalled();
     expect(windowController.setFocus).toHaveBeenCalled();
     expect(onActivated).toHaveBeenCalled();
+    expect(callOrder).toEqual(['activate', 'show', 'focus']);
   });
 });

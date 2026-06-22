@@ -69,7 +69,7 @@ export type NativeBridge = {
   updateOverlay(payload: NativeOverlayPayload): Promise<void>;
   getCurrentOverlayPayload(): Promise<NativeOverlayPayload | null>;
   hideOverlay(): Promise<void>;
-  registerActivationShortcut(onActivated: () => void): Promise<NativeShortcutRegistration>;
+  registerActivationShortcut(onActivated: () => void | Promise<void>): Promise<NativeShortcutRegistration>;
 };
 
 export type NativeShortcutRegistration = {
@@ -267,9 +267,9 @@ export function createNativeBridge(
             return;
           }
 
+          await onActivated();
           await windowController.show();
           await windowController.setFocus();
-          onActivated();
         });
 
         return {
