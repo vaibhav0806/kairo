@@ -112,46 +112,58 @@ async function testOpenRouter(env) {
 
   const tinyPng =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP8z8BQDwAFgwJ/lzgr4QAAAABJRU5ErkJggg==';
-  const visionPayload = await postJson(
-    `${baseUrl}/chat/completions`,
-    {
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': env.OPENROUTER_SITE_URL || 'http://localhost:5173',
-      'X-OpenRouter-Title': env.OPENROUTER_APP_TITLE || 'Kairo Tutor'
-    },
-    {
-      model,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text:
-                'Return only JSON with this exact shape: {"screenText":"Kairo vision smoke test passed.","voiceText":"Kairo vision smoke test passed."}'
-            },
-            {
-              type: 'image_url',
-              imageUrl: {
-                url: `data:image/png;base64,${tinyPng}`
-              }
-            }
-          ]
-        }
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0,
-      max_tokens: 80
-    }
-  );
-  const visionContent = visionPayload?.choices?.[0]?.message?.content;
-  if (!visionContent) {
-    throw new Error('OpenRouter vision response did not include assistant content.');
-  }
-  JSON.parse(visionContent);
+  const visionModel = env.OPENROUTER_VISION_MODEL || model;
 
-  console.log(`OpenRouter vision: ok (${model})`);
-  console.log(`OpenRouter vision response: ${visionContent}`);
+  try {
+    const visionPayload = await postJson(
+      `${baseUrl}/chat/completions`,
+      {
+        Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': env.OPENROUTER_SITE_URL || 'http://localhost:5173',
+        'X-OpenRouter-Title': env.OPENROUTER_APP_TITLE || 'Kairo Tutor'
+      },
+      {
+        model: visionModel,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text:
+                  'Return only JSON with this exact shape: {"screenText":"Kairo vision smoke test passed.","voiceText":"Kairo vision smoke test passed."}'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/png;base64,${tinyPng}`
+                }
+              }
+            ]
+          }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0,
+        max_tokens: 80
+      }
+    );
+    const visionContent = visionPayload?.choices?.[0]?.message?.content;
+    if (!visionContent) {
+      throw new Error('OpenRouter vision response did not include assistant content.');
+    }
+    JSON.parse(visionContent);
+
+    console.log(`OpenRouter vision: ok (${visionModel})`);
+    console.log(`OpenRouter vision response: ${visionContent}`);
+  } catch (error) {
+    if (env.OPENROUTER_VISION_MODEL) {
+      throw error;
+    }
+
+    const message = error instanceof Error ? error.message : 'unknown provider error';
+    console.log(`OpenRouter vision: unavailable for ${visionModel}; text fallback will be used.`);
+    console.log(`OpenRouter vision reason: ${message}`);
+  }
 }
 
 async function testSarvamTts(env) {

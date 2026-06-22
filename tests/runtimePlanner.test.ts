@@ -22,6 +22,33 @@ const input: TutorTurnInput = {
 };
 
 describe('createRuntimeTutorPlanner', () => {
+  test('returns a visible provider error when the native provider turn times out', async () => {
+    vi.useFakeTimers();
+    const runTutorTurn = vi.fn(() => new Promise<string>(() => undefined));
+    const mockPlanner = {
+      planNextStep: vi.fn()
+    };
+    const planner = createRuntimeTutorPlanner({
+      aiProvider: 'openrouter',
+      nativeBridge: { runTutorTurn },
+      mockPlanner,
+      tutorTurnTimeoutMs: 25
+    });
+
+    const result = planner(input);
+    await vi.advanceTimersByTimeAsync(25);
+
+    await expect(result).resolves.toMatchObject({
+      mode: 'stuck_help',
+      screenText: expect.stringContaining('Kairo could not complete the request'),
+      providerMetadata: {
+        confidenceState: 'low',
+        warnings: [expect.stringContaining('timed out')]
+      }
+    });
+    vi.useRealTimers();
+  });
+
   test('uses the native provider proxy when OpenRouter is selected', async () => {
     const runTutorTurn = vi.fn(async () =>
       JSON.stringify({

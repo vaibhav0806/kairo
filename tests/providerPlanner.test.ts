@@ -77,7 +77,7 @@ describe('OpenRouter tutor planner adapter', () => {
         expect.objectContaining({ type: 'text' }),
         {
           type: 'image_url',
-          imageUrl: { url: 'data:image/png;base64,abc123' }
+          image_url: { url: 'data:image/png;base64,abc123' }
         }
       ])
     );

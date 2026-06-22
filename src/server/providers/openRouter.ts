@@ -5,7 +5,7 @@ export type OpenRouterTextContent = {
 
 export type OpenRouterImageContent = {
   type: 'image_url';
-  imageUrl: {
+  image_url: {
     url: string;
   };
 };

@@ -909,11 +909,14 @@ fn build_tutor_user_prompt(input: &TutorTurnInput) -> Result<String, String> {
     .map_err(|error| format!("Failed to build tutor prompt: {error}"))
 }
 
-fn build_openrouter_messages(input: &TutorTurnInput) -> Result<Value, String> {
+fn build_openrouter_messages(
+    input: &TutorTurnInput,
+    include_screenshot: bool,
+) -> Result<Value, String> {
     let user_prompt = build_tutor_user_prompt(input)?;
     let system_prompt = build_tutor_system_prompt(input);
 
-    if input.screen.captured {
+    if include_screenshot && input.screen.captured {
         if let (Some(mime_type), Some(image_base64)) =
             (&input.screen.image_mime_type, &input.screen.image_base64)
         {
@@ -931,7 +934,7 @@ fn build_openrouter_messages(input: &TutorTurnInput) -> Result<Value, String> {
                         },
                         {
                             "type": "image_url",
-                            "imageUrl": {
+                            "image_url": {
                                 "url": format!("data:{mime_type};base64,{image_base64}"),
                             },
                         },
@@ -953,14 +956,85 @@ fn build_openrouter_messages(input: &TutorTurnInput) -> Result<Value, String> {
     ]))
 }
 
-fn build_openrouter_request_body(input: &TutorTurnInput, model: &str) -> Result<Value, String> {
+fn build_openrouter_request_body(
+    input: &TutorTurnInput,
+    model: &str,
+    include_screenshot: bool,
+) -> Result<Value, String> {
     Ok(json!({
         "model": model,
-        "messages": build_openrouter_messages(input)?,
+        "messages": build_openrouter_messages(input, include_screenshot)?,
         "response_format": { "type": "json_object" },
         "temperature": 0.2,
         "max_tokens": 700,
     }))
+}
+
+#[derive(Debug)]
+struct OpenRouterChatError {
+    message: String,
+    retry_without_screenshot: bool,
+}
+
+impl OpenRouterChatError {
+    fn new(message: String, retry_without_screenshot: bool) -> Self {
+        Self {
+            message,
+            retry_without_screenshot,
+        }
+    }
+}
+
+async fn send_openrouter_chat_request(
+    client: &reqwest::Client,
+    endpoint: &str,
+    api_key: &str,
+    app_title: &str,
+    site_url: Option<&str>,
+    body: Value,
+) -> Result<String, OpenRouterChatError> {
+    let mut request = client
+        .post(endpoint)
+        .bearer_auth(api_key)
+        .header("Content-Type", "application/json")
+        .header("X-OpenRouter-Title", app_title);
+
+    if let Some(site_url) = site_url {
+        request = request.header("HTTP-Referer", site_url);
+    }
+
+    let response = request.json(&body).send().await.map_err(|error| {
+        OpenRouterChatError::new(format!("OpenRouter request failed: {error}"), false)
+    })?;
+    let status = response.status();
+    let payload = response.json::<Value>().await.map_err(|error| {
+        OpenRouterChatError::new(format!("OpenRouter response was not JSON: {error}"), false)
+    })?;
+
+    if !status.is_success() {
+        let message = payload
+            .get("error")
+            .and_then(|error| error.get("message"))
+            .and_then(Value::as_str)
+            .or_else(|| payload.get("message").and_then(Value::as_str))
+            .unwrap_or("OpenRouter request failed");
+        return Err(OpenRouterChatError::new(message.to_string(), true));
+    }
+
+    payload
+        .get("choices")
+        .and_then(Value::as_array)
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|message| message.get("content"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+        .ok_or_else(|| {
+            OpenRouterChatError::new(
+                "OpenRouter response did not include assistant content.".to_string(),
+                false,
+            )
+        })
 }
 
 #[tauri::command]
@@ -977,6 +1051,9 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
         "OPENROUTER_API_KEY is required for native OpenRouter tutor turns.".to_string()
     })?;
     let model = provider_env("OPENROUTER_MODEL", "~openai/gpt-latest");
+    let vision_model = provider_env_optional("OPENROUTER_VISION_MODEL")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
     let base_url = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
     let site_url = provider_env_optional("OPENROUTER_SITE_URL");
     let app_title = provider_env("OPENROUTER_APP_TITLE", "Kairo Tutor");
@@ -989,46 +1066,46 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
         .timeout(timeout)
         .build()
         .map_err(|error| format!("Failed to build OpenRouter client: {error}"))?;
-    let mut request = client
-        .post(endpoint)
-        .bearer_auth(api_key)
-        .header("Content-Type", "application/json")
-        .header("X-OpenRouter-Title", app_title);
+    let site_url_ref = site_url.as_deref();
+    let first_result = send_openrouter_chat_request(
+        &client,
+        &endpoint,
+        &api_key,
+        &app_title,
+        site_url_ref,
+        build_openrouter_request_body(&input, vision_model.as_deref().unwrap_or(&model), true)?,
+    )
+    .await;
 
-    if let Some(site_url) = site_url {
-        request = request.header("HTTP-Referer", site_url);
+    match first_result {
+        Ok(content) => Ok(content),
+        Err(error)
+            if error.retry_without_screenshot
+                && input.screen.captured
+                && input.screen.image_base64.is_some() =>
+        {
+            eprintln!(
+                "Kairo Tutor OpenRouter screenshot request failed; retrying text-only: {}",
+                error.message
+            );
+            send_openrouter_chat_request(
+                &client,
+                &endpoint,
+                &api_key,
+                &app_title,
+                site_url_ref,
+                build_openrouter_request_body(&input, &model, false)?,
+            )
+            .await
+            .map_err(|retry_error| {
+                format!(
+                    "{} Text-only retry after screenshot failure also failed: {}",
+                    error.message, retry_error.message
+                )
+            })
+        }
+        Err(error) => Err(error.message),
     }
-
-    let response = request
-        .json(&build_openrouter_request_body(&input, &model)?)
-        .send()
-        .await
-        .map_err(|error| format!("OpenRouter request failed: {error}"))?;
-    let status = response.status();
-    let payload = response
-        .json::<Value>()
-        .await
-        .map_err(|error| format!("OpenRouter response was not JSON: {error}"))?;
-
-    if !status.is_success() {
-        let message = payload
-            .get("error")
-            .and_then(|error| error.get("message"))
-            .and_then(Value::as_str)
-            .or_else(|| payload.get("message").and_then(Value::as_str))
-            .unwrap_or("OpenRouter request failed");
-        return Err(message.to_string());
-    }
-
-    payload
-        .get("choices")
-        .and_then(Value::as_array)
-        .and_then(|choices| choices.first())
-        .and_then(|choice| choice.get("message"))
-        .and_then(|message| message.get("content"))
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
-        .ok_or_else(|| "OpenRouter response did not include assistant content.".to_string())
 }
 
 #[tauri::command]
@@ -1275,25 +1352,36 @@ mod tests {
     fn openrouter_messages_use_openrouter_image_url_shape() {
         let input = sample_tutor_turn_input();
 
-        let messages = build_openrouter_messages(&input).expect("messages should build");
+        let messages = build_openrouter_messages(&input, true).expect("messages should build");
         let image_part = &messages[1]["content"][1];
 
         assert_eq!(image_part["type"], "image_url");
         assert_eq!(
-            image_part["imageUrl"]["url"],
+            image_part["image_url"]["url"],
             "data:image/png;base64,abc123"
         );
-        assert!(image_part.get("image_url").is_none());
+        assert!(image_part.get("imageUrl").is_none());
     }
 
     #[test]
     fn openrouter_request_body_requests_json_object_output() {
         let input = sample_tutor_turn_input();
-        let body =
-            build_openrouter_request_body(&input, "qwen/qwen3.6-flash").expect("body should build");
+        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", true)
+            .expect("body should build");
 
         assert_eq!(body["model"], "qwen/qwen3.6-flash");
         assert_eq!(body["response_format"]["type"], "json_object");
+    }
+
+    #[test]
+    fn openrouter_request_body_can_omit_screenshot_for_text_fallback() {
+        let input = sample_tutor_turn_input();
+        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", false)
+            .expect("body should build");
+        let user_message = &body["messages"][1];
+
+        assert!(user_message["content"].is_string());
+        assert!(!user_message["content"].to_string().contains("image_url"));
     }
 
     #[test]

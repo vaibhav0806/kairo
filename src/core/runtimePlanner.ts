@@ -12,6 +12,27 @@ export type NativeTutorTurnRunner = {
 
 export type MockTutorPlanner = Pick<ReturnType<typeof createMockTutorPlanner>, 'planNextStep'>;
 
+export const DEFAULT_TUTOR_TURN_TIMEOUT_MS = 35_000;
+
+function withTutorTurnTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = globalThis.setTimeout(() => {
+      reject(new Error(`Native tutor turn timed out after ${timeoutMs}ms.`));
+    }, timeoutMs);
+
+    operation.then(
+      (value) => {
+        globalThis.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        globalThis.clearTimeout(timeoutId);
+        reject(error);
+      }
+    );
+  });
+}
+
 function toMockRequest(input: TutorTurnInput): TutorRequest {
   return {
     ...input.activeApp,
@@ -23,16 +44,21 @@ function toMockRequest(input: TutorTurnInput): TutorRequest {
 export function createRuntimeTutorPlanner({
   aiProvider,
   nativeBridge,
-  mockPlanner
+  mockPlanner,
+  tutorTurnTimeoutMs = DEFAULT_TUTOR_TURN_TIMEOUT_MS
 }: {
   aiProvider: RuntimeTutorProvider;
   nativeBridge: NativeTutorTurnRunner;
   mockPlanner: MockTutorPlanner;
+  tutorTurnTimeoutMs?: number;
 }): TutorPlannerAdapter {
   return async (input) => {
     if (aiProvider === 'openrouter') {
       try {
-        const rawProviderResponse = await nativeBridge.runTutorTurn(input);
+        const rawProviderResponse = await withTutorTurnTimeout(
+          nativeBridge.runTutorTurn(input),
+          tutorTurnTimeoutMs
+        );
         return parseTutorPlannerResponse(rawProviderResponse, input);
       } catch (error) {
         return createTutorRuntimeErrorResponse({
