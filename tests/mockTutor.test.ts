@@ -25,4 +25,37 @@ describe('createMockTutorPlanner', () => {
       }
     });
   });
+
+  test('references user annotations in the next tutor response', () => {
+    const planner = createMockTutorPlanner();
+    const response = planner.planNextStep({
+      userQuery: 'Is this the cube?',
+      activeApp: 'Blender',
+      bundleId: 'org.blenderfoundation.blender',
+      windowTitle: 'Blender',
+      annotations: [
+        {
+          id: 'annotation-1',
+          type: 'rectangle',
+          screenRegion: {
+            x: 900,
+            y: 420,
+            width: 220,
+            height: 180
+          }
+        }
+      ]
+    });
+
+    expect(response.voiceText).toContain('your marked area');
+    expect(response.visualTargets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'highlight_box',
+          targetId: 'annotation-1',
+          label: 'Your marked area'
+        })
+      ])
+    );
+  });
 });

@@ -28,6 +28,7 @@ describe('macOS bundle permissions', () => {
       label: 'overlay',
       title: 'Kairo Tutor Overlay',
       url: 'index.html#/overlay',
+      create: false,
       transparent: true,
       decorations: false,
       alwaysOnTop: true,

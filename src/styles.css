@@ -173,6 +173,8 @@ input {
   background: #394650;
   border-bottom: 1px solid #151c22;
   padding: 10px 14px;
+  position: relative;
+  z-index: 5;
 }
 
 .cube {
@@ -193,8 +195,52 @@ input {
   position: absolute;
 }
 
-.visual-overlay {
+.annotation-canvas {
+  inset: 45px 0 47px;
+  position: absolute;
+  touch-action: none;
+  z-index: 3;
+}
+
+.annotation-canvas.drawing {
+  cursor: crosshair;
+}
+
+.annotation-canvas.erasing {
+  cursor: not-allowed;
+}
+
+.annotation-layer {
   inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 3;
+}
+
+.annotation-shape {
+  position: absolute;
+}
+
+.annotation-shape.rectangle {
+  border: 3px solid #f97316;
+}
+
+.annotation-shape.circle {
+  border: 3px solid #f97316;
+  border-radius: 999px;
+}
+
+.annotation-shape.highlight {
+  background: rgb(250 204 21 / 0.34);
+  border: 2px solid rgb(250 204 21 / 0.85);
+}
+
+.annotation-shape.underline {
+  border-bottom: 5px solid #f97316;
+}
+
+.visual-overlay {
+  inset: 45px 0 47px;
   pointer-events: none;
   position: absolute;
   z-index: 2;
@@ -206,7 +252,7 @@ input {
 
 .overlay-target.highlight_box {
   border: 3px solid #53e0cf;
-  box-shadow: 0 0 0 9999px rgb(10 14 18 / 0.18);
+  box-shadow: 0 0 0 9999px rgb(10 14 18 / 0.12);
 }
 
 .overlay-target.ghost_cursor {
@@ -227,12 +273,47 @@ input {
   top: 0;
 }
 
+.overlay-target.arrow {
+  border-top: 4px solid #ffffff;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.38));
+  height: 0 !important;
+  min-width: 38px;
+  transform: rotate(-28deg);
+}
+
+.overlay-target.arrow::after {
+  border-bottom: 10px solid transparent;
+  border-left: 15px solid #ffffff;
+  border-top: 10px solid transparent;
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: -12px;
+}
+
+.overlay-target.underline {
+  border-bottom: 5px solid #53e0cf;
+}
+
+.overlay-target.spotlight {
+  border: 2px solid rgb(255 255 255 / 0.7);
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 9999px rgb(10 14 18 / 0.48),
+    0 0 26px rgb(83 224 207 / 0.55);
+}
+
 .overlay-shell {
   background: transparent;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
   position: fixed;
+}
+
+.overlay-shell .visual-overlay {
+  inset: 0;
+  z-index: 1;
 }
 
 .timeline {
@@ -243,12 +324,42 @@ input {
   padding: 14px;
   position: absolute;
   right: 0;
+  z-index: 5;
 }
 
 .ask-row {
   display: grid;
   gap: 10px;
   grid-template-columns: 1fr auto;
+}
+
+.annotation-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.annotation-toolbar button {
+  background: #eef2f4;
+  border: 1px solid #c4cdd4;
+  border-radius: 8px;
+  color: #26313a;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 8px 10px;
+  text-transform: capitalize;
+}
+
+.annotation-toolbar button.selected {
+  background: #26313a;
+  border-color: #26313a;
+  color: #ffffff;
+}
+
+.annotation-toolbar span {
+  color: #59636d;
+  font-size: 0.9rem;
 }
 
 .ask-row input {

@@ -1,5 +1,11 @@
 import type { PercentRegion, ScreenDimensions, ScreenRegion } from '../core/types';
 
+export type DisplayBounds = ScreenDimensions & {
+  x: number;
+  y: number;
+  scaleFactor: number;
+};
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -19,4 +25,21 @@ export function normalizeRegionToPercent(
     width: ((right - left) / dimensions.width) * 100,
     height: ((bottom - top) / dimensions.height) * 100
   };
+}
+
+export function normalizeRegionToDisplayPercent(
+  region: ScreenRegion,
+  displayBounds: DisplayBounds
+): PercentRegion {
+  const scaleFactor = displayBounds.scaleFactor > 0 ? displayBounds.scaleFactor : 1;
+
+  return normalizeRegionToPercent(
+    {
+      x: region.x / scaleFactor - displayBounds.x,
+      y: region.y / scaleFactor - displayBounds.y,
+      width: region.width / scaleFactor,
+      height: region.height / scaleFactor
+    },
+    displayBounds
+  );
 }

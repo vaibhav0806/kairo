@@ -25,6 +25,7 @@
         "label": "overlay",
         "title": "Kairo Tutor Overlay",
         "url": "index.html#/overlay",
+        "create": false,
         "width": 1000,
         "height": 700,
         "resizable": false,

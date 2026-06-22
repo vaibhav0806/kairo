@@ -1,14 +1,22 @@
 import type { ScreenDimensions, VisualTarget } from '../core/types';
-import { normalizeRegionToPercent } from './coordinates';
+import {
+  type DisplayBounds,
+  normalizeRegionToDisplayPercent,
+  normalizeRegionToPercent
+} from './coordinates';
 
 export function OverlayTarget({
   target,
-  dimensions
+  dimensions,
+  displayBounds
 }: {
   target: VisualTarget;
   dimensions: ScreenDimensions;
+  displayBounds?: DisplayBounds;
 }) {
-  const region = normalizeRegionToPercent(target.screenRegion, dimensions);
+  const region = displayBounds
+    ? normalizeRegionToDisplayPercent(target.screenRegion, displayBounds)
+    : normalizeRegionToPercent(target.screenRegion, dimensions);
   const style = {
     left: `${region.left}%`,
     top: `${region.top}%`,
@@ -28,15 +36,22 @@ export function OverlayTarget({
 
 export function VisualOverlay({
   targets,
-  dimensions
+  dimensions,
+  displayBounds
 }: {
   targets: VisualTarget[];
   dimensions: ScreenDimensions;
+  displayBounds?: DisplayBounds;
 }) {
   return (
     <div className="visual-overlay" aria-label="Tutor visual targets">
       {targets.map((target) => (
-        <OverlayTarget key={`${target.kind}-${target.targetId}`} target={target} dimensions={dimensions} />
+        <OverlayTarget
+          key={`${target.kind}-${target.targetId}`}
+          target={target}
+          dimensions={dimensions}
+          displayBounds={displayBounds}
+        />
       ))}
     </div>
   );

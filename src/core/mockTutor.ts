@@ -8,6 +8,27 @@ export function createMockTutorPlanner() {
     planNextStep(request: TutorRequest): TutorResponse {
       const skill = registry.matchActiveApp(request) ?? registry.getBySlug('blender');
       const normalizedQuery = request.userQuery.toLowerCase();
+      const firstAnnotation = request.annotations[0];
+
+      if (firstAnnotation) {
+        return {
+          mode: 'stuck_help',
+          skillSlug: skill.slug,
+          voiceText:
+            'I see your marked area. If that is the cube, click once near the center of that selection before we add the first keyframe.',
+          screenText: 'Use your marked area to select the cube.',
+          visualTargets: [
+            {
+              kind: 'highlight_box',
+              targetId: firstAnnotation.id,
+              label: 'Your marked area',
+              confidence: 0.9,
+              screenRegion: firstAnnotation.screenRegion
+            }
+          ],
+          expectedNextState: 'cube_selected'
+        };
+      }
 
       if (skill.slug === 'blender' && normalizedQuery.includes('animation')) {
         return {

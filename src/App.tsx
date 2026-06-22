@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import {
+  type AnnotationPoint,
+  type AnnotationTool,
+  createAnnotationFromDrag,
+  eraseAnnotationAtPoint,
+  normalizeDragToRegion
+} from './annotations/annotationTools';
 import { loadBrowserEnv } from './config/env';
 import { createMockTutorPlanner } from './core/mockTutor';
-import type { ScreenDimensions, TutorResponse } from './core/types';
+import type { ScreenDimensions, TutorResponse, UserAnnotation } from './core/types';
 import {
   createNativeBridge,
   type NativeActiveApp,
@@ -10,6 +17,7 @@ import {
   type NativeScreenCapture,
   type NativeShortcutRegistration
 } from './native/nativeBridge';
+import { normalizeRegionToPercent } from './overlay/coordinates';
 import { VisualOverlay } from './overlay/VisualOverlay';
 
 const demoContext = {
@@ -23,6 +31,8 @@ const mockPreviewDimensions: ScreenDimensions = {
   width: 1920,
   height: 1080
 };
+
+const annotationTools: AnnotationTool[] = ['rectangle', 'circle', 'highlight', 'underline', 'erase'];
 
 function isPermissionGranted(status: NativePermissionStatus, permission: keyof NativePermissionStatus) {
   return status[permission] === 'granted';
@@ -42,6 +52,52 @@ function permissionStateLabel(state: NativePermissionState) {
   }
 
   return 'Checking';
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function AnnotationShape({
+  annotation,
+  dimensions
+}: {
+  annotation: UserAnnotation;
+  dimensions: ScreenDimensions;
+}) {
+  const region = normalizeRegionToPercent(annotation.screenRegion, dimensions);
+  const style = {
+    left: `${region.left}%`,
+    top: `${region.top}%`,
+    width: `${region.width}%`,
+    height: `${region.height}%`
+  };
+
+  return (
+    <div
+      aria-label={`${annotation.type} annotation`}
+      className={`annotation-shape ${annotation.type}`}
+      style={style}
+    />
+  );
+}
+
+function AnnotationLayer({
+  annotations,
+  draftAnnotation,
+  dimensions
+}: {
+  annotations: UserAnnotation[];
+  draftAnnotation: UserAnnotation | null;
+  dimensions: ScreenDimensions;
+}) {
+  return (
+    <div className="annotation-layer" aria-label="User annotations">
+      {[...annotations, ...(draftAnnotation ? [draftAnnotation] : [])].map((annotation) => (
+        <AnnotationShape key={annotation.id} annotation={annotation} dimensions={dimensions} />
+      ))}
+    </div>
+  );
 }
 
 export function App() {
@@ -82,7 +138,16 @@ export function App() {
   });
   const [screenCapture, setScreenCapture] = useState<NativeScreenCapture | null>(null);
   const [isOverlayActive, setIsOverlayActive] = useState(false);
+  const [overlayActivationCount, setOverlayActivationCount] = useState(0);
+  const [annotationTool, setAnnotationTool] = useState<AnnotationTool>('rectangle');
+  const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
+  const [draftDrag, setDraftDrag] = useState<{
+    type: Exclude<AnnotationTool, 'erase'>;
+    start: AnnotationPoint;
+    end: AnnotationPoint;
+  } | null>(null);
   const [isRequestingPermissions, setIsRequestingPermissions] = useState(false);
+  const annotationSequence = useRef(0);
   const [activationShortcut, setActivationShortcut] = useState<NativeShortcutRegistration>({
     registered: false,
     shortcut: 'CommandOrControl+Shift+Space',
@@ -101,10 +166,83 @@ export function App() {
       planner.planNextStep({
         ...activeApp,
         userQuery: query,
-        annotations: []
+        annotations
       })
     );
     setIsOverlayActive(true);
+    setOverlayActivationCount((count) => count + 1);
+  }
+
+  function pointFromPointerEvent(event: PointerEvent<HTMLElement>): AnnotationPoint {
+    const bounds = event.currentTarget.getBoundingClientRect();
+
+    return {
+      x: clamp(
+        ((event.clientX - bounds.left) / bounds.width) * mockPreviewDimensions.width,
+        0,
+        mockPreviewDimensions.width
+      ),
+      y: clamp(
+        ((event.clientY - bounds.top) / bounds.height) * mockPreviewDimensions.height,
+        0,
+        mockPreviewDimensions.height
+      )
+    };
+  }
+
+  function handleAnnotationPointerDown(event: PointerEvent<HTMLElement>) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const point = pointFromPointerEvent(event);
+    if (annotationTool === 'erase') {
+      setAnnotations((currentAnnotations) => eraseAnnotationAtPoint(currentAnnotations, point));
+      return;
+    }
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDraftDrag({
+      type: annotationTool,
+      start: point,
+      end: point
+    });
+  }
+
+  function handleAnnotationPointerMove(event: PointerEvent<HTMLElement>) {
+    if (!draftDrag) {
+      return;
+    }
+
+    setDraftDrag({
+      ...draftDrag,
+      end: pointFromPointerEvent(event)
+    });
+  }
+
+  function handleAnnotationPointerUp(event: PointerEvent<HTMLElement>) {
+    if (!draftDrag) {
+      return;
+    }
+
+    const end = pointFromPointerEvent(event);
+    const screenRegion = normalizeDragToRegion(draftDrag.start, end);
+    setDraftDrag(null);
+
+    if (screenRegion.width < 4 || screenRegion.height < 4) {
+      return;
+    }
+
+    annotationSequence.current += 1;
+    setAnnotations((currentAnnotations) => [
+      ...currentAnnotations,
+      createAnnotationFromDrag({
+        id: `annotation-${annotationSequence.current}`,
+        type: draftDrag.type,
+        start: draftDrag.start,
+        end
+      })
+    ]);
   }
 
   const refreshNativeContext = useCallback(async () => {
@@ -148,6 +286,7 @@ export function App() {
     nativeBridge
       .registerActivationShortcut(() => {
         setIsOverlayActive(true);
+        setOverlayActivationCount((count) => count + 1);
         void refreshNativeContext();
       })
       .then((registration) => {
@@ -210,7 +349,22 @@ export function App() {
     return () => {
       void nativeBridge.hideOverlay();
     };
-  }, [isOverlayActive, nativeBridge, response.visualTargets, screenCapture?.displayBounds]);
+  }, [
+    isOverlayActive,
+    nativeBridge,
+    overlayActivationCount,
+    response.visualTargets,
+    screenCapture?.displayBounds
+  ]);
+
+  const draftAnnotation = draftDrag
+    ? createAnnotationFromDrag({
+        id: 'draft-annotation',
+        type: draftDrag.type,
+        start: draftDrag.start,
+        end: draftDrag.end
+      })
+    : null;
 
   return (
     <main className="app-shell">
@@ -304,9 +458,41 @@ export function App() {
         <section className="tutor-surface">
           <div className="screen-preview" aria-label="Mock screen preview">
             <div className="toolbar">Blender viewport</div>
-            <div className="cube" />
+            <div
+              className={`annotation-canvas ${annotationTool === 'erase' ? 'erasing' : 'drawing'}`}
+              onPointerDown={handleAnnotationPointerDown}
+              onPointerMove={handleAnnotationPointerMove}
+              onPointerUp={handleAnnotationPointerUp}
+              onPointerCancel={() => setDraftDrag(null)}
+              role="presentation"
+            >
+              <div className="cube" />
+              <AnnotationLayer
+                annotations={annotations}
+                draftAnnotation={draftAnnotation}
+                dimensions={mockPreviewDimensions}
+              />
+            </div>
             <VisualOverlay targets={response.visualTargets} dimensions={mockPreviewDimensions} />
             <div className="timeline">Timeline: frame 1 - 250</div>
+          </div>
+
+          <div className="annotation-toolbar" aria-label="Annotation tools">
+            {annotationTools.map((tool) => (
+              <button
+                aria-pressed={annotationTool === tool}
+                className={annotationTool === tool ? 'selected' : undefined}
+                key={tool}
+                type="button"
+                onClick={() => setAnnotationTool(tool)}
+              >
+                {tool}
+              </button>
+            ))}
+            <button type="button" onClick={() => setAnnotations([])}>
+              clear
+            </button>
+            <span>{annotations.length} annotation{annotations.length === 1 ? '' : 's'}</span>
           </div>
 
           <div className="ask-row">

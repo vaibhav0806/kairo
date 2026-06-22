@@ -65,6 +65,7 @@ export function OverlayApp() {
             width: payload.displayBounds.width,
             height: payload.displayBounds.height
           }}
+          displayBounds={payload.displayBounds}
         />
       ) : null}
     </main>

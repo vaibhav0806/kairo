@@ -237,12 +237,14 @@ scripts/
 - Preserve the learning principle: the tutor guides and points; the learner acts.
 - Stick with Tauri through the next milestone unless a verified WebKit/WKWebView blocker appears.
 - Before UI work for any new macOS native capability, update `Info.plist`, add required entitlements, document TCC reset/test notes, and verify the signed app with `codesign -d --entitlements :- path/to/Kairo\ Tutor.app`.
+- Keep the macOS interaction model close to Hey Clicky: the app should stay visually quiet/invisible until the user activates tutoring, voice, or on-screen guidance.
 
 ## Native Capability Notes
 
 ### Transparent Overlay Window
 
-- Tauri config: `src-tauri/tauri.conf.json` defines a hidden `overlay` window with `transparent`, `decorations: false`, `alwaysOnTop`, `skipTaskbar`, `focus: false`, `focusable: false`, and `visibleOnAllWorkspaces`.
+- Tauri config: `src-tauri/tauri.conf.json` defines an `overlay` window with `create: false`, `transparent`, `decorations: false`, `alwaysOnTop`, `skipTaskbar`, `focus: false`, `focusable: false`, and `visibleOnAllWorkspaces`.
+- Lifecycle: `src-tauri/src/lib.rs` lazily creates the overlay only when a visual-guidance payload exists, which prevents an invisible foreground window from appearing on launch.
 - Runtime hardening: `src-tauri/src/lib.rs` reapplies always-on-top, non-focusable, skip-taskbar, no-shadow, and `set_ignore_cursor_events(true)` so the overlay is click-through.
 - macOS transparent WebViews require `app.macOSPrivateApi: true` and the Rust dependency feature `tauri = { features = ["macos-private-api"] }`.
 - TCC/Info.plist: no new TCC prompt is required for drawing a transparent always-on-top overlay. Existing screen/accessibility/microphone prompts remain unchanged.

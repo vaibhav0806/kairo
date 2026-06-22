@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'vitest';
-import { normalizeRegionToPercent } from '../src/overlay/coordinates';
+import {
+  normalizeRegionToDisplayPercent,
+  normalizeRegionToPercent
+} from '../src/overlay/coordinates';
 
 describe('overlay coordinate normalization', () => {
   test('maps screenshot pixel regions into percentage overlay regions', () => {
@@ -43,6 +46,56 @@ describe('overlay coordinate normalization', () => {
       top: 90,
       width: 30,
       height: 10
+    });
+  });
+
+  test('normalizes retina screenshot pixels into logical overlay percentages', () => {
+    expect(
+      normalizeRegionToDisplayPercent(
+        {
+          x: 1800,
+          y: 900,
+          width: 300,
+          height: 200
+        },
+        {
+          x: 0,
+          y: 0,
+          width: 900,
+          height: 600,
+          scaleFactor: 2
+        }
+      )
+    ).toEqual({
+      left: 100,
+      top: 75,
+      width: 0,
+      height: 16.666666666666664
+    });
+  });
+
+  test('normalizes display-offset regions for secondary displays', () => {
+    expect(
+      normalizeRegionToDisplayPercent(
+        {
+          x: 2100,
+          y: 240,
+          width: 200,
+          height: 100
+        },
+        {
+          x: 1800,
+          y: 0,
+          width: 1000,
+          height: 800,
+          scaleFactor: 1
+        }
+      )
+    ).toEqual({
+      left: 30,
+      top: 30,
+      width: 20,
+      height: 12.5
     });
   });
 });

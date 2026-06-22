@@ -120,11 +120,11 @@ Run typecheck, tests, and production build.
 
 **Scope:**
 - [x] Transparent always-on-top overlay window.
-- [ ] Highlight boxes, arrows, underlines, spotlight, and ghost cursor.
-- [ ] User annotation tools: circle, rectangle, highlight, underline, erase.
+- [x] Highlight boxes, arrows, underlines, spotlight, and ghost cursor.
+- [x] User annotation tools: circle, rectangle, highlight, underline, erase.
 - [x] Coordinate normalization contract for screen regions.
-- [ ] Coordinate normalization for Retina scale and multiple displays.
-- [ ] Attach annotations to the next tutor request.
+- [x] Coordinate normalization for Retina scale and multiple displays.
+- [x] Attach annotations to the next tutor request.
 - [x] Render mock tutor targets as overlay elements on the screen preview.
 
 **Acceptance Criteria:**

@@ -510,9 +510,23 @@ fn capture_screen() -> ScreenCaptureResult {
     }
 }
 
-fn overlay_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
-    app.get_webview_window("overlay")
-        .ok_or_else(|| "Kairo overlay window was not created.".to_string())
+fn ensure_overlay_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
+    if let Some(window) = app.get_webview_window("overlay") {
+        return Ok(window);
+    }
+
+    let overlay_config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window_config| window_config.label == "overlay")
+        .ok_or_else(|| "Kairo overlay window config was not found.".to_string())?;
+
+    tauri::WebviewWindowBuilder::from_config(app, overlay_config)
+        .map_err(|error| format!("Failed to read overlay window config: {error}"))?
+        .build()
+        .map_err(|error| format!("Failed to create overlay window: {error}"))
 }
 
 fn configure_overlay_window(
@@ -575,7 +589,7 @@ fn show_overlay(
     state: State<'_, OverlayState>,
     payload: OverlayPayload,
 ) -> Result<(), String> {
-    let window = overlay_window(&app)?;
+    let window = ensure_overlay_window(&app)?;
     configure_overlay_window(&window, &payload)?;
     store_overlay_payload(&state, Some(payload.clone()))?;
     window
@@ -590,7 +604,7 @@ fn update_overlay(
     state: State<'_, OverlayState>,
     payload: OverlayPayload,
 ) -> Result<(), String> {
-    let window = overlay_window(&app)?;
+    let window = ensure_overlay_window(&app)?;
     configure_overlay_window(&window, &payload)?;
     store_overlay_payload(&state, Some(payload.clone()))?;
     emit_overlay_payload(&window, payload)
@@ -609,11 +623,13 @@ fn get_current_overlay_payload(
 
 #[tauri::command]
 fn hide_overlay(app: tauri::AppHandle, state: State<'_, OverlayState>) -> Result<(), String> {
-    let window = overlay_window(&app)?;
     store_overlay_payload(&state, None)?;
-    window
-        .hide()
-        .map_err(|error| format!("Failed to hide overlay: {error}"))
+    if let Some(window) = app.get_webview_window("overlay") {
+        window
+            .hide()
+            .map_err(|error| format!("Failed to hide overlay: {error}"))?;
+    }
+    Ok(())
 }
 
 #[allow(dead_code)]
@@ -658,17 +674,6 @@ pub fn run() {
             } else {
                 #[cfg(debug_assertions)]
                 eprintln!("Kairo Tutor startup: main window was not created");
-            }
-            if let Some(window) = app.get_webview_window("overlay") {
-                let _ = window.set_focusable(false);
-                let _ = window.set_always_on_top(true);
-                let _ = window.set_skip_taskbar(true);
-                let _ = window.set_ignore_cursor_events(true);
-                let _ = window.set_shadow(false);
-                let _ = window.hide();
-            } else {
-                #[cfg(debug_assertions)]
-                eprintln!("Kairo Tutor startup: overlay window was not created");
             }
             Ok(())
         })
