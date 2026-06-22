@@ -82,8 +82,8 @@ export function createMockTutorPlanner() {
         mode: 'stuck_help',
         skillSlug: skill.slug,
         voiceText:
-          'I can help with this screen. Tell me what you are trying to do, or circle the part that is confusing.',
-        screenText: 'Ask a specific question or annotate the problem area.',
+          'I can answer general questions too. Ask anything, or annotate the part of the screen you want me to inspect.',
+        screenText: 'Ask anything, or annotate the problem area.',
         visualTargets: [],
         expectedNextState: 'user_clarifies_goal'
       };

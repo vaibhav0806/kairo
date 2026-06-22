@@ -84,6 +84,27 @@ describe('OpenRouter tutor planner adapter', () => {
     expect(JSON.stringify(userMessage.content)).toContain('annotation-1');
   });
 
+  test('instructs providers to answer general questions instead of treating Blender as the only scope', async () => {
+    const chat = vi.fn(async () =>
+      JSON.stringify({
+        mode: 'stuck_help',
+        skillSlug: 'blender',
+        voiceText: 'General questions are allowed.',
+        screenText: 'General questions are allowed.',
+        visualTargets: [],
+        expectedNextState: 'user_reads_answer'
+      })
+    );
+    const planner = createOpenRouterTutorPlanner({ chat });
+
+    await planner({ ...tutorInput, userQuery: 'What is the capital of France?' });
+
+    const messages = (chat.mock.calls as unknown as Array<[OpenRouterMessage[]]>)[0][0];
+    expect(String(messages[0].content)).toContain('Answer general user questions directly');
+    expect(String(messages[0].content)).toContain('Selected skill context, when relevant: Blender');
+    expect(String(messages[0].content)).not.toContain('Skill: Blender');
+  });
+
   test('sanitizes unsafe provider targets and marks low-confidence responses', () => {
     const response = parseTutorPlannerResponse(
       JSON.stringify({

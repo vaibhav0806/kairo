@@ -137,7 +137,10 @@ function buildSystemPrompt(input: TutorTurnInput) {
     'VisualTarget kind must be one of highlight_box, ghost_cursor, arrow, underline, spotlight.',
     'Use screenRegion pixel coordinates only for visible UI areas you are confident about.',
     'Give exactly one short next step. Do not invent app state.',
-    `Skill: ${input.skill.displayName} (${input.skill.slug}).`,
+    'Answer general user questions directly. Do not refuse just because the question is outside the selected skill pack.',
+    'Use the selected skill pack only when it is relevant to the active app or user question.',
+    'When responding to a user question, prefer mode "stuck_help" or "guided_lesson"; reserve mode "idle" for no-op readiness.',
+    `Selected skill context, when relevant: ${input.skill.displayName} (${input.skill.slug}).`,
     `Constraints: ${input.constraints.join(' ')}`
   ].join('\n');
 }

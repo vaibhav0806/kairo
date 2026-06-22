@@ -58,6 +58,9 @@ export function buildTutorTurnInput({
     skill,
     constraints: [
       'Return one short tutor step.',
+      'Answer general user questions directly, even when they are not related to the selected skill pack.',
+      'Use the selected skill pack only when the active app or user question makes it relevant.',
+      'After a user question, use idle only when no answer is needed; otherwise use stuck_help or guided_lesson.',
       'Use screen coordinates only when a visual target is useful.',
       'Do not invent app state that is not visible in the provided context.'
     ]

@@ -79,7 +79,7 @@ export function tutorResponseToNotchPayload(response: TutorResponse): NotchPaylo
   return {
     state: 'showing_step',
     layout: 'answer',
-    title: response.mode === 'idle' ? 'Kairo is ready' : 'Kairo answered',
+    title: 'Kairo answered',
     detail: response.screenText || response.voiceText
   };
 }

@@ -68,4 +68,18 @@ describe('createMockTutorPlanner', () => {
       ])
     );
   });
+
+  test('does not refuse general questions in the mock fallback', () => {
+    const planner = createMockTutorPlanner();
+    const response = planner.planNextStep({
+      userQuery: 'Can you answer general questions?',
+      activeApp: 'Chrome',
+      bundleId: 'com.google.Chrome',
+      windowTitle: 'Search',
+      annotations: []
+    });
+
+    expect(response.voiceText).toContain('answer general questions');
+    expect(response.screenText).toContain('Ask anything');
+  });
 });

@@ -892,7 +892,10 @@ fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
         "VisualTarget kind must be one of highlight_box, ghost_cursor, arrow, underline, spotlight.".to_string(),
         "Use screenRegion pixel coordinates only for visible UI areas you are confident about.".to_string(),
         "Give exactly one short next step. Do not invent app state.".to_string(),
-        format!("Skill: {} ({}).", input.skill.display_name, input.skill.slug),
+        "Answer general user questions directly. Do not refuse just because the question is outside the selected skill pack.".to_string(),
+        "Use the selected skill pack only when it is relevant to the active app or user question.".to_string(),
+        "When responding to a user question, prefer mode \"stuck_help\" or \"guided_lesson\"; reserve mode \"idle\" for no-op readiness.".to_string(),
+        format!("Selected skill context, when relevant: {} ({}).", input.skill.display_name, input.skill.slug),
         format!("Constraints: {}", input.constraints.join(" ")),
     ]
     .join("\n")
@@ -1388,6 +1391,20 @@ mod tests {
 
         assert!(user_message["content"].is_string());
         assert!(!user_message["content"].to_string().contains("image_url"));
+    }
+
+    #[test]
+    fn openrouter_prompt_allows_general_questions() {
+        let input = sample_tutor_turn_input();
+        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", false)
+            .expect("body should build");
+        let system_prompt = body["messages"][0]["content"]
+            .as_str()
+            .expect("system prompt should be string");
+
+        assert!(system_prompt.contains("Answer general user questions directly"));
+        assert!(system_prompt.contains("Selected skill context, when relevant: Blender"));
+        assert!(!system_prompt.contains("Skill: Blender"));
     }
 
     #[test]

@@ -32,6 +32,12 @@ describe('tutor orchestrator', () => {
     });
     expect(input.skill.slug).toBe('blender');
     expect(input.constraints).toContain('Return one short tutor step.');
+    expect(input.constraints).toContain(
+      'Answer general user questions directly, even when they are not related to the selected skill pack.'
+    );
+    expect(input.constraints).toContain(
+      'Use the selected skill pack only when the active app or user question makes it relevant.'
+    );
   });
 
   test('uses the configured planner adapter for a tutor turn', async () => {
