@@ -14,7 +14,9 @@ body {
 }
 
 :root.overlay-document,
-body.overlay-document {
+:root.notch-document,
+body.overlay-document,
+body.notch-document {
   background: transparent;
 }
 
@@ -331,6 +333,59 @@ input {
 .overlay-shell .visual-overlay {
   inset: 0;
   z-index: 1;
+}
+
+.notch-shell {
+  align-items: center;
+  background: transparent;
+  display: flex;
+  height: 100vh;
+  justify-content: center;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.notch-card {
+  align-items: center;
+  background: rgb(18 20 23 / 0.92);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 999px;
+  box-shadow:
+    0 16px 40px rgb(0 0 0 / 0.32),
+    inset 0 1px 0 rgb(255 255 255 / 0.14);
+  color: #f6f8f9;
+  display: flex;
+  gap: 12px;
+  height: 58px;
+  max-width: 100%;
+  padding: 10px 18px 10px 12px;
+  width: 100%;
+}
+
+.notch-card strong,
+.notch-card span {
+  display: block;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.notch-card strong {
+  font-size: 0.95rem;
+}
+
+.notch-card span {
+  color: #aeb9c2;
+  font-size: 0.78rem;
+  margin-top: 4px;
+}
+
+.notch-orb {
+  background: #58dbc9;
+  border-radius: 999px;
+  box-shadow: 0 0 0 6px rgb(88 219 201 / 0.16);
+  flex: 0 0 auto;
+  height: 14px;
+  width: 14px;
 }
 
 .timeline {

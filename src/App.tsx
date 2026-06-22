@@ -287,6 +287,7 @@ export function App() {
 
     nativeBridge
       .registerActivationShortcut(async () => {
+        void nativeBridge.showNotch();
         setIsOverlayActive(true);
         setOverlayActivationCount((count) => count + 1);
         const [nextActiveApp, nextPermissions, nextScreenCapture] = await Promise.all([

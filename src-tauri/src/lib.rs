@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{fs, process::Command, sync::Mutex};
+use std::{fs, process::Command, sync::Mutex, time::Duration};
 use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, State};
 
 #[cfg(target_os = "macos")]
@@ -511,22 +511,33 @@ fn capture_screen() -> ScreenCaptureResult {
 }
 
 fn ensure_overlay_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
-    if let Some(window) = app.get_webview_window("overlay") {
+    ensure_configured_window(app, "overlay")
+}
+
+fn ensure_notch_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
+    ensure_configured_window(app, "notch")
+}
+
+fn ensure_configured_window(
+    app: &tauri::AppHandle,
+    label: &str,
+) -> Result<tauri::WebviewWindow, String> {
+    if let Some(window) = app.get_webview_window(label) {
         return Ok(window);
     }
 
-    let overlay_config = app
+    let window_config = app
         .config()
         .app
         .windows
         .iter()
-        .find(|window_config| window_config.label == "overlay")
-        .ok_or_else(|| "Kairo overlay window config was not found.".to_string())?;
+        .find(|window_config| window_config.label == label)
+        .ok_or_else(|| format!("Kairo {label} window config was not found."))?;
 
-    tauri::WebviewWindowBuilder::from_config(app, overlay_config)
-        .map_err(|error| format!("Failed to read overlay window config: {error}"))?
+    tauri::WebviewWindowBuilder::from_config(app, window_config)
+        .map_err(|error| format!("Failed to read {label} window config: {error}"))?
         .build()
-        .map_err(|error| format!("Failed to create overlay window: {error}"))
+        .map_err(|error| format!("Failed to create {label} window: {error}"))
 }
 
 fn configure_overlay_window(
@@ -569,6 +580,37 @@ fn emit_overlay_payload(
     window
         .emit("overlay:update", payload)
         .map_err(|error| format!("Failed to update overlay targets: {error}"))
+}
+
+fn configure_notch_window(window: &tauri::WebviewWindow) -> Result<(), String> {
+    let width = 380.0;
+    let height = 78.0;
+    window
+        .set_focusable(false)
+        .map_err(|error| format!("Failed to keep notch non-focusable: {error}"))?;
+    window
+        .set_always_on_top(true)
+        .map_err(|error| format!("Failed to keep notch above other windows: {error}"))?;
+    window
+        .set_skip_taskbar(true)
+        .map_err(|error| format!("Failed to keep notch out of the taskbar: {error}"))?;
+    let _ = window.set_shadow(false);
+    window
+        .set_size(LogicalSize::new(width, height))
+        .map_err(|error| format!("Failed to size notch: {error}"))?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let display_bounds = main_display_bounds();
+        window
+            .set_position(LogicalPosition::new(
+                display_bounds.x + (display_bounds.width - width) / 2.0,
+                display_bounds.y + 12.0,
+            ))
+            .map_err(|error| format!("Failed to position notch: {error}"))?;
+    }
+
+    Ok(())
 }
 
 fn store_overlay_payload(
@@ -628,6 +670,33 @@ fn hide_overlay(app: tauri::AppHandle, state: State<'_, OverlayState>) -> Result
         window
             .hide()
             .map_err(|error| format!("Failed to hide overlay: {error}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn show_notch(app: tauri::AppHandle) -> Result<(), String> {
+    let window = ensure_notch_window(&app)?;
+    configure_notch_window(&window)?;
+    window
+        .show()
+        .map_err(|error| format!("Failed to show notch: {error}"))?;
+
+    let window_to_hide = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(4500));
+        let _ = window_to_hide.hide();
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn hide_notch(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("notch") {
+        window
+            .hide()
+            .map_err(|error| format!("Failed to hide notch: {error}"))?;
     }
     Ok(())
 }
@@ -703,7 +772,9 @@ pub fn run() {
             show_overlay,
             update_overlay,
             get_current_overlay_payload,
-            hide_overlay
+            hide_overlay,
+            show_notch,
+            hide_notch
         ])
         .run(tauri::generate_context!())
         .expect("error while running Kairo Tutor");

@@ -40,6 +40,30 @@ describe('macOS bundle permissions', () => {
     });
   });
 
+  test('configures a hidden compact notch assistant window', () => {
+    const tauriConfig = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+    const notchWindow = tauriConfig.app.windows.find(
+      (windowConfig: { label: string }) => windowConfig.label === 'notch'
+    );
+
+    expect(notchWindow).toMatchObject({
+      label: 'notch',
+      title: 'Kairo Tutor',
+      url: 'index.html#/notch',
+      create: false,
+      width: 380,
+      height: 78,
+      transparent: true,
+      decorations: false,
+      alwaysOnTop: true,
+      visible: false,
+      skipTaskbar: true,
+      focus: false,
+      focusable: false,
+      shadow: false
+    });
+  });
+
   test('keeps the main debug window hidden on normal launch', () => {
     const tauriConfig = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
     const mainWindow = tauriConfig.app.windows.find(
@@ -56,6 +80,6 @@ describe('macOS bundle permissions', () => {
   test('allows both main and overlay windows in the default capability scope', () => {
     const capability = JSON.parse(readFileSync('src-tauri/capabilities/default.json', 'utf8'));
 
-    expect(capability.windows).toEqual(expect.arrayContaining(['main', 'overlay']));
+    expect(capability.windows).toEqual(expect.arrayContaining(['main', 'overlay', 'notch']));
   });
 });

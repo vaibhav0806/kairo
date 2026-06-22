@@ -68,6 +68,8 @@ export type NativeBridge = {
   updateOverlay(payload: NativeOverlayPayload): Promise<void>;
   getCurrentOverlayPayload(): Promise<NativeOverlayPayload | null>;
   hideOverlay(): Promise<void>;
+  showNotch(): Promise<void>;
+  hideNotch(): Promise<void>;
   registerActivationShortcut(onActivated: () => void | Promise<void>): Promise<NativeShortcutRegistration>;
 };
 
@@ -254,6 +256,22 @@ export function createNativeBridge(
         await invoke<void>('hide_overlay');
       } catch {
         // Browser previews do not have a native overlay window.
+      }
+    },
+
+    async showNotch() {
+      try {
+        await invoke<void>('show_notch');
+      } catch {
+        // Browser previews do not have a native notch window.
+      }
+    },
+
+    async hideNotch() {
+      try {
+        await invoke<void>('hide_notch');
+      } catch {
+        // Browser previews do not have a native notch window.
       }
     },
 

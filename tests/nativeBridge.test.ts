@@ -210,6 +210,17 @@ describe('createNativeBridge', () => {
     expect(invoke).toHaveBeenCalledWith('hide_overlay');
   });
 
+  test('shows and hides the native notch assistant window', async () => {
+    const invoke = vi.fn(async () => undefined) as unknown as NativeInvoke;
+    const bridge = createNativeBridge(invoke);
+
+    await expect(bridge.showNotch()).resolves.toBeUndefined();
+    await expect(bridge.hideNotch()).resolves.toBeUndefined();
+
+    expect(invoke).toHaveBeenCalledWith('show_notch');
+    expect(invoke).toHaveBeenCalledWith('hide_notch');
+  });
+
   test('registers activation shortcut without foregrounding the desktop debug window', async () => {
     let shortcutHandler: ((event: { state: string; shortcut: string }) => void) | undefined;
     const callOrder: string[] = [];
