@@ -54,6 +54,15 @@ export function createSkillPackRegistry(packs: SkillPack[] = skillPacks) {
       );
     },
 
+    matchUserQuery(query: string): SkillPack | undefined {
+      const normalizedQuery = query.toLowerCase();
+
+      return packs.find((pack) => {
+        const aliases = [pack.slug, pack.displayName, ...pack.appIdentifiers];
+        return aliases.some((alias) => normalizedQuery.includes(alias.toLowerCase()));
+      });
+    },
+
     list(): SkillPack[] {
       return [...packs];
     }

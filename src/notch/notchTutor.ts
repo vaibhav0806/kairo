@@ -3,6 +3,7 @@ import { createMockTutorPlanner } from '../core/mockTutor';
 import { createTutorOrchestrator } from '../core/orchestrator';
 import { createRuntimeTutorPlanner, type RuntimeTutorProvider } from '../core/runtimePlanner';
 import { createTutorRuntimeErrorResponse } from '../core/tutorErrors';
+import type { UserAnnotation } from '../core/types';
 import type { NativeBridge } from '../native/nativeBridge';
 import type { NotchPayload } from './types';
 
@@ -11,13 +12,15 @@ export type AskTutorFromNotchOptions = {
   nativeBridge: NativeBridge;
   aiProvider: RuntimeTutorProvider;
   defaultSkill: string;
+  annotations?: UserAnnotation[];
 };
 
 export async function askTutorFromNotch({
   query,
   nativeBridge,
   aiProvider,
-  defaultSkill
+  defaultSkill,
+  annotations = []
 }: AskTutorFromNotchOptions): Promise<NotchPayload> {
   try {
     const mockPlanner = createMockTutorPlanner();
@@ -35,7 +38,7 @@ export async function askTutorFromNotch({
         bundleId: activeApp.bundleId,
         windowTitle: activeApp.windowTitle,
         userQuery: query,
-        annotations: []
+        annotations
       },
       screenCapture,
       skillSlug: defaultSkill

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
 import { activationStateToNotchPayload } from '../activation/activationState';
 import { loadBrowserEnv } from '../config/env';
+import type { UserAnnotation } from '../core/types';
 import { createNativeBridge } from '../native/nativeBridge';
 import { subscribeToNotchPayload } from './notchEvents';
 import { askTutorFromNotch } from './notchTutor';
@@ -18,6 +19,7 @@ const defaultPayload: NotchPayload = {
 export function NotchApp() {
   const [payload, setPayload] = useState<NotchPayload>(defaultPayload);
   const [query, setQuery] = useState('');
+  const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
   const isPromptVisible = isNotchPromptVisible(payload);
@@ -25,6 +27,7 @@ export function NotchApp() {
   const hideNotch = useCallback(() => {
     setPayload(defaultPayload);
     setQuery('');
+    setAnnotations([]);
     void nativeBridge.hideNotch();
   }, [nativeBridge]);
 
@@ -50,6 +53,9 @@ export function NotchApp() {
           if (nextPayload.state === 'captured') {
             setQuery('');
           }
+          if (nextPayload.state === 'listening') {
+            setAnnotations([]);
+          }
           setPayload(nextPayload);
         }
       }
@@ -64,6 +70,41 @@ export function NotchApp() {
     return () => {
       isMounted = false;
       unlisten?.();
+    };
+  }, [nativeBridge]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const unlisteners: Array<() => void> = [];
+
+    void Promise.all([
+      listen<UserAnnotation>('annotation:add', (event) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setAnnotations((currentAnnotations) => [...currentAnnotations, event.payload]);
+      }),
+      listen('annotation:done', () => {
+        if (!isMounted) {
+          return;
+        }
+
+        const capturedPayload = activationStateToNotchPayload('captured');
+        setPayload(capturedPayload);
+        void nativeBridge.showNotch(capturedPayload);
+      })
+    ])
+      .then((nextUnlisteners) => {
+        unlisteners.push(...nextUnlisteners);
+      })
+      .catch(() => {
+        // Browser preview and tests run without the Tauri event bus.
+      });
+
+    return () => {
+      isMounted = false;
+      unlisteners.forEach((unlisten) => unlisten());
     };
   }, [hideNotch]);
 
@@ -113,12 +154,14 @@ export function NotchApp() {
                   query: askPayload.query,
                   nativeBridge,
                   aiProvider: env.aiProvider,
-                  defaultSkill: env.defaultSkill
+                  defaultSkill: env.defaultSkill,
+                  annotations
                 });
 
                 setPayload(answerPayload);
                 await nativeBridge.showNotch(answerPayload);
                 setQuery('');
+                setAnnotations([]);
               });
             }}
           >

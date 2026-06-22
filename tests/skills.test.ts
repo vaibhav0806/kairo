@@ -22,4 +22,12 @@ describe('createSkillPackRegistry', () => {
       })?.slug
     ).toBe('blender');
   });
+
+  test('selects Blender when the user mentions it in a general app context', () => {
+    const registry = createSkillPackRegistry();
+
+    expect(registry.matchUserQuery('Can you help me learn Blender basics?')?.slug).toBe(
+      'blender'
+    );
+  });
 });

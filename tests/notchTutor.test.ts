@@ -76,6 +76,29 @@ describe('askTutorFromNotch', () => {
     );
   });
 
+  test('passes screen annotations from the notch into the tutor turn', async () => {
+    const bridge = createBridge();
+    const annotation = {
+      id: 'screen-annotation-1',
+      type: 'rectangle' as const,
+      screenRegion: { x: 100, y: 120, width: 220, height: 90 }
+    };
+
+    await askTutorFromNotch({
+      query: 'What is this marked area?',
+      nativeBridge: bridge,
+      aiProvider: 'openrouter',
+      defaultSkill: 'blender',
+      annotations: [annotation]
+    });
+
+    expect(bridge.runTutorTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotations: [annotation]
+      })
+    );
+  });
+
   test('returns a visible provider error instead of staying in thinking', async () => {
     const bridge = createBridge({
       runTutorTurn: vi.fn(async () => {

@@ -32,7 +32,10 @@ export function buildTutorTurnInput({
   skillSlug: string;
 }): TutorTurnInput {
   const registry = createSkillPackRegistry();
-  const skill = registry.matchActiveApp(request) ?? registry.getBySlug(skillSlug);
+  const skill =
+    registry.matchUserQuery(request.userQuery) ??
+    registry.matchActiveApp(request) ??
+    registry.getBySlug(skillSlug);
 
   return {
     userQuery: request.userQuery,

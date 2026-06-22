@@ -65,4 +65,20 @@ describe('tutor orchestrator', () => {
       skill: expect.objectContaining({ slug: 'blender' })
     }));
   });
+
+  test('loads a skill pack when the user mentions that app even if another app is active', () => {
+    const input = buildTutorTurnInput({
+      request: {
+        userQuery: 'How do I start with Blender?',
+        activeApp: 'Chrome',
+        bundleId: 'com.google.Chrome',
+        windowTitle: 'Search',
+        annotations: []
+      },
+      screenCapture: null,
+      skillSlug: 'blender'
+    });
+
+    expect(input.skill.slug).toBe('blender');
+  });
 });
