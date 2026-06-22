@@ -124,12 +124,13 @@ describe('OpenRouter tutor planner adapter', () => {
     });
   });
 
-  test('falls back to a safe clarification response when provider output is not valid JSON', () => {
+  test('surfaces provider prose when provider output is not valid JSON', () => {
     const response = parseTutorPlannerResponse('Click around and see what happens.', tutorInput);
 
     expect(response.mode).toBe('stuck_help');
     expect(response.visualTargets).toEqual([]);
     expect(response.providerMetadata?.confidenceState).toBe('low');
-    expect(response.voiceText).toContain('could not read');
+    expect(response.screenText).toBe('Click around and see what happens.');
+    expect(response.voiceText).toBe('Click around and see what happens.');
   });
 });

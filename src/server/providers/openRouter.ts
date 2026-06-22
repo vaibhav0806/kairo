@@ -60,6 +60,7 @@ export function createOpenRouterClient(config: OpenRouterClientConfig) {
         body: JSON.stringify({
           model: config.model,
           messages,
+          response_format: { type: 'json_object' },
           temperature: 0.2,
           max_tokens: 700
         })

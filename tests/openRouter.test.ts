@@ -38,7 +38,8 @@ describe('createOpenRouterClient', () => {
       'X-OpenRouter-Title': 'Kairo Tutor'
     });
     expect(JSON.parse(capturedInit?.body as string)).toMatchObject({
-      model: 'anthropic/claude-sonnet-4'
+      model: 'anthropic/claude-sonnet-4',
+      response_format: { type: 'json_object' }
     });
   });
 });

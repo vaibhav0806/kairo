@@ -87,15 +87,17 @@ async function testOpenRouter(env) {
       messages: [
         {
           role: 'system',
-          content: 'Reply with exactly: Kairo provider smoke test passed.'
+          content:
+            'Return only JSON with this exact shape: {"screenText":"Kairo provider smoke test passed.","voiceText":"Kairo provider smoke test passed."}'
         },
         {
           role: 'user',
           content: 'Run the smoke test.'
         }
       ],
+      response_format: { type: 'json_object' },
       temperature: 0,
-      max_tokens: 24
+      max_tokens: 80
     }
   );
 
@@ -103,6 +105,7 @@ async function testOpenRouter(env) {
   if (!content) {
     throw new Error('OpenRouter response did not include assistant content.');
   }
+  JSON.parse(content);
 
   console.log(`OpenRouter: ok (${model})`);
   console.log(`OpenRouter response: ${content}`);
@@ -124,7 +127,8 @@ async function testOpenRouter(env) {
           content: [
             {
               type: 'text',
-              text: 'Reply with exactly: Kairo vision smoke test passed.'
+              text:
+                'Return only JSON with this exact shape: {"screenText":"Kairo vision smoke test passed.","voiceText":"Kairo vision smoke test passed."}'
             },
             {
               type: 'image_url',
@@ -135,14 +139,16 @@ async function testOpenRouter(env) {
           ]
         }
       ],
+      response_format: { type: 'json_object' },
       temperature: 0,
-      max_tokens: 24
+      max_tokens: 80
     }
   );
   const visionContent = visionPayload?.choices?.[0]?.message?.content;
   if (!visionContent) {
     throw new Error('OpenRouter vision response did not include assistant content.');
   }
+  JSON.parse(visionContent);
 
   console.log(`OpenRouter vision: ok (${model})`);
   console.log(`OpenRouter vision response: ${visionContent}`);

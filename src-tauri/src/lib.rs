@@ -953,6 +953,16 @@ fn build_openrouter_messages(input: &TutorTurnInput) -> Result<Value, String> {
     ]))
 }
 
+fn build_openrouter_request_body(input: &TutorTurnInput, model: &str) -> Result<Value, String> {
+    Ok(json!({
+        "model": model,
+        "messages": build_openrouter_messages(input)?,
+        "response_format": { "type": "json_object" },
+        "temperature": 0.2,
+        "max_tokens": 700,
+    }))
+}
+
 #[tauri::command]
 async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
     let provider = provider_env("KAIRO_AI_PROVIDER", "mock");
@@ -990,12 +1000,7 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
     }
 
     let response = request
-        .json(&json!({
-            "model": model,
-            "messages": build_openrouter_messages(&input)?,
-            "temperature": 0.2,
-            "max_tokens": 700,
-        }))
+        .json(&build_openrouter_request_body(&input, &model)?)
         .send()
         .await
         .map_err(|error| format!("OpenRouter request failed: {error}"))?;
@@ -1211,9 +1216,9 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_openrouter_messages, notch_window_size, parse_local_env, provider_timeout_ms,
-        OverlayDisplayBounds, TutorActiveAppContext, TutorScreenInput, TutorSkillPack,
-        TutorTurnInput,
+        build_openrouter_messages, build_openrouter_request_body, notch_window_size,
+        parse_local_env, provider_timeout_ms, OverlayDisplayBounds, TutorActiveAppContext,
+        TutorScreenInput, TutorSkillPack, TutorTurnInput,
     };
     use serde_json::json;
 
@@ -1268,7 +1273,39 @@ mod tests {
 
     #[test]
     fn openrouter_messages_use_openrouter_image_url_shape() {
-        let input = TutorTurnInput {
+        let input = sample_tutor_turn_input();
+
+        let messages = build_openrouter_messages(&input).expect("messages should build");
+        let image_part = &messages[1]["content"][1];
+
+        assert_eq!(image_part["type"], "image_url");
+        assert_eq!(
+            image_part["imageUrl"]["url"],
+            "data:image/png;base64,abc123"
+        );
+        assert!(image_part.get("image_url").is_none());
+    }
+
+    #[test]
+    fn openrouter_request_body_requests_json_object_output() {
+        let input = sample_tutor_turn_input();
+        let body =
+            build_openrouter_request_body(&input, "qwen/qwen3.6-flash").expect("body should build");
+
+        assert_eq!(body["model"], "qwen/qwen3.6-flash");
+        assert_eq!(body["response_format"]["type"], "json_object");
+    }
+
+    #[test]
+    fn notch_window_size_expands_for_prompt_and_answer_states() {
+        assert_eq!(notch_window_size(Some("captured")), (560.0, 132.0));
+        assert_eq!(notch_window_size(Some("showing_step")), (560.0, 132.0));
+        assert_eq!(notch_window_size(Some("thinking")), (380.0, 78.0));
+        assert_eq!(notch_window_size(None), (380.0, 78.0));
+    }
+
+    fn sample_tutor_turn_input() -> TutorTurnInput {
+        TutorTurnInput {
             user_query: "What should I click?".to_string(),
             active_app: TutorActiveAppContext {
                 active_app: "Blender".to_string(),
@@ -1297,24 +1334,6 @@ mod tests {
                 landmarks: json!({}),
             },
             constraints: vec!["Return one short tutor step.".to_string()],
-        };
-
-        let messages = build_openrouter_messages(&input).expect("messages should build");
-        let image_part = &messages[1]["content"][1];
-
-        assert_eq!(image_part["type"], "image_url");
-        assert_eq!(
-            image_part["imageUrl"]["url"],
-            "data:image/png;base64,abc123"
-        );
-        assert!(image_part.get("image_url").is_none());
-    }
-
-    #[test]
-    fn notch_window_size_expands_for_prompt_and_answer_states() {
-        assert_eq!(notch_window_size(Some("captured")), (560.0, 132.0));
-        assert_eq!(notch_window_size(Some("showing_step")), (560.0, 132.0));
-        assert_eq!(notch_window_size(Some("thinking")), (380.0, 78.0));
-        assert_eq!(notch_window_size(None), (380.0, 78.0));
+        }
     }
 }

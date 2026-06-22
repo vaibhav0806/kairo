@@ -65,13 +65,18 @@ function confidenceState(targets: VisualTarget[]): 'high' | 'medium' | 'low' {
   return 'low';
 }
 
-function fallbackResponse(input: TutorTurnInput, warning: string): TutorResponse {
+function fallbackResponse(input: TutorTurnInput, warning: string, rawContent?: string): TutorResponse {
+  const providerText = rawContent?.trim();
+  const visibleText =
+    providerText && providerText.length > 0
+      ? providerText
+      : 'I need one more clear prompt.';
+
   return {
     mode: 'stuck_help',
     skillSlug: input.skill.slug,
-    voiceText:
-      'I could not read the model response safely. Ask again or mark the exact area you want help with.',
-    screenText: 'I need one more clear prompt.',
+    voiceText: visibleText,
+    screenText: visibleText,
     visualTargets: [],
     expectedNextState: 'user_clarifies_goal',
     providerMetadata: {
@@ -87,7 +92,7 @@ export function parseTutorPlannerResponse(rawContent: string, input: TutorTurnIn
   try {
     parsed = tutorResponseSchema.parse(extractJson(rawContent));
   } catch {
-    return fallbackResponse(input, 'Provider response was not valid tutor JSON.');
+    return fallbackResponse(input, 'Provider response was not valid tutor JSON.', rawContent);
   }
 
   const safeTargets = parsed.visualTargets
