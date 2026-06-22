@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import {
   buildNotchAskPayload,
+  isNotchDismissKey,
   isNotchPromptVisible,
   submitNotchPrompt
 } from '../src/notch/prompt';
@@ -33,5 +34,10 @@ describe('notch prompt behavior', () => {
     await submitNotchPrompt('   ', emitAsk);
 
     expect(emitAsk).not.toHaveBeenCalled();
+  });
+
+  test('treats Escape as the notch dismiss key', () => {
+    expect(isNotchDismissKey('Escape')).toBe(true);
+    expect(isNotchDismissKey('Enter')).toBe(false);
   });
 });

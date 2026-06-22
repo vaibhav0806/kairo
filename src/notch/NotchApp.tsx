@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
 import { createNativeBridge } from '../native/nativeBridge';
 import { subscribeToNotchPayload } from './notchEvents';
-import { isNotchPromptVisible, submitNotchPrompt } from './prompt';
+import { isNotchDismissKey, isNotchPromptVisible, submitNotchPrompt } from './prompt';
 import type { NotchPayload } from './types';
 
 const defaultPayload: NotchPayload = {
@@ -53,6 +53,21 @@ export function NotchApp() {
     };
   }, [nativeBridge]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isNotchDismissKey(event.key)) {
+        return;
+      }
+
+      event.preventDefault();
+      void nativeBridge.hideNotch();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nativeBridge]);
+
   return (
     <main className="notch-shell" aria-label="Kairo assistant status">
       <div className="notch-card" data-state={payload.state}>
@@ -61,6 +76,16 @@ export function NotchApp() {
           <strong>{payload.title}</strong>
           <span>{payload.detail}</span>
         </div>
+        <button
+          aria-label="Hide Kairo"
+          className="notch-close"
+          type="button"
+          onClick={() => {
+            void nativeBridge.hideNotch();
+          }}
+        >
+          x
+        </button>
         {isPromptVisible ? (
           <form
             className="notch-prompt"

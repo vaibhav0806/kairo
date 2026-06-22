@@ -610,8 +610,8 @@ fn configure_notch_window(
     let width = if is_prompt_mode { 560.0 } else { 380.0 };
     let height = if is_prompt_mode { 132.0 } else { 78.0 };
     window
-        .set_focusable(is_prompt_mode)
-        .map_err(|error| format!("Failed to keep notch non-focusable: {error}"))?;
+        .set_focusable(true)
+        .map_err(|error| format!("Failed to make notch focusable: {error}"))?;
     window
         .set_always_on_top(true)
         .map_err(|error| format!("Failed to keep notch above other windows: {error}"))?;
@@ -619,8 +619,8 @@ fn configure_notch_window(
         .set_skip_taskbar(true)
         .map_err(|error| format!("Failed to keep notch out of the taskbar: {error}"))?;
     window
-        .set_ignore_cursor_events(!is_prompt_mode)
-        .map_err(|error| format!("Failed to keep notch click-through: {error}"))?;
+        .set_ignore_cursor_events(false)
+        .map_err(|error| format!("Failed to make notch clickable: {error}"))?;
     let _ = window.set_shadow(false);
     window
         .set_size(LogicalSize::new(width, height))

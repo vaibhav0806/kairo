@@ -10,6 +10,10 @@ export function isNotchPromptVisible(payload: NotchPayload) {
   return payload.state === 'captured';
 }
 
+export function isNotchDismissKey(key: string) {
+  return key === 'Escape';
+}
+
 export function buildNotchAskPayload(query: string): NotchAskPayload {
   return {
     query: query.trim()
