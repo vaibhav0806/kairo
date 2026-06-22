@@ -7,6 +7,26 @@
 
 ---
 
+## Source-of-truth role
+
+This file is the **product source of truth** for Kairo Tutor.
+
+Use it for:
+
+- Product vision
+- Target users
+- MVP scope
+- UX principles
+- Safety and privacy principles
+- Roadmap
+- Success metrics
+
+Use `README.md` for the current implementation architecture, setup commands, provider configuration, and engineering rules.
+
+If product direction changes, update this file first.
+
+---
+
 ## 1. Product concept
 
 The product is an **AI-powered desktop tutor** for students learning complex creative, technical, and professional software.

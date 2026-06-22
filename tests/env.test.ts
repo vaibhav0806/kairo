@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { loadKairoEnv } from '../src/config/env';
+import { loadKairoEnv, loadKairoPublicEnv } from '../src/config/env';
 
 describe('loadKairoEnv', () => {
   test('allows a full local mock configuration without vendor keys', () => {
@@ -48,5 +48,17 @@ describe('loadKairoEnv', () => {
         KAIRO_TTS_PROVIDER: 'mock'
       })
     ).toThrow('SARVAM_API_KEY is required when Sarvam speech is selected');
+  });
+
+  test('loads public app configuration without requiring browser-exposed vendor keys', () => {
+    const env = loadKairoPublicEnv({
+      KAIRO_AI_PROVIDER: 'openrouter',
+      KAIRO_STT_PROVIDER: 'sarvam',
+      KAIRO_TTS_PROVIDER: 'sarvam'
+    });
+
+    expect(env.aiProvider).toBe('openrouter');
+    expect(env.sttProvider).toBe('sarvam');
+    expect(env.ttsProvider).toBe('sarvam');
   });
 });

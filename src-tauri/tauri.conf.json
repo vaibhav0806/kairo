@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Kairo Tutor",
+  "version": "0.1.0",
+  "identifier": "com.kairo.tutor",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Kairo Tutor",
+        "width": 1180,
+        "height": 820,
+        "minWidth": 920,
+        "minHeight": 640,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Education",
+    "macOS": {
+      "minimumSystemVersion": "14.2",
+      "signingIdentity": "Kairo Tutor Local Dev",
+      "entitlements": "Entitlements.plist"
+    }
+  }
+}

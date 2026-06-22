@@ -94,12 +94,17 @@ Run typecheck, tests, and production build.
 **Reference:** Read `docs/clicky-borrowing-notes.md` first, especially the sections on Mac native app shape, ScreenCaptureKit capture, global push-to-talk, and secure provider proxying.
 
 **Scope:**
-- Add Tauri shell and native macOS commands.
-- Implement global shortcut activation.
-- Add Screen Recording, Accessibility, and Microphone permission status checks.
-- Capture active display/window screenshot.
-- Return active app identifier, window title, display bounds, scale factor, and screenshot metadata to the frontend.
-- Keep sensitive-app blocking local and visible.
+- [x] Add Tauri shell and native macOS command surface.
+- [x] Add frontend native bridge with browser fallback.
+- [x] Add active app/window metadata command.
+- [x] Add first-pass screen/accessibility permission probes.
+- [x] Add first-pass macOS screenshot capture command.
+- [x] Implement global shortcut activation.
+- [x] Add local microphone permission status through the WebView Permission API when available.
+- [x] Return display bounds, scale factor, and screenshot metadata to the frontend.
+- [x] Keep sensitive-app blocking local and visible.
+- [x] Replace current macOS capture internals with ScreenCaptureKit.
+- [x] Exclude Kairo windows from ScreenCaptureKit captures when macOS exposes them.
 
 **Acceptance Criteria:**
 - Pressing the shortcut opens the tutor surface.

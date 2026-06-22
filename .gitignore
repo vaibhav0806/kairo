@@ -7,3 +7,5 @@ dist/
 *.log
 tmp/
 tsconfig.tsbuildinfo
+src-tauri/gen/
+src-tauri/target/

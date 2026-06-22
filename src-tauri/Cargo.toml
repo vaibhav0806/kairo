@@ -1,0 +1,25 @@
+[package]
+name = "kairo-tutor"
+version = "0.1.0"
+description = "Screen-native AI tutor for software labs"
+authors = ["Kairo Tutor"]
+edition = "2021"
+
+[lib]
+name = "kairo_tutor_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22"
+block2 = "0.6.2"
+core-foundation = "0.10"
+core-graphics = "0.25"
+objc2 = "0.6.4"
+objc2-av-foundation = "0.3.2"
+objc2-foundation = "0.3.2"
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-global-shortcut = "2"

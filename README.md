@@ -1,23 +1,85 @@
 # Kairo Tutor
 
-Kairo Tutor is a Mac-first, screen-native AI tutor for students learning complex software. The product goal is simple: the AI should not just answer, it should show. A learner activates the tutor, asks a question, and the app uses screen context, software-specific skill packs, voice, and visual overlays to guide one step at a time.
+Kairo Tutor is a Mac-first, screen-native AI tutor for practical software labs. It helps students learn complex tools by listening to their question, understanding the current screen, and guiding them one step at a time with voice and visual cues.
 
-The current repo is the first product skeleton. It includes a React/Vite app shell, a mock Blender tutoring loop, an env-driven provider contract, OpenRouter model routing, Sarvam voice configuration, and a seed Blender skill pack.
+The product principle is:
 
-## Current Milestone
+> The AI points. The user acts.
 
-Milestone 1 is implemented:
+## Source Of Truth
 
-- Local app shell
-- Mock Blender screen and tutor response
-- Env validation
-- OpenRouter provider client
-- Sarvam voice env setup
-- Blender skill-pack seed
-- Provider smoke test
-- Unit tests, typecheck, and production build
+This repo has two primary source-of-truth files:
 
-See [plan.md](./plan.md) for the full milestone plan.
+- [FEATURE.md](./FEATURE.md): product vision, target users, MVP scope, roadmap, UX principles, safety principles, and success metrics.
+- [README.md](./README.md): current implementation architecture, setup, commands, provider choices, and engineering rules.
+
+Supporting files such as [plan.md](./plan.md) and [docs/clicky-borrowing-notes.md](./docs/clicky-borrowing-notes.md) are useful working documents, but if they conflict with `FEATURE.md` or `README.md`, update the supporting document. Product direction belongs in `FEATURE.md`; implementation truth belongs here.
+
+## Current Architecture
+
+The current implementation has three layers:
+
+```text
+React/Vite frontend
+  - Tutor shell UI
+  - Mock Blender tutoring loop
+  - Native bridge with browser-safe fallback
+
+Tauri desktop shell
+  - macOS app wrapper
+  - Rust command surface
+  - Active app metadata
+  - First-pass permission status
+  - ScreenCaptureKit screen capture
+
+Provider utilities
+  - OpenRouter chat client
+  - Sarvam voice env contract
+  - Local provider smoke test
+```
+
+There is no separate deployed backend yet.
+
+The current `src/server/` folder is not a running backend service. It contains server-side/provider-safe code that should not be shipped as browser-only logic. The current provider smoke test runs locally from Node.
+
+The likely production backend shape is a small proxy service, probably Cloudflare Worker or similar, that stores provider secrets and exposes narrow routes for:
+
+- OpenRouter chat/vision planning
+- Sarvam speech-to-text
+- Sarvam text-to-speech
+
+Until that backend exists, do not put provider secrets into browser-exposed env variables.
+
+## Product Scope
+
+The first product wedge is:
+
+> AI lab assistant for creative software institutes.
+
+The first strong demo is:
+
+> A student opens Blender, asks “Help me make my first animation,” and the tutor guides them with voice, highlights, and a ghost cursor.
+
+Early scope:
+
+- Mac-first desktop app
+- Global activation
+- Voice input and output
+- Screen capture
+- Active app detection
+- Visual overlay guidance
+- User annotation
+- Blender skill pack
+- Step-by-step guided lesson loop
+
+Out of early scope:
+
+- Autonomous clicking
+- Full LMS
+- Course marketplace
+- Ten-tool support
+- Enterprise compliance stack
+- Windows before the Mac product loop works
 
 ## Tech Stack
 
@@ -25,26 +87,36 @@ See [plan.md](./plan.md) for the full milestone plan.
 - React
 - Vite
 - Vitest
+- Tauri v2
+- Rust
 - OpenRouter for model routing
 - Sarvam for speech-to-text and text-to-speech
 
-The desktop-native layer is not built yet. The plan is to wrap this with a Mac-first desktop shell later, likely Tauri plus native macOS modules for screen capture, global shortcuts, permissions, and overlays.
+## Providers
 
-## Setup
+Model routing:
 
-Install dependencies:
-
-```bash
-npm install
+```env
+KAIRO_AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=qwen/qwen3.6-flash
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 ```
 
-Copy the example env if needed:
+Voice:
 
-```bash
-cp .env.example .env.local
+```env
+KAIRO_STT_PROVIDER=sarvam
+KAIRO_TTS_PROVIDER=sarvam
+SARVAM_API_KEY=...
+SARVAM_STT_MODEL=saaras:v3
+SARVAM_STT_MODE=transcribe
+SARVAM_TTS_MODEL=bulbul:v3
+SARVAM_TTS_LANGUAGE_CODE=en-IN
+SARVAM_TTS_SPEAKER=shubh
 ```
 
-For local UI development, mock mode is enough:
+Local UI development can use mock providers:
 
 ```env
 KAIRO_AI_PROVIDER=mock
@@ -52,77 +124,90 @@ KAIRO_STT_PROVIDER=mock
 KAIRO_TTS_PROVIDER=mock
 ```
 
-For real provider testing, configure:
+Only `KAIRO_*` values should be exposed to the browser bundle. Provider keys must stay in local env files, native secure storage, or a backend/proxy.
 
-```env
-KAIRO_AI_PROVIDER=openrouter
-OPENROUTER_API_KEY=...
-OPENROUTER_MODEL=qwen/qwen3.6-flash
+## Setup
 
-KAIRO_STT_PROVIDER=sarvam
-KAIRO_TTS_PROVIDER=sarvam
-SARVAM_API_KEY=...
-SARVAM_STT_MODEL=saaras:v3
-SARVAM_TTS_MODEL=bulbul:v3
-SARVAM_TTS_LANGUAGE_CODE=en-IN
-SARVAM_TTS_SPEAKER=shubh
+```bash
+npm install
+cp .env.example .env.local
 ```
 
-Do not expose provider keys to browser env. Only `KAIRO_*` values are exposed to Vite.
+Edit `.env.local` with local provider values when needed. `.env.local` is ignored by git.
 
-## Run The App
+## Commands
+
+Run browser dev shell:
 
 ```bash
 npm run dev
 ```
 
-Open:
+Run desktop dev shell:
 
-```text
-http://127.0.0.1:5173/
+```bash
+npm run tauri:dev
 ```
 
-## Test Providers
+Build frontend:
 
-Run a live OpenRouter chat request and a short Sarvam TTS request:
+```bash
+npm run build
+```
+
+Build macOS app bundle:
+
+```bash
+npm run tauri:build -- --bundles app
+```
+
+Test providers:
 
 ```bash
 npm run smoke:providers
 ```
 
-Expected shape:
-
-```text
-OpenRouter: ok (<model>)
-OpenRouter response: Kairo provider smoke test passed.
-Sarvam TTS: ok (bulbul:v3, en-IN, shubh)
-Sarvam audio: tmp/sarvam-tts-smoke.wav
-```
-
-The command does not print API keys. The generated audio file is ignored by git.
-
-## Verification
-
-Run the full local verification set:
+Verify repo:
 
 ```bash
 npm test
 npm run typecheck
 npm run build
+cargo check --manifest-path src-tauri/Cargo.toml
+npm run tauri:build -- --bundles app
 npm audit --audit-level=moderate
 ```
+
+## Current Native Commands
+
+The frontend calls native functionality through [src/native/nativeBridge.ts](./src/native/nativeBridge.ts). Browser mode returns safe fallback values.
+
+Tauri commands:
+
+- `get_active_app`: returns frontmost macOS app name, bundle id, and front window title when available.
+- `get_permission_status`: returns screen/accessibility permission probes and microphone state where the WebView permission API is available.
+- `capture_screen`: blocks sensitive apps locally, captures a PNG through ScreenCaptureKit, excludes Kairo windows when macOS exposes them, and returns base64 image metadata plus display bounds/scale.
+
+Pending native work:
+
+- Customizable shortcut settings
 
 ## Project Structure
 
 ```text
 src/
-  App.tsx                         App shell and mock tutor UI
-  config/env.ts                   Env parsing and provider validation
+  App.tsx
+  config/env.ts
   core/
-    mockTutor.ts                  Deterministic mock tutor planner
-    skills.ts                     Seed skill-pack registry
-    types.ts                      Shared product types
-  server/providers/openRouter.ts  Server-side OpenRouter client
+  native/nativeBridge.ts
+  server/providers/openRouter.ts
+
+src-tauri/
+  src/lib.rs
+  src/main.rs
+  tauri.conf.json
+  capabilities/
+  icons/
 
 skills/blender/
   skill.md
@@ -134,17 +219,16 @@ skills/blender/
   safety_rules.yaml
 
 scripts/
-  smoke-providers.mjs             Live provider smoke test
+  smoke-providers.mjs
 ```
 
-## Product Direction
+## Engineering Rules
 
-The first real demo should show:
-
-> A student opens Blender, asks “Help me make my first animation,” and the AI guides them with voice, highlights, and a ghost cursor.
-
-The MVP principle is:
-
-> The AI points. The user acts.
-
-Autonomous clicking is intentionally out of scope for the early product.
+- Keep `FEATURE.md` product-facing and durable.
+- Keep this README current when architecture, setup, commands, providers, or native capabilities change.
+- Keep secrets out of git and out of browser-exposed env.
+- Prefer narrow, testable modules over a single large app manager.
+- Use Clicky as a native Mac reference, not as the architecture to copy wholesale.
+- Preserve the learning principle: the tutor guides and points; the learner acts.
+- Stick with Tauri through the next milestone unless a verified WebKit/WKWebView blocker appears.
+- Before UI work for any new macOS native capability, update `Info.plist`, add required entitlements, document TCC reset/test notes, and verify the signed app with `codesign -d --entitlements :- path/to/Kairo\ Tutor.app`.

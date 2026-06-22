@@ -43,14 +43,23 @@ export type KairoEnv = {
   sarvamTtsSpeaker: string;
 };
 
-export function loadKairoEnv(source: Record<string, string | undefined>): KairoEnv {
+type LoadKairoEnvOptions = {
+  requireProviderKeys?: boolean;
+};
+
+export function loadKairoEnv(
+  source: Record<string, string | undefined>,
+  options: LoadKairoEnvOptions = {}
+): KairoEnv {
+  const requireProviderKeys = options.requireProviderKeys ?? true;
   const parsed = rawEnvSchema.parse(source);
 
-  if (parsed.KAIRO_AI_PROVIDER === 'openrouter' && !parsed.OPENROUTER_API_KEY) {
+  if (requireProviderKeys && parsed.KAIRO_AI_PROVIDER === 'openrouter' && !parsed.OPENROUTER_API_KEY) {
     throw new Error('OPENROUTER_API_KEY is required when KAIRO_AI_PROVIDER=openrouter');
   }
 
   if (
+    requireProviderKeys &&
     (parsed.KAIRO_STT_PROVIDER === 'sarvam' || parsed.KAIRO_TTS_PROVIDER === 'sarvam') &&
     !parsed.SARVAM_API_KEY
   ) {
@@ -77,6 +86,10 @@ export function loadKairoEnv(source: Record<string, string | undefined>): KairoE
   };
 }
 
+export function loadKairoPublicEnv(source: Record<string, string | undefined>): KairoEnv {
+  return loadKairoEnv(source, { requireProviderKeys: false });
+}
+
 export function loadBrowserEnv(): KairoEnv {
-  return loadKairoEnv(import.meta.env as Record<string, string | undefined>);
+  return loadKairoPublicEnv(import.meta.env as Record<string, string | undefined>);
 }
