@@ -40,6 +40,19 @@ describe('macOS bundle permissions', () => {
     });
   });
 
+  test('keeps the main debug window hidden on normal launch', () => {
+    const tauriConfig = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+    const mainWindow = tauriConfig.app.windows.find(
+      (windowConfig: { label: string }) => windowConfig.label === 'main'
+    );
+
+    expect(mainWindow).toMatchObject({
+      label: 'main',
+      visible: false,
+      focus: false
+    });
+  });
+
   test('allows both main and overlay windows in the default capability scope', () => {
     const capability = JSON.parse(readFileSync('src-tauri/capabilities/default.json', 'utf8'));
 

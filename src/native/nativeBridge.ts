@@ -1,5 +1,4 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { register as registerGlobalShortcut } from '@tauri-apps/plugin-global-shortcut';
 import type { VisualTarget } from '../core/types';
 
@@ -260,16 +259,12 @@ export function createNativeBridge(
 
     async registerActivationShortcut(onActivated) {
       try {
-        const windowController = dependencies.windowController ?? getCurrentWindow();
-
         await registerShortcut(KAIRO_DEFAULT_ACTIVATION_SHORTCUT, async (event) => {
           if (event.state !== 'Pressed') {
             return;
           }
 
           await onActivated();
-          await windowController.show();
-          await windowController.setFocus();
         });
 
         return {

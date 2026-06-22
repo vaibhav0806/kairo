@@ -641,6 +641,19 @@ fn _permission_status_fallback() -> PermissionStatus {
     }
 }
 
+fn requires_permission_setup(state: &PermissionState) -> bool {
+    matches!(
+        state,
+        PermissionState::Denied | PermissionState::NotDetermined
+    )
+}
+
+fn should_show_setup_window(status: &PermissionStatus) -> bool {
+    requires_permission_setup(&status.screen_recording)
+        || requires_permission_setup(&status.accessibility)
+        || requires_permission_setup(&status.microphone)
+}
+
 #[cfg(debug_assertions)]
 fn log_window_startup(window: &tauri::WebviewWindow) {
     let visible = window.is_visible().unwrap_or(false);
@@ -668,9 +681,13 @@ pub fn run() {
                 log_window_startup(&window);
                 let _ = window.set_size(LogicalSize::new(1180.0, 820.0));
                 let _ = window.center();
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
+                if should_show_setup_window(&get_permission_status()) {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                } else {
+                    let _ = window.hide();
+                }
             } else {
                 #[cfg(debug_assertions)]
                 eprintln!("Kairo Tutor startup: main window was not created");

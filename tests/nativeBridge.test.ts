@@ -210,7 +210,7 @@ describe('createNativeBridge', () => {
     expect(invoke).toHaveBeenCalledWith('hide_overlay');
   });
 
-  test('registers activation shortcut before focusing the desktop window on press', async () => {
+  test('registers activation shortcut without foregrounding the desktop debug window', async () => {
     let shortcutHandler: ((event: { state: string; shortcut: string }) => void) | undefined;
     const callOrder: string[] = [];
     const registerShortcut = vi.fn(async (_shortcut: string, handler) => {
@@ -240,9 +240,9 @@ describe('createNativeBridge', () => {
       'CommandOrControl+Shift+Space',
       expect.any(Function)
     );
-    expect(windowController.show).toHaveBeenCalled();
-    expect(windowController.setFocus).toHaveBeenCalled();
+    expect(windowController.show).not.toHaveBeenCalled();
+    expect(windowController.setFocus).not.toHaveBeenCalled();
     expect(onActivated).toHaveBeenCalled();
-    expect(callOrder).toEqual(['activate', 'show', 'focus']);
+    expect(callOrder).toEqual(['activate']);
   });
 });
