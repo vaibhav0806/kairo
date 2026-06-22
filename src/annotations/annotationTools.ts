@@ -6,6 +6,7 @@ export type AnnotationPoint = {
 };
 
 export type AnnotationTool = UserAnnotation['type'] | 'erase';
+export type DragAnnotationTool = Exclude<UserAnnotation['type'], 'pen'>;
 
 export function normalizeDragToRegion(start: AnnotationPoint, end: AnnotationPoint): ScreenRegion {
   return {
@@ -16,6 +17,31 @@ export function normalizeDragToRegion(start: AnnotationPoint, end: AnnotationPoi
   };
 }
 
+export function normalizePointsToRegion(points: AnnotationPoint[]): ScreenRegion {
+  if (points.length === 0) {
+    return {
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0
+    };
+  }
+
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY
+  };
+}
+
 export function createAnnotationFromDrag({
   id,
   type,
@@ -23,7 +49,7 @@ export function createAnnotationFromDrag({
   end
 }: {
   id: string;
-  type: UserAnnotation['type'];
+  type: DragAnnotationTool;
   start: AnnotationPoint;
   end: AnnotationPoint;
 }): UserAnnotation {
@@ -31,6 +57,21 @@ export function createAnnotationFromDrag({
     id,
     type,
     screenRegion: normalizeDragToRegion(start, end)
+  };
+}
+
+export function createAnnotationFromPoints({
+  id,
+  points
+}: {
+  id: string;
+  points: AnnotationPoint[];
+}): UserAnnotation {
+  return {
+    id,
+    type: 'pen',
+    screenRegion: normalizePointsToRegion(points),
+    points
   };
 }
 

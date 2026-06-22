@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import {
+  createAnnotationFromPoints,
   createAnnotationFromDrag,
   eraseAnnotationAtPoint,
-  normalizeDragToRegion
+  normalizeDragToRegion,
+  normalizePointsToRegion
 } from '../src/annotations/annotationTools';
 
 describe('annotation tools', () => {
@@ -37,6 +39,48 @@ describe('annotation tools', () => {
         width: 160,
         height: 120
       }
+    });
+  });
+
+  test('creates freeform pen annotations from traced points', () => {
+    expect(
+      createAnnotationFromPoints({
+        id: 'annotation-pen-1',
+        points: [
+          { x: 40, y: 90 },
+          { x: 55, y: 120 },
+          { x: 96, y: 80 }
+        ]
+      })
+    ).toEqual({
+      id: 'annotation-pen-1',
+      type: 'pen',
+      screenRegion: {
+        x: 40,
+        y: 80,
+        width: 56,
+        height: 40
+      },
+      points: [
+        { x: 40, y: 90 },
+        { x: 55, y: 120 },
+        { x: 96, y: 80 }
+      ]
+    });
+  });
+
+  test('normalizes pen points into their bounding region', () => {
+    expect(
+      normalizePointsToRegion([
+        { x: 18, y: 20 },
+        { x: 10, y: 42 },
+        { x: 30, y: 12 }
+      ])
+    ).toEqual({
+      x: 10,
+      y: 12,
+      width: 20,
+      height: 30
     });
   });
 

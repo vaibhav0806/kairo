@@ -3,13 +3,16 @@ import { emit, listen } from '@tauri-apps/api/event';
 import {
   type AnnotationPoint,
   type AnnotationTool,
+  type DragAnnotationTool,
   createAnnotationFromDrag
 } from '../annotations/annotationTools';
 import type { ScreenDimensions, UserAnnotation, VisualTarget } from '../core/types';
 import { createNativeBridge } from '../native/nativeBridge';
-import { createAnnotationFromDisplayDrag } from './annotationMode';
+import { createAnnotationFromDisplayDrag, createPenAnnotationFromDisplayPoints } from './annotationMode';
 import { subscribeToOverlayPayload } from './overlayEvents';
 import { VisualOverlay } from './VisualOverlay';
+
+type OverlayAnnotationTool = Exclude<AnnotationTool, 'erase'>;
 
 type OverlayDisplayBounds = ScreenDimensions & {
   x: number;
@@ -23,11 +26,12 @@ export type OverlayPayload = {
   targets: VisualTarget[];
 };
 
-const annotationTools: Exclude<AnnotationTool, 'erase'>[] = [
+const annotationTools: OverlayAnnotationTool[] = [
   'rectangle',
   'circle',
   'highlight',
-  'underline'
+  'underline',
+  'pen'
 ];
 
 function displayPointFromPointerEvent(event: PointerEvent<HTMLElement>): AnnotationPoint {
@@ -47,12 +51,37 @@ function OverlayAnnotationShape({
   displayBounds: OverlayDisplayBounds;
 }) {
   const scaleFactor = displayBounds.scaleFactor > 0 ? displayBounds.scaleFactor : 1;
+  const left = annotation.screenRegion.x / scaleFactor - displayBounds.x;
+  const top = annotation.screenRegion.y / scaleFactor - displayBounds.y;
   const style = {
-    left: `${annotation.screenRegion.x / scaleFactor - displayBounds.x}px`,
-    top: `${annotation.screenRegion.y / scaleFactor - displayBounds.y}px`,
+    left: `${left}px`,
+    top: `${top}px`,
     width: `${annotation.screenRegion.width / scaleFactor}px`,
     height: `${annotation.screenRegion.height / scaleFactor}px`
   };
+
+  if (annotation.type === 'pen' && annotation.points) {
+    const width = Math.max(annotation.screenRegion.width / scaleFactor, 1);
+    const height = Math.max(annotation.screenRegion.height / scaleFactor, 1);
+    const points = annotation.points
+      .map((point) => {
+        const x = point.x / scaleFactor - displayBounds.x - left;
+        const y = point.y / scaleFactor - displayBounds.y - top;
+        return `${x},${y}`;
+      })
+      .join(' ');
+
+    return (
+      <svg
+        aria-label="pen annotation"
+        className="annotation-shape pen"
+        style={style}
+        viewBox={`0 0 ${width} ${height}`}
+      >
+        <polyline points={points} />
+      </svg>
+    );
+  }
 
   return <div className={`annotation-shape ${annotation.type}`} style={style} />;
 }
@@ -64,13 +93,14 @@ function AnnotationOverlay({
   displayBounds: OverlayDisplayBounds;
   onDone: () => void;
 }) {
-  const [tool, setTool] = useState<Exclude<AnnotationTool, 'erase'>>('rectangle');
+  const [tool, setTool] = useState<OverlayAnnotationTool>('rectangle');
   const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
   const [draftDrag, setDraftDrag] = useState<{
-    type: Exclude<AnnotationTool, 'erase'>;
+    type: DragAnnotationTool;
     start: AnnotationPoint;
     end: AnnotationPoint;
   } | null>(null);
+  const [draftPenPoints, setDraftPenPoints] = useState<AnnotationPoint[] | null>(null);
   const sequence = useRef(0);
 
   const draftAnnotation = draftDrag
@@ -81,6 +111,12 @@ function AnnotationOverlay({
         start: draftDrag.start,
         end: draftDrag.end
       })
+    : draftPenPoints
+      ? createPenAnnotationFromDisplayPoints({
+          id: 'draft-annotation',
+          displayBounds,
+          points: draftPenPoints
+        })
     : null;
 
   function handlePointerDown(event: PointerEvent<HTMLElement>) {
@@ -90,6 +126,11 @@ function AnnotationOverlay({
 
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = displayPointFromPointerEvent(event);
+    if (tool === 'pen') {
+      setDraftPenPoints([point]);
+      return;
+    }
+
     setDraftDrag({
       type: tool,
       start: point,
@@ -98,6 +139,11 @@ function AnnotationOverlay({
   }
 
   function handlePointerMove(event: PointerEvent<HTMLElement>) {
+    if (draftPenPoints) {
+      setDraftPenPoints([...draftPenPoints, displayPointFromPointerEvent(event)]);
+      return;
+    }
+
     if (!draftDrag) {
       return;
     }
@@ -109,6 +155,33 @@ function AnnotationOverlay({
   }
 
   function handlePointerUp(event: PointerEvent<HTMLElement>) {
+    if (draftPenPoints) {
+      const points = [...draftPenPoints, displayPointFromPointerEvent(event)];
+      const previewAnnotation = createPenAnnotationFromDisplayPoints({
+        id: 'preview',
+        displayBounds,
+        points
+      });
+      setDraftPenPoints(null);
+
+      if (
+        points.length < 2 ||
+        Math.max(previewAnnotation.screenRegion.width, previewAnnotation.screenRegion.height) < 4
+      ) {
+        return;
+      }
+
+      sequence.current += 1;
+      const annotation = createPenAnnotationFromDisplayPoints({
+        id: `screen-annotation-${sequence.current}`,
+        displayBounds,
+        points
+      });
+      setAnnotations((current) => [...current, annotation]);
+      void emit('annotation:add', annotation);
+      return;
+    }
+
     if (!draftDrag) {
       return;
     }
@@ -161,7 +234,10 @@ function AnnotationOverlay({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerCancel={() => setDraftDrag(null)}
+        onPointerCancel={() => {
+          setDraftDrag(null);
+          setDraftPenPoints(null);
+        }}
         role="presentation"
       >
         {[...annotations, ...(draftAnnotation ? [draftAnnotation] : [])].map((annotation) => (

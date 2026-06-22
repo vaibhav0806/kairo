@@ -3,6 +3,8 @@ import { listen } from '@tauri-apps/api/event';
 import {
   type AnnotationPoint,
   type AnnotationTool,
+  type DragAnnotationTool,
+  createAnnotationFromPoints,
   createAnnotationFromDrag,
   eraseAnnotationAtPoint,
   normalizeDragToRegion
@@ -41,7 +43,7 @@ const mockPreviewDimensions: ScreenDimensions = {
   height: 1080
 };
 
-const annotationTools: AnnotationTool[] = ['rectangle', 'circle', 'highlight', 'underline', 'erase'];
+const annotationTools: AnnotationTool[] = ['rectangle', 'circle', 'highlight', 'underline', 'pen', 'erase'];
 
 function isPermissionGranted(status: NativePermissionStatus, permission: keyof NativePermissionStatus) {
   return status[permission] === 'granted';
@@ -81,6 +83,25 @@ function AnnotationShape({
     width: `${region.width}%`,
     height: `${region.height}%`
   };
+
+  if (annotation.type === 'pen' && annotation.points) {
+    const width = Math.max(annotation.screenRegion.width, 1);
+    const height = Math.max(annotation.screenRegion.height, 1);
+    const points = annotation.points
+      .map((point) => `${point.x - annotation.screenRegion.x},${point.y - annotation.screenRegion.y}`)
+      .join(' ');
+
+    return (
+      <svg
+        aria-label="pen annotation"
+        className="annotation-shape pen"
+        style={style}
+        viewBox={`0 0 ${width} ${height}`}
+      >
+        <polyline points={points} />
+      </svg>
+    );
+  }
 
   return (
     <div
@@ -164,10 +185,11 @@ export function App() {
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>('rectangle');
   const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
   const [draftDrag, setDraftDrag] = useState<{
-    type: Exclude<AnnotationTool, 'erase'>;
+    type: DragAnnotationTool;
     start: AnnotationPoint;
     end: AnnotationPoint;
   } | null>(null);
+  const [draftPenPoints, setDraftPenPoints] = useState<AnnotationPoint[] | null>(null);
   const [isRequestingPermissions, setIsRequestingPermissions] = useState(false);
   const annotationSequence = useRef(0);
   const [activationShortcut, setActivationShortcut] = useState<NativeShortcutRegistration>({
@@ -251,6 +273,11 @@ export function App() {
     }
 
     event.currentTarget.setPointerCapture(event.pointerId);
+    if (annotationTool === 'pen') {
+      setDraftPenPoints([point]);
+      return;
+    }
+
     setDraftDrag({
       type: annotationTool,
       start: point,
@@ -259,6 +286,11 @@ export function App() {
   }
 
   function handleAnnotationPointerMove(event: PointerEvent<HTMLElement>) {
+    if (draftPenPoints) {
+      setDraftPenPoints([...draftPenPoints, pointFromPointerEvent(event)]);
+      return;
+    }
+
     if (!draftDrag) {
       return;
     }
@@ -270,6 +302,26 @@ export function App() {
   }
 
   function handleAnnotationPointerUp(event: PointerEvent<HTMLElement>) {
+    if (draftPenPoints) {
+      const points = [...draftPenPoints, pointFromPointerEvent(event)];
+      const annotation = createAnnotationFromPoints({
+        id: `annotation-${annotationSequence.current + 1}`,
+        points
+      });
+      setDraftPenPoints(null);
+
+      if (
+        points.length < 2 ||
+        Math.max(annotation.screenRegion.width, annotation.screenRegion.height) < 4
+      ) {
+        return;
+      }
+
+      annotationSequence.current += 1;
+      setAnnotations((currentAnnotations) => [...currentAnnotations, annotation]);
+      return;
+    }
+
     if (!draftDrag) {
       return;
     }
@@ -498,6 +550,11 @@ export function App() {
         start: draftDrag.start,
         end: draftDrag.end
       })
+    : draftPenPoints
+      ? createAnnotationFromPoints({
+          id: 'draft-annotation',
+          points: draftPenPoints
+        })
     : null;
 
   return (
@@ -604,7 +661,10 @@ export function App() {
                 onPointerDown={handleAnnotationPointerDown}
                 onPointerMove={handleAnnotationPointerMove}
                 onPointerUp={handleAnnotationPointerUp}
-                onPointerCancel={() => setDraftDrag(null)}
+                onPointerCancel={() => {
+                  setDraftDrag(null);
+                  setDraftPenPoints(null);
+                }}
                 role="presentation"
               >
                 {previewSource.imageSrc ? (

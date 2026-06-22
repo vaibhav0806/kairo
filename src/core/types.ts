@@ -6,8 +6,9 @@ export type ActiveAppContext = {
 
 export type UserAnnotation = {
   id: string;
-  type: 'circle' | 'rectangle' | 'highlight' | 'underline';
+  type: 'circle' | 'rectangle' | 'highlight' | 'underline' | 'pen';
   screenRegion: ScreenRegion;
+  points?: ScreenPoint[];
 };
 
 export type TutorRequest = ActiveAppContext & {
@@ -28,6 +29,11 @@ export type ScreenRegion = {
   y: number;
   width: number;
   height: number;
+};
+
+export type ScreenPoint = {
+  x: number;
+  y: number;
 };
 
 export type ScreenDimensions = {
