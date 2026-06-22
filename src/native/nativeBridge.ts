@@ -75,7 +75,7 @@ export type NativeBridge = {
   showNotch(payload?: NotchPayload): Promise<void>;
   getCurrentNotchPayload(): Promise<NotchPayload | null>;
   hideNotch(): Promise<void>;
-  runTutorTurn(input: TutorTurnInput): Promise<string | null>;
+  runTutorTurn(input: TutorTurnInput): Promise<string>;
   registerActivationShortcut(onActivated: () => void | Promise<void>): Promise<NativeShortcutRegistration>;
 };
 
@@ -304,11 +304,7 @@ export function createNativeBridge(
     },
 
     async runTutorTurn(input) {
-      try {
-        return await invoke<string>('run_tutor_turn', { input });
-      } catch {
-        return null;
-      }
+      return invoke<string>('run_tutor_turn', { input });
     },
 
     async registerActivationShortcut(onActivated) {

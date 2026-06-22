@@ -151,6 +151,15 @@ cp .env.example .env.local
 
 Edit `.env.local` with local provider values when needed. `.env.local` is ignored by git.
 
+When running the packaged macOS app with `open src-tauri/target/release/bundle/macos/Kairo\ Tutor.app`,
+the native process does not rely on shell-inherited provider secrets. It reads `OPENROUTER_*` and
+`KAIRO_AI_PROVIDER` from the process environment first, then from `.env.local` or `.env` found while
+walking up from the app executable and current directory. If the provider is misconfigured, the UI must
+show a provider error instead of falling back to mock tutor guidance.
+
+Voice permissions are wired, but live speech-to-text is not yet part of the desktop question flow. Use
+the notch text prompt or Ask action for provider-backed tutor turns until STT is implemented.
+
 ## Commands
 
 Run browser dev shell:

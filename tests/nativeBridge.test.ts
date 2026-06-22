@@ -256,6 +256,28 @@ describe('createNativeBridge', () => {
     expect(invoke).toHaveBeenCalledWith('run_tutor_turn', { input });
   });
 
+  test('surfaces native provider proxy failures', async () => {
+    const input = {
+      userQuery: 'What should I click?',
+      activeApp: { activeApp: 'Blender' },
+      annotations: [],
+      screen: { captured: false, reason: 'No capture' },
+      skill: {
+        slug: 'blender',
+        displayName: 'Blender',
+        appIdentifiers: ['org.blenderfoundation.blender'],
+        landmarks: {}
+      },
+      constraints: ['Return one short tutor step.']
+    };
+    const invoke = vi.fn(async () => {
+      throw new Error('OPENROUTER_API_KEY is required for native OpenRouter tutor turns.');
+    }) as unknown as NativeInvoke;
+    const bridge = createNativeBridge(invoke);
+
+    await expect(bridge.runTutorTurn(input)).rejects.toThrow('OPENROUTER_API_KEY');
+  });
+
   test('registers activation shortcut without foregrounding the desktop debug window', async () => {
     let shortcutHandler: ((event: { state: string; shortcut: string }) => void) | undefined;
     const callOrder: string[] = [];

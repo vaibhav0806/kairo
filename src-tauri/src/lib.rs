@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{fs, process::Command, sync::Mutex};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+    sync::Mutex,
+};
 use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, State};
 use tauri_plugin_global_shortcut::ShortcutState;
 
@@ -772,8 +778,93 @@ fn listening_notch_payload() -> NotchPayload {
     }
 }
 
-fn openrouter_env(name: &str, fallback: &str) -> String {
-    std::env::var(name).unwrap_or_else(|_| fallback.to_string())
+fn parse_local_env(text: &str) -> HashMap<String, String> {
+    let mut values = HashMap::new();
+
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        let line = line.strip_prefix("export ").unwrap_or(line);
+        let Some((raw_key, raw_value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = raw_key.trim();
+        if key.is_empty() {
+            continue;
+        }
+
+        let value = raw_value.trim();
+        let value = if value.len() >= 2 {
+            let first = value.as_bytes()[0] as char;
+            let last = value.as_bytes()[value.len() - 1] as char;
+            if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+                &value[1..value.len() - 1]
+            } else {
+                value
+            }
+        } else {
+            value
+        };
+
+        values.insert(key.to_string(), value.to_string());
+    }
+
+    values
+}
+
+fn push_env_file_candidates_from(start: &Path, candidates: &mut Vec<PathBuf>) {
+    let mut current = if start.is_file() {
+        start.parent()
+    } else {
+        Some(start)
+    };
+
+    while let Some(dir) = current {
+        candidates.push(dir.join(".env.local"));
+        candidates.push(dir.join(".env"));
+        current = dir.parent();
+    }
+}
+
+fn local_env_file_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Ok(current_dir) = std::env::current_dir() {
+        push_env_file_candidates_from(&current_dir, &mut candidates);
+    }
+
+    if let Ok(current_exe) = std::env::current_exe() {
+        push_env_file_candidates_from(&current_exe, &mut candidates);
+    }
+
+    candidates.dedup();
+    candidates
+}
+
+fn read_local_env_value(name: &str) -> Option<String> {
+    for candidate in local_env_file_candidates() {
+        let Ok(text) = fs::read_to_string(candidate) else {
+            continue;
+        };
+        if let Some(value) = parse_local_env(&text).remove(name) {
+            return Some(value);
+        }
+    }
+
+    None
+}
+
+fn provider_env_optional(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .or_else(|| read_local_env_value(name))
+}
+
+fn provider_env(name: &str, fallback: &str) -> String {
+    provider_env_optional(name).unwrap_or_else(|| fallback.to_string())
 }
 
 fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
@@ -853,17 +944,17 @@ fn build_openrouter_messages(input: &TutorTurnInput) -> Result<Value, String> {
 
 #[tauri::command]
 async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
-    let provider = openrouter_env("KAIRO_AI_PROVIDER", "mock");
+    let provider = provider_env("KAIRO_AI_PROVIDER", "mock");
     if provider != "openrouter" {
         return Err("Native tutor provider is only configured for KAIRO_AI_PROVIDER=openrouter.".to_string());
     }
 
-    let api_key = std::env::var("OPENROUTER_API_KEY")
-        .map_err(|_| "OPENROUTER_API_KEY is required for native OpenRouter tutor turns.".to_string())?;
-    let model = openrouter_env("OPENROUTER_MODEL", "~openai/gpt-latest");
-    let base_url = openrouter_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
-    let site_url = std::env::var("OPENROUTER_SITE_URL").ok();
-    let app_title = openrouter_env("OPENROUTER_APP_TITLE", "Kairo Tutor");
+    let api_key = provider_env_optional("OPENROUTER_API_KEY")
+        .ok_or_else(|| "OPENROUTER_API_KEY is required for native OpenRouter tutor turns.".to_string())?;
+    let model = provider_env("OPENROUTER_MODEL", "~openai/gpt-latest");
+    let base_url = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
+    let site_url = provider_env_optional("OPENROUTER_SITE_URL");
+    let app_title = provider_env("OPENROUTER_APP_TITLE", "Kairo Tutor");
     let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
     let mut request = reqwest::Client::new()
@@ -1093,4 +1184,50 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Kairo Tutor");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_local_env;
+
+    #[test]
+    fn parses_local_env_values() {
+        let values = parse_local_env(
+            r#"
+            # local provider values
+            KAIRO_AI_PROVIDER=openrouter
+            OPENROUTER_MODEL="qwen/qwen3.6-flash"
+            export OPENROUTER_APP_TITLE='Kairo Tutor'
+            MALFORMED_LINE
+            "#,
+        );
+
+        assert_eq!(
+            values.get("KAIRO_AI_PROVIDER").map(String::as_str),
+            Some("openrouter")
+        );
+        assert_eq!(
+            values.get("OPENROUTER_MODEL").map(String::as_str),
+            Some("qwen/qwen3.6-flash")
+        );
+        assert_eq!(
+            values.get("OPENROUTER_APP_TITLE").map(String::as_str),
+            Some("Kairo Tutor")
+        );
+        assert!(!values.contains_key("MALFORMED_LINE"));
+    }
+
+    #[test]
+    fn ignores_blank_and_comment_lines() {
+        let values = parse_local_env(
+            r#"
+
+            # one comment
+            # another comment
+
+            "#,
+        );
+
+        assert!(values.is_empty());
+    }
 }

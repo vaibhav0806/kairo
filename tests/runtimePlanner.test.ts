@@ -50,6 +50,33 @@ describe('createRuntimeTutorPlanner', () => {
     expect(mockPlanner.planNextStep).not.toHaveBeenCalled();
   });
 
+  test('surfaces OpenRouter provider failures instead of falling back to mock guidance', async () => {
+    const runTutorTurn = vi.fn(async () => {
+      throw new Error('OPENROUTER_API_KEY is required for native OpenRouter tutor turns.');
+    });
+    const mockPlanner = {
+      planNextStep: vi.fn()
+    };
+    const planner = createRuntimeTutorPlanner({
+      aiProvider: 'openrouter',
+      nativeBridge: { runTutorTurn },
+      mockPlanner
+    });
+
+    await expect(planner(input)).resolves.toMatchObject({
+      mode: 'stuck_help',
+      skillSlug: 'blender',
+      voiceText: expect.stringContaining('provider'),
+      screenText: expect.stringContaining('Kairo could not reach the configured AI provider'),
+      expectedNextState: 'provider_configuration_required',
+      providerMetadata: {
+        confidenceState: 'low',
+        warnings: [expect.stringContaining('OPENROUTER_API_KEY')]
+      }
+    });
+    expect(mockPlanner.planNextStep).not.toHaveBeenCalled();
+  });
+
   test('uses the mock planner when mock provider is selected', async () => {
     const response = {
       mode: 'stuck_help' as const,
