@@ -705,8 +705,9 @@ fn configure_notch_window(
 }
 
 fn notch_window_size(layout: Option<&str>, state: Option<&str>) -> (f64, f64) {
-    match layout.or(state) {
-        Some("prompt") | Some("answer") | Some("captured") | Some("showing_step") => (720.0, 190.0),
+    match state {
+        Some("captured") | Some("thinking") | Some("showing_step") => (720.0, 190.0),
+        _ if matches!(layout, Some("prompt") | Some("answer")) => (720.0, 190.0),
         _ => (380.0, 78.0),
     }
 }
@@ -1400,7 +1401,11 @@ mod tests {
             (720.0, 190.0)
         );
         assert_eq!(notch_window_size(None, Some("captured")), (720.0, 190.0));
-        assert_eq!(notch_window_size(None, Some("thinking")), (380.0, 78.0));
+        assert_eq!(notch_window_size(None, Some("thinking")), (720.0, 190.0));
+        assert_eq!(
+            notch_window_size(Some("compact"), Some("thinking")),
+            (720.0, 190.0)
+        );
         assert_eq!(notch_window_size(None, None), (380.0, 78.0));
     }
 

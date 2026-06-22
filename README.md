@@ -105,6 +105,7 @@ Model routing:
 KAIRO_AI_PROVIDER=openrouter
 OPENROUTER_API_KEY=...
 OPENROUTER_MODEL=qwen/qwen3.6-flash
+OPENROUTER_VISION_MODEL=google/gemini-2.5-flash
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_REQUEST_TIMEOUT_MS=30000
 ```
