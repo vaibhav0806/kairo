@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
+import { activationStateToNotchPayload } from '../activation/activationState';
+import { loadBrowserEnv } from '../config/env';
 import { createNativeBridge } from '../native/nativeBridge';
 import { subscribeToNotchPayload } from './notchEvents';
+import { askTutorFromNotch } from './notchTutor';
 import { isNotchDismissKey, isNotchPromptVisible, submitNotchPrompt } from './prompt';
 import type { NotchPayload } from './types';
 
@@ -15,6 +18,7 @@ export function NotchApp() {
   const [payload, setPayload] = useState<NotchPayload>(defaultPayload);
   const [query, setQuery] = useState('');
   const nativeBridge = useMemo(() => createNativeBridge(), []);
+  const env = loadBrowserEnv();
   const isPromptVisible = isNotchPromptVisible(payload);
 
   useEffect(() => {
@@ -92,7 +96,20 @@ export function NotchApp() {
             onSubmit={(event) => {
               event.preventDefault();
               void submitNotchPrompt(query, async (askPayload) => {
-                await emit('notch:ask', askPayload);
+                const thinkingPayload = activationStateToNotchPayload('thinking');
+                setPayload(thinkingPayload);
+                setQuery('');
+                await nativeBridge.showNotch(thinkingPayload);
+
+                const answerPayload = await askTutorFromNotch({
+                  query: askPayload.query,
+                  nativeBridge,
+                  aiProvider: env.aiProvider,
+                  defaultSkill: env.defaultSkill
+                });
+
+                setPayload(answerPayload);
+                await nativeBridge.showNotch(answerPayload);
                 setQuery('');
               });
             }}
