@@ -62,6 +62,7 @@ describe('askTutorFromNotch', () => {
       })
     ).resolves.toEqual({
       state: 'showing_step',
+      layout: 'answer',
       title: 'Kairo answered',
       detail: 'This page shows OpenRouter logs.'
     });
@@ -91,6 +92,7 @@ describe('askTutorFromNotch', () => {
       })
     ).resolves.toMatchObject({
       state: 'showing_step',
+      layout: 'answer',
       title: 'Kairo answered',
       detail: expect.stringContaining('Kairo could not complete the request')
     });

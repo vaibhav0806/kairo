@@ -221,6 +221,7 @@ describe('createNativeBridge', () => {
   test('shows and hides the native notch assistant window', async () => {
     const payload = {
       state: 'listening' as const,
+      layout: 'compact' as const,
       title: 'Kairo is listening',
       detail: 'Capturing the current screen'
     };

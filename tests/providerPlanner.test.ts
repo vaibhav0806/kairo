@@ -151,4 +151,32 @@ describe('OpenRouter tutor planner adapter', () => {
     expect(response.screenText).toBe('Hi there. What would you like to learn today?');
     expect(response.voiceText).toBe('Hi there. What would you like to learn today?');
   });
+
+  test('normalizes provider JSON with incomplete visual target fields instead of surfacing raw JSON', () => {
+    const response = parseTutorPlannerResponse(
+      JSON.stringify({
+        mode: 'idle',
+        skillSlug: 'blender',
+        voiceText: 'Hello. Open Blender to get started.',
+        screenText: '',
+        visualTargets: [
+          {
+            kind: 'highlight_box',
+            screenRegion: { x: 550, y: 940, width: 50, height: 42 }
+          }
+        ],
+        expectedNextState: 'user_opens_blender'
+      }),
+      tutorInput
+    );
+
+    expect(response.screenText).toBe('Hello. Open Blender to get started.');
+    expect(response.visualTargets).toEqual([
+      expect.objectContaining({
+        targetId: 'provider-target-1',
+        label: 'Suggested target',
+        confidence: 0.5
+      })
+    ]);
+  });
 });

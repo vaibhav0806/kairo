@@ -42,26 +42,31 @@ export function activationStateToNotchPayload(state: ActivationState): NotchPayl
   const payloads: Record<ActivationState, NotchPayload> = {
     idle: {
       state: 'idle',
+      layout: 'compact',
       title: 'Kairo is ready',
       detail: 'Press the shortcut to start'
     },
     listening: {
       state: 'listening',
+      layout: 'compact',
       title: 'Kairo is listening',
       detail: 'Capturing the current screen'
     },
     captured: {
       state: 'captured',
+      layout: 'prompt',
       title: 'Screen captured',
       detail: 'Ready for a question'
     },
     thinking: {
       state: 'thinking',
+      layout: 'compact',
       title: 'Kairo is thinking',
       detail: 'Preparing the next step'
     },
     showing_step: {
       state: 'showing_step',
+      layout: 'answer',
       title: 'Step is ready',
       detail: 'Showing guidance on screen'
     }
@@ -73,6 +78,7 @@ export function activationStateToNotchPayload(state: ActivationState): NotchPayl
 export function tutorResponseToNotchPayload(response: TutorResponse): NotchPayload {
   return {
     state: 'showing_step',
+    layout: 'answer',
     title: response.mode === 'idle' ? 'Kairo is ready' : 'Kairo answered',
     detail: response.screenText || response.voiceText
   };

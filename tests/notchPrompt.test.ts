@@ -9,6 +9,7 @@ import type { NotchPayload } from '../src/notch/types';
 
 const capturedPayload: NotchPayload = {
   state: 'captured',
+  layout: 'prompt',
   title: 'Screen captured',
   detail: 'Ready for a question'
 };

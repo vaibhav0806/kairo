@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
 import { activationStateToNotchPayload } from '../activation/activationState';
 import { loadBrowserEnv } from '../config/env';
@@ -10,6 +10,7 @@ import type { NotchPayload } from './types';
 
 const defaultPayload: NotchPayload = {
   state: 'idle',
+  layout: 'compact',
   title: 'Kairo is ready',
   detail: 'Press the shortcut to start'
 };
@@ -20,6 +21,12 @@ export function NotchApp() {
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
   const isPromptVisible = isNotchPromptVisible(payload);
+
+  const hideNotch = useCallback(() => {
+    setPayload(defaultPayload);
+    setQuery('');
+    void nativeBridge.hideNotch();
+  }, [nativeBridge]);
 
   useEffect(() => {
     document.documentElement.classList.add('notch-document');
@@ -58,7 +65,7 @@ export function NotchApp() {
       isMounted = false;
       unlisten?.();
     };
-  }, [nativeBridge]);
+  }, [hideNotch]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -67,7 +74,7 @@ export function NotchApp() {
       }
 
       event.preventDefault();
-      void nativeBridge.hideNotch();
+      hideNotch();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -77,7 +84,7 @@ export function NotchApp() {
 
   return (
     <main className="notch-shell" aria-label="Kairo assistant status">
-      <div className="notch-card" data-state={payload.state}>
+      <div className="notch-card" data-layout={payload.layout} data-state={payload.state}>
         <div className="notch-orb" aria-hidden="true" />
         <div className="notch-copy">
           <strong>{payload.title}</strong>
@@ -87,9 +94,7 @@ export function NotchApp() {
           aria-label="Hide Kairo"
           className="notch-close"
           type="button"
-          onClick={() => {
-            void nativeBridge.hideNotch();
-          }}
+          onClick={hideNotch}
         >
           x
         </button>

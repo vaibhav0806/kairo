@@ -7,11 +7,11 @@ export type OpenRouterChatAdapter = {
   chat(messages: OpenRouterMessage[]): Promise<string>;
 };
 
-const visualTargetSchema = z.object({
+const providerVisualTargetSchema = z.object({
   kind: z.enum(['highlight_box', 'ghost_cursor', 'arrow', 'underline', 'spotlight']),
-  targetId: z.string().min(1),
-  label: z.string().min(1),
-  confidence: z.number(),
+  targetId: z.string().optional(),
+  label: z.string().optional(),
+  confidence: z.number().optional(),
   screenRegion: z.object({
     x: z.number(),
     y: z.number(),
@@ -22,12 +22,14 @@ const visualTargetSchema = z.object({
 
 const tutorResponseSchema = z.object({
   mode: z.enum(['idle', 'stuck_help', 'guided_lesson']),
-  skillSlug: z.string().min(1),
+  skillSlug: z.string().optional().default(''),
   voiceText: z.string().min(1),
-  screenText: z.string(),
-  visualTargets: z.array(visualTargetSchema),
-  expectedNextState: z.string().min(1)
+  screenText: z.string().optional().default(''),
+  visualTargets: z.array(providerVisualTargetSchema).optional().default([]),
+  expectedNextState: z.string().optional().default('user_next_action')
 });
+
+type ProviderVisualTarget = z.infer<typeof providerVisualTargetSchema>;
 
 function extractJson(text: string): unknown {
   const trimmed = text.trim();
@@ -65,6 +67,16 @@ function confidenceState(targets: VisualTarget[]): 'high' | 'medium' | 'low' {
   return 'low';
 }
 
+function normalizeTarget(target: ProviderVisualTarget, index: number): VisualTarget {
+  return {
+    kind: target.kind,
+    targetId: target.targetId?.trim() || `provider-target-${index + 1}`,
+    label: target.label?.trim() || 'Suggested target',
+    confidence: target.confidence ?? 0.5,
+    screenRegion: target.screenRegion
+  };
+}
+
 function fallbackResponse(input: TutorTurnInput, warning: string, rawContent?: string): TutorResponse {
   const providerText = rawContent?.trim();
   const visibleText =
@@ -95,18 +107,19 @@ export function parseTutorPlannerResponse(rawContent: string, input: TutorTurnIn
     return fallbackResponse(input, 'Provider response was not valid tutor JSON.', rawContent);
   }
 
-  const safeTargets = parsed.visualTargets
+  const normalizedTargets = parsed.visualTargets.map(normalizeTarget);
+  const safeTargets = normalizedTargets
     .filter(isSafeTarget)
     .map((target) => ({
       ...target,
       confidence: Math.min(Math.max(target.confidence, 0), 1)
     }));
-  const droppedTargets = parsed.visualTargets.length - safeTargets.length;
+  const droppedTargets = normalizedTargets.length - safeTargets.length;
   const warnings = droppedTargets > 0 ? [`Dropped ${droppedTargets} unsafe visual target.`] : [];
 
   return {
     ...parsed,
-    skillSlug: parsed.skillSlug || input.skill.slug,
+    skillSlug: parsed.skillSlug.trim() || input.skill.slug,
     screenText: parsed.screenText.trim() || parsed.voiceText,
     visualTargets: safeTargets,
     providerMetadata: {

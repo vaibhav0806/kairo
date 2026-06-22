@@ -124,6 +124,7 @@ struct OverlayState {
 #[serde(rename_all = "camelCase")]
 struct NotchPayload {
     state: String,
+    layout: Option<String>,
     title: String,
     detail: String,
 }
@@ -668,7 +669,10 @@ fn configure_notch_window(
     window: &tauri::WebviewWindow,
     payload: Option<&NotchPayload>,
 ) -> Result<(), String> {
-    let (width, height) = notch_window_size(payload.map(|payload| payload.state.as_str()));
+    let (width, height) = notch_window_size(
+        payload.and_then(|payload| payload.layout.as_deref()),
+        payload.map(|payload| payload.state.as_str()),
+    );
     window
         .set_focusable(true)
         .map_err(|error| format!("Failed to make notch focusable: {error}"))?;
@@ -700,9 +704,9 @@ fn configure_notch_window(
     Ok(())
 }
 
-fn notch_window_size(state: Option<&str>) -> (f64, f64) {
-    match state {
-        Some("captured") | Some("showing_step") => (680.0, 172.0),
+fn notch_window_size(layout: Option<&str>, state: Option<&str>) -> (f64, f64) {
+    match layout.or(state) {
+        Some("prompt") | Some("answer") | Some("captured") | Some("showing_step") => (720.0, 190.0),
         _ => (380.0, 78.0),
     }
 }
@@ -777,6 +781,7 @@ fn show_notch_with_payload(
 fn listening_notch_payload() -> NotchPayload {
     NotchPayload {
         state: "listening".to_string(),
+        layout: Some("compact".to_string()),
         title: "Kairo is listening".to_string(),
         detail: "Capturing the current screen".to_string(),
     }
@@ -1386,10 +1391,17 @@ mod tests {
 
     #[test]
     fn notch_window_size_expands_for_prompt_and_answer_states() {
-        assert_eq!(notch_window_size(Some("captured")), (680.0, 172.0));
-        assert_eq!(notch_window_size(Some("showing_step")), (680.0, 172.0));
-        assert_eq!(notch_window_size(Some("thinking")), (380.0, 78.0));
-        assert_eq!(notch_window_size(None), (380.0, 78.0));
+        assert_eq!(
+            notch_window_size(Some("prompt"), Some("captured")),
+            (720.0, 190.0)
+        );
+        assert_eq!(
+            notch_window_size(Some("answer"), Some("showing_step")),
+            (720.0, 190.0)
+        );
+        assert_eq!(notch_window_size(None, Some("captured")), (720.0, 190.0));
+        assert_eq!(notch_window_size(None, Some("thinking")), (380.0, 78.0));
+        assert_eq!(notch_window_size(None, None), (380.0, 78.0));
     }
 
     fn sample_tutor_turn_input() -> TutorTurnInput {

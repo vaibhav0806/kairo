@@ -17,11 +17,17 @@ describe('activation state', () => {
   test('maps activation states to notch copy', () => {
     expect(activationStateToNotchPayload('listening')).toMatchObject({
       state: 'listening',
+      layout: 'compact',
       title: 'Kairo is listening',
       detail: 'Capturing the current screen'
     });
+    expect(activationStateToNotchPayload('captured')).toMatchObject({
+      state: 'captured',
+      layout: 'prompt'
+    });
     expect(activationStateToNotchPayload('thinking')).toMatchObject({
       state: 'thinking',
+      layout: 'compact',
       title: 'Kairo is thinking'
     });
   });
@@ -38,6 +44,7 @@ describe('activation state', () => {
       })
     ).toEqual({
       state: 'showing_step',
+      layout: 'answer',
       title: 'Kairo answered',
       detail: 'You are on the OpenRouter page.'
     });
