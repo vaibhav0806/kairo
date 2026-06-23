@@ -16,8 +16,9 @@ const capturedPayload: NotchPayload = {
 };
 
 describe('notch prompt behavior', () => {
-  test('shows the prompt only after a capture is ready', () => {
+  test('shows the prompt after capture and after an answer', () => {
     expect(isNotchPromptVisible(capturedPayload)).toBe(true);
+    expect(isNotchPromptVisible({ ...capturedPayload, state: 'showing_step' })).toBe(true);
     expect(isNotchPromptVisible({ ...capturedPayload, state: 'listening' })).toBe(false);
     expect(isNotchPromptVisible({ ...capturedPayload, state: 'thinking' })).toBe(false);
   });

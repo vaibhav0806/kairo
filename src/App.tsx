@@ -32,6 +32,10 @@ import {
 import { normalizeRegionToPercent } from './overlay/coordinates';
 import { VisualOverlay } from './overlay/VisualOverlay';
 import type { NotchAskPayload } from './notch/prompt';
+import {
+  normalizeAnnotationStartPayload,
+  type NotchAnnotationStartPayload
+} from './notch/annotationActions';
 import { resolveScreenPreview } from './screenPreview';
 
 const demoContext = {
@@ -468,13 +472,14 @@ export function App() {
         setQuery(event.payload.query);
         void askTutor(event.payload.query);
       }),
-      listen('annotation:start', () => {
+      listen<Partial<NotchAnnotationStartPayload>>('annotation:start', (event) => {
         if (!isMounted || !screenCapture?.displayBounds) {
           return;
         }
 
+        const annotationPayload = normalizeAnnotationStartPayload(event.payload);
         void nativeBridge.hideNotch();
-        void nativeBridge.showAnnotationOverlay(screenCapture.displayBounds);
+        void nativeBridge.showAnnotationOverlay(screenCapture.displayBounds, annotationPayload.tool);
       }),
       listen<UserAnnotation>('annotation:add', (event) => {
         if (!isMounted) {

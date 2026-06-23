@@ -201,6 +201,7 @@ describe('createNativeBridge', () => {
 
     await expect(bridge.showOverlay(payload)).resolves.toBeUndefined();
     await expect(bridge.showAnnotationOverlay(payload.displayBounds)).resolves.toBeUndefined();
+    await expect(bridge.showAnnotationOverlay(payload.displayBounds, 'circle')).resolves.toBeUndefined();
     const annotationPreviewPayload = {
       mode: 'annotation_preview' as const,
       displayBounds: payload.displayBounds,
@@ -228,6 +229,14 @@ describe('createNativeBridge', () => {
         mode: 'annotate',
         displayBounds: payload.displayBounds,
         targets: []
+      }
+    });
+    expect(invoke).toHaveBeenCalledWith('show_overlay', {
+      payload: {
+        mode: 'annotate',
+        displayBounds: payload.displayBounds,
+        targets: [],
+        initialTool: 'circle'
       }
     });
     expect(invoke).toHaveBeenCalledWith('update_overlay', { payload: annotationPreviewPayload });

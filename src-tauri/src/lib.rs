@@ -114,6 +114,8 @@ struct OverlayPayload {
     display_bounds: OverlayDisplayBounds,
     targets: Vec<OverlayTarget>,
     annotations: Option<Vec<TutorAnnotation>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    initial_tool: Option<String>,
 }
 
 #[derive(Default)]
@@ -706,11 +708,9 @@ fn configure_notch_window(
 }
 
 fn notch_window_size(layout: Option<&str>, state: Option<&str>) -> (f64, f64) {
-    match state {
-        Some("captured") | Some("thinking") | Some("showing_step") => (720.0, 190.0),
-        _ if matches!(layout, Some("prompt") | Some("answer")) => (720.0, 190.0),
-        _ => (380.0, 78.0),
-    }
+    let _ = layout;
+    let _ = state;
+    (760.0, 236.0)
 }
 
 fn store_overlay_payload(
@@ -1454,22 +1454,22 @@ mod tests {
     }
 
     #[test]
-    fn notch_window_size_expands_for_prompt_and_answer_states() {
+    fn notch_window_size_uses_stable_assistant_frame() {
         assert_eq!(
             notch_window_size(Some("prompt"), Some("captured")),
-            (720.0, 190.0)
+            (760.0, 236.0)
         );
         assert_eq!(
             notch_window_size(Some("answer"), Some("showing_step")),
-            (720.0, 190.0)
+            (760.0, 236.0)
         );
-        assert_eq!(notch_window_size(None, Some("captured")), (720.0, 190.0));
-        assert_eq!(notch_window_size(None, Some("thinking")), (720.0, 190.0));
+        assert_eq!(notch_window_size(None, Some("captured")), (760.0, 236.0));
+        assert_eq!(notch_window_size(None, Some("thinking")), (760.0, 236.0));
         assert_eq!(
             notch_window_size(Some("compact"), Some("thinking")),
-            (720.0, 190.0)
+            (760.0, 236.0)
         );
-        assert_eq!(notch_window_size(None, None), (380.0, 78.0));
+        assert_eq!(notch_window_size(None, None), (760.0, 236.0));
     }
 
     fn sample_tutor_turn_input() -> TutorTurnInput {

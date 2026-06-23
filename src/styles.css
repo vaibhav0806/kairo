@@ -18,6 +18,9 @@ body {
 body.overlay-document,
 body.notch-document {
   background: transparent;
+  height: 100%;
+  overflow: hidden;
+  width: 100%;
 }
 
 button,
@@ -360,46 +363,45 @@ input {
   height: 100vh;
   justify-content: center;
   overflow: hidden;
-  padding: 10px;
+  padding: 12px;
 }
 
 .notch-card {
-  align-items: center;
   backdrop-filter: blur(28px) saturate(1.25);
   background:
     linear-gradient(180deg, rgb(28 31 36 / 0.88), rgb(13 15 18 / 0.92)),
     rgb(16 18 22 / 0.9);
   border: 1px solid rgb(255 255 255 / 0.14);
-  border-radius: 999px;
+  border-radius: 36px;
   box-shadow:
     0 22px 58px rgb(0 0 0 / 0.42),
     0 1px 0 rgb(255 255 255 / 0.08),
     inset 0 1px 0 rgb(255 255 255 / 0.12);
   color: #f6f8f9;
-  display: flex;
+  display: grid;
   gap: 14px;
-  height: 64px;
+  grid-template-rows: auto 1fr;
   isolation: isolate;
+  min-height: 196px;
   max-width: 100%;
   overflow: hidden;
-  padding: 12px 14px;
+  padding: 18px;
   transform: translateZ(0);
-  width: min(100%, 460px);
+  width: min(100%, 724px);
 }
 
-.notch-card[data-layout="prompt"],
-.notch-card[data-layout="answer"] {
-  border-radius: 34px;
+.notch-header {
+  align-items: start;
   display: grid;
   gap: 14px;
   grid-template-columns: 18px minmax(0, 1fr) 42px;
-  min-height: 158px;
-  padding: 18px;
-  width: min(100%, 680px);
+  min-height: 50px;
 }
 
-.notch-card[data-layout="answer"] {
-  min-height: 142px;
+.notch-body {
+  display: grid;
+  gap: 10px;
+  min-height: 104px;
 }
 
 .notch-card strong,
@@ -409,9 +411,9 @@ input {
 }
 
 .notch-card strong {
-  font-size: 1rem;
+  font-size: 1.04rem;
   letter-spacing: 0;
-  line-height: 1.05;
+  line-height: 1.08;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -419,15 +421,19 @@ input {
 
 .notch-card span {
   color: #b8c1c8;
-  font-size: 0.82rem;
-  line-height: 1.28;
+  display: -webkit-box;
+  font-size: 0.83rem;
+  line-height: 1.3;
   margin-top: 5px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .notch-copy {
+  align-self: center;
   min-width: 0;
 }
 
@@ -440,12 +446,13 @@ input {
   cursor: pointer;
   display: inline-flex;
   flex: 0 0 auto;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 800;
   height: 40px;
   justify-content: center;
   line-height: 1;
   padding: 0;
+  place-self: start end;
   width: 40px;
 }
 
@@ -455,41 +462,18 @@ input {
 }
 
 .notch-close:active,
-.notch-prompt button:active {
+.notch-prompt button:active,
+.notch-tools button:active {
   transform: translateY(1px);
 }
 
 .notch-close:focus-visible,
 .notch-prompt input:focus-visible,
 .notch-prompt button:focus-visible,
+.notch-tools button:focus-visible,
 .annotation-overlay-toolbar button:focus-visible {
   outline: 2px solid rgb(117 232 219 / 0.95);
   outline-offset: 2px;
-}
-
-.notch-card[data-layout="prompt"] .notch-close,
-.notch-card[data-layout="answer"] .notch-close {
-  align-self: start;
-  justify-self: end;
-}
-
-.notch-card[data-layout="prompt"] .notch-orb,
-.notch-card[data-layout="answer"] .notch-orb {
-  margin-top: 7px;
-}
-
-.notch-card[data-layout="answer"] .notch-copy {
-  align-self: center;
-  grid-column: 2 / 3;
-}
-
-.notch-card[data-layout="answer"] span {
-  display: -webkit-box;
-  line-height: 1.25;
-  overflow: hidden;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
 }
 
 .notch-orb {
@@ -500,6 +484,7 @@ input {
     0 0 22px rgb(117 232 219 / 0.28);
   flex: 0 0 auto;
   height: 14px;
+  margin-top: 11px;
   width: 14px;
 }
 
@@ -525,9 +510,13 @@ input {
   align-items: center;
   display: grid;
   gap: 10px;
-  grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-height: 48px;
+  opacity: 1;
+}
+
+.notch-prompt[data-visible="false"] {
+  opacity: 0.72;
 }
 
 .notch-prompt input {
@@ -556,15 +545,63 @@ input {
   white-space: nowrap;
 }
 
-.notch-prompt .notch-secondary {
-  background: rgb(255 255 255 / 0.12);
-  color: #f6f8f9;
-}
-
 .notch-prompt input:disabled,
 .notch-prompt button:disabled {
-  cursor: progress;
+  cursor: default;
   opacity: 0.68;
+}
+
+.notch-tool-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 42px;
+}
+
+.notch-tool-count {
+  color: #8f9aa4;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.notch-tools {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.notch-tools button {
+  background: rgb(255 255 255 / 0.1);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 999px;
+  color: #eef4f6;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+  min-height: 40px;
+  min-width: 48px;
+  padding: 0 13px;
+  white-space: nowrap;
+}
+
+.notch-tools button:hover {
+  background: rgb(255 255 255 / 0.16);
+}
+
+.notch-tools button:first-child {
+  background: rgb(117 232 219 / 0.18);
+  border-color: rgb(117 232 219 / 0.32);
+  color: #d9fffb;
+}
+
+.notch-tools button:disabled {
+  cursor: default;
+  opacity: 0.52;
 }
 
 @keyframes notch-orb-pulse {
@@ -589,6 +626,7 @@ input {
 
   .notch-close,
   .notch-prompt button,
+  .notch-tools button,
   .annotation-overlay-toolbar button {
     transition:
       background-color 100ms ease-out,

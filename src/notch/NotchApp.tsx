@@ -4,6 +4,7 @@ import { activationStateToNotchPayload } from '../activation/activationState';
 import { loadBrowserEnv } from '../config/env';
 import type { UserAnnotation } from '../core/types';
 import { createNativeBridge } from '../native/nativeBridge';
+import { createAnnotationStartPayload, type NotchAnnotationTool } from './annotationActions';
 import { subscribeToNotchPayload } from './notchEvents';
 import { askTutorFromNotch } from './notchTutor';
 import {
@@ -21,6 +22,26 @@ const defaultPayload: NotchPayload = {
   detail: 'Press the shortcut to start'
 };
 
+const annotationTools: Array<{ label: string; tool: NotchAnnotationTool }> = [
+  { label: 'Pen', tool: 'pen' },
+  { label: 'Box', tool: 'rectangle' },
+  { label: 'Circle', tool: 'circle' },
+  { label: 'Glow', tool: 'highlight' },
+  { label: 'Line', tool: 'underline' }
+];
+
+function promptPlaceholder(payload: NotchPayload) {
+  return payload.state === 'showing_step' ? 'Ask a follow-up' : 'Ask about this screen';
+}
+
+function annotationCountText(count: number) {
+  if (count === 0) {
+    return 'No marks';
+  }
+
+  return `${count} mark${count === 1 ? '' : 's'}`;
+}
+
 export function NotchApp() {
   const [payload, setPayload] = useState<NotchPayload>(defaultPayload);
   const [query, setQuery] = useState('');
@@ -30,6 +51,11 @@ export function NotchApp() {
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
   const isPromptVisible = isNotchPromptVisible(payload);
+  const canUsePrompt = isPromptVisible && !isSubmitting && payload.state !== 'thinking';
+
+  const startAnnotation = useCallback((tool: NotchAnnotationTool) => {
+    void emit('annotation:start', createAnnotationStartPayload(tool));
+  }, []);
 
   const hideNotch = useCallback(() => {
     isSubmittingRef.current = false;
@@ -141,29 +167,33 @@ export function NotchApp() {
 
   return (
     <main className="notch-shell" aria-label="Kairo assistant status">
-      <div
+      <section
         aria-busy={isSubmitting || payload.state === 'thinking'}
         className="notch-card"
         data-busy={isSubmitting ? 'true' : 'false'}
         data-layout={payload.layout}
         data-state={payload.state}
       >
-        <div className="notch-orb" aria-hidden="true" />
-        <div className="notch-copy">
-          <strong>{payload.title}</strong>
-          <span>{payload.detail}</span>
-        </div>
-        <button
-          aria-label="Hide Kairo"
-          className="notch-close"
-          type="button"
-          onClick={hideNotch}
-        >
-          x
-        </button>
-        {isPromptVisible ? (
+        <header className="notch-header">
+          <div className="notch-orb" aria-hidden="true" />
+          <div className="notch-copy">
+            <strong>{payload.title}</strong>
+            <span>{payload.detail}</span>
+          </div>
+          <button
+            aria-label="Hide Kairo"
+            className="notch-close"
+            type="button"
+            onClick={hideNotch}
+          >
+            x
+          </button>
+        </header>
+
+        <div className="notch-body">
           <form
             className="notch-prompt"
+            data-visible={isPromptVisible ? 'true' : 'false'}
             onSubmit={(event) => {
               event.preventDefault();
               if (isSubmittingRef.current) {
@@ -205,27 +235,36 @@ export function NotchApp() {
             <input
               aria-label="Ask Kairo"
               autoFocus
-              disabled={isSubmitting}
+              disabled={!canUsePrompt}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ask about this screen"
+              placeholder={promptPlaceholder(payload)}
               value={query}
             />
-            <button disabled={isSubmitting} type="submit">
+            <button disabled={!canUsePrompt} type="submit">
               Ask
             </button>
-            <button
-              className="notch-secondary"
-              disabled={isSubmitting}
-              type="button"
-              onClick={() => {
-                void emit('annotation:start', {});
-              }}
-            >
-              Annotate
-            </button>
           </form>
-        ) : null}
-      </div>
+
+          <div className="notch-tool-row" aria-label="Annotation tools" role="toolbar">
+            <span className="notch-tool-count" aria-live="polite">
+              {annotationCountText(annotations.length)}
+            </span>
+            <div className="notch-tools">
+              {annotationTools.map((option) => (
+                <button
+                  aria-label={`${option.label} annotation tool`}
+                  disabled={isSubmitting}
+                  key={option.tool}
+                  type="button"
+                  onClick={() => startAnnotation(option.tool)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

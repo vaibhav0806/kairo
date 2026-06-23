@@ -2,6 +2,7 @@ import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { register as registerGlobalShortcut } from '@tauri-apps/plugin-global-shortcut';
 import type { UserAnnotation, VisualTarget } from '../core/types';
 import type { TutorTurnInput } from '../core/orchestrator';
+import type { NotchAnnotationTool } from '../notch/annotationActions';
 import type { NotchPayload } from '../notch/types';
 
 export type NativeInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
@@ -60,6 +61,7 @@ export type NativeOverlayPayload = {
   displayBounds: NativeOverlayDisplayBounds;
   targets: VisualTarget[];
   annotations?: UserAnnotation[];
+  initialTool?: NotchAnnotationTool | null;
 };
 
 export type NativeBridge = {
@@ -69,7 +71,10 @@ export type NativeBridge = {
   openPermissionSettings(permission: NativePermissionKey): Promise<void>;
   captureScreen(): Promise<NativeScreenCapture>;
   showOverlay(payload: NativeOverlayPayload): Promise<void>;
-  showAnnotationOverlay(displayBounds: NativeOverlayDisplayBounds): Promise<void>;
+  showAnnotationOverlay(
+    displayBounds: NativeOverlayDisplayBounds,
+    initialTool?: NotchAnnotationTool
+  ): Promise<void>;
   updateOverlay(payload: NativeOverlayPayload): Promise<void>;
   getCurrentOverlayPayload(): Promise<NativeOverlayPayload | null>;
   hideOverlay(): Promise<void>;
@@ -242,14 +247,19 @@ export function createNativeBridge(
       }
     },
 
-    async showAnnotationOverlay(displayBounds) {
+    async showAnnotationOverlay(displayBounds, initialTool) {
       try {
+        const payload: NativeOverlayPayload = {
+          mode: 'annotate',
+          displayBounds,
+          targets: []
+        };
+        if (initialTool) {
+          payload.initialTool = initialTool;
+        }
+
         await invoke<void>('show_overlay', {
-          payload: {
-            mode: 'annotate',
-            displayBounds,
-            targets: []
-          }
+          payload
         });
       } catch {
         // Browser previews do not have a native overlay window.

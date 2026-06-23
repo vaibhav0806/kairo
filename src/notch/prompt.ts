@@ -7,7 +7,7 @@ export type NotchAskPayload = {
 export type EmitNotchAsk = (payload: NotchAskPayload) => Promise<void>;
 
 export function isNotchPromptVisible(payload: NotchPayload) {
-  return payload.state === 'captured';
+  return payload.state === 'captured' || payload.state === 'showing_step';
 }
 
 export function isNotchDismissKey(key: string) {

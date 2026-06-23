@@ -25,6 +25,7 @@ export type OverlayPayload = {
   displayBounds: OverlayDisplayBounds;
   targets: VisualTarget[];
   annotations?: UserAnnotation[];
+  initialTool?: OverlayAnnotationTool | null;
 };
 
 const annotationTools: Array<{ label: string; tool: OverlayAnnotationTool }> = [
@@ -89,12 +90,14 @@ function OverlayAnnotationShape({
 
 function AnnotationOverlay({
   displayBounds,
+  initialTool = 'pen',
   onDone
 }: {
   displayBounds: OverlayDisplayBounds;
+  initialTool?: OverlayAnnotationTool;
   onDone: (annotations: UserAnnotation[]) => void;
 }) {
-  const [tool, setTool] = useState<OverlayAnnotationTool>('rectangle');
+  const [tool, setTool] = useState<OverlayAnnotationTool>(initialTool);
   const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
   const [draftDrag, setDraftDrag] = useState<{
     type: DragAnnotationTool;
@@ -329,6 +332,7 @@ export function OverlayApp() {
       {payload?.mode === 'annotate' ? (
         <AnnotationOverlay
           displayBounds={payload.displayBounds}
+          initialTool={payload.initialTool ?? 'pen'}
           onDone={(annotations) => {
             const previewPayload: OverlayPayload = {
               mode: 'annotation_preview',
