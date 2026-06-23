@@ -478,8 +478,11 @@ export function App() {
         }
 
         const annotationPayload = normalizeAnnotationStartPayload(event.payload);
-        void nativeBridge.hideNotch();
-        void nativeBridge.showAnnotationOverlay(screenCapture.displayBounds, annotationPayload.tool);
+        const { displayBounds } = screenCapture;
+        void (async () => {
+          await nativeBridge.showAnnotationOverlay(displayBounds, annotationPayload.tool);
+          await nativeBridge.showNotch(activationStateToNotchPayload('captured'));
+        })();
       }),
       listen<UserAnnotation>('annotation:add', (event) => {
         if (!isMounted) {

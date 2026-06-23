@@ -22,12 +22,12 @@ const defaultPayload: NotchPayload = {
   detail: 'Press the shortcut to start'
 };
 
-const annotationTools: Array<{ label: string; tool: NotchAnnotationTool }> = [
-  { label: 'Pen', tool: 'pen' },
-  { label: 'Box', tool: 'rectangle' },
-  { label: 'Circle', tool: 'circle' },
-  { label: 'Glow', tool: 'highlight' },
-  { label: 'Line', tool: 'underline' }
+const annotationTools: Array<{ label: string; icon: string; tool: NotchAnnotationTool }> = [
+  { label: 'Pen', icon: '✎', tool: 'pen' },
+  { label: 'Rectangle', icon: '□', tool: 'rectangle' },
+  { label: 'Circle', icon: '○', tool: 'circle' },
+  { label: 'Highlight', icon: '◐', tool: 'highlight' },
+  { label: 'Underline', icon: '_', tool: 'underline' }
 ];
 
 function promptPlaceholder(payload: NotchPayload) {
@@ -46,6 +46,7 @@ export function NotchApp() {
   const [payload, setPayload] = useState<NotchPayload>(defaultPayload);
   const [query, setQuery] = useState('');
   const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
+  const [activeAnnotationTool, setActiveAnnotationTool] = useState<NotchAnnotationTool | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
@@ -54,7 +55,13 @@ export function NotchApp() {
   const canUsePrompt = isPromptVisible && !isSubmitting && payload.state !== 'thinking';
 
   const startAnnotation = useCallback((tool: NotchAnnotationTool) => {
+    setActiveAnnotationTool(tool);
     void emit('annotation:start', createAnnotationStartPayload(tool));
+  }, []);
+
+  const finishAnnotation = useCallback(() => {
+    setActiveAnnotationTool(null);
+    void emit('annotation:finish', {});
   }, []);
 
   const hideNotch = useCallback(() => {
@@ -63,6 +70,7 @@ export function NotchApp() {
     setPayload(defaultPayload);
     setQuery('');
     setAnnotations([]);
+    setActiveAnnotationTool(null);
     void nativeBridge.hideOverlay();
     void nativeBridge.hideNotch();
   }, [nativeBridge]);
@@ -94,6 +102,7 @@ export function NotchApp() {
           if (nextPayload.state === 'listening') {
             isSubmittingRef.current = false;
             setAnnotations([]);
+            setActiveAnnotationTool(null);
             setIsSubmitting(false);
           }
           setPayload(nextPayload);
@@ -132,6 +141,7 @@ export function NotchApp() {
 
         const capturedPayload = activationStateToNotchPayload('captured');
         isSubmittingRef.current = false;
+        setActiveAnnotationTool(null);
         setPayload(capturedPayload);
         setIsSubmitting(false);
         void nativeBridge.showNotch(capturedPayload);
@@ -221,6 +231,7 @@ export function NotchApp() {
                   setPayload(answerPayload);
                   setQuery('');
                   setAnnotations([]);
+                  setActiveAnnotationTool(null);
                   void nativeBridge.showNotch(answerPayload);
                 } finally {
                   isSubmittingRef.current = false;
@@ -253,14 +264,24 @@ export function NotchApp() {
               {annotationTools.map((option) => (
                 <button
                   aria-label={`${option.label} annotation tool`}
+                  aria-pressed={activeAnnotationTool === option.tool}
                   disabled={isSubmitting}
                   key={option.tool}
                   type="button"
                   onClick={() => startAnnotation(option.tool)}
                 >
-                  {option.label}
+                  <span aria-hidden="true">{option.icon}</span>
                 </button>
               ))}
+              <button
+                aria-label="Finish annotations"
+                className="notch-tool-done"
+                disabled={isSubmitting || (!activeAnnotationTool && annotations.length === 0)}
+                type="button"
+                onClick={finishAnnotation}
+              >
+                <span aria-hidden="true">✓</span>
+              </button>
             </div>
           </div>
         </div>

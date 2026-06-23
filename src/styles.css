@@ -471,6 +471,7 @@ input {
 .notch-prompt input:focus-visible,
 .notch-prompt button:focus-visible,
 .notch-tools button:focus-visible,
+.annotation-overlay-canvas:focus-visible,
 .annotation-overlay-toolbar button:focus-visible {
   outline: 2px solid rgb(117 232 219 / 0.95);
   outline-offset: 2px;
@@ -570,7 +571,7 @@ input {
 .notch-tools {
   align-items: center;
   display: flex;
-  gap: 6px;
+  gap: 8px;
   justify-content: flex-end;
   min-width: 0;
 }
@@ -581,11 +582,11 @@ input {
   border-radius: 999px;
   color: #eef4f6;
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: 1.1rem;
   font-weight: 800;
   min-height: 40px;
-  min-width: 48px;
-  padding: 0 13px;
+  min-width: 42px;
+  padding: 0;
   white-space: nowrap;
 }
 
@@ -593,10 +594,20 @@ input {
   background: rgb(255 255 255 / 0.16);
 }
 
-.notch-tools button:first-child {
+.notch-tools button[aria-pressed="true"] {
   background: rgb(117 232 219 / 0.18);
   border-color: rgb(117 232 219 / 0.32);
   color: #d9fffb;
+}
+
+.notch-tools .notch-tool-done {
+  background: rgb(255 255 255 / 0.16);
+  color: #ffffff;
+}
+
+.notch-tools .notch-tool-done:not(:disabled):hover {
+  background: rgb(117 232 219 / 0.2);
+  border-color: rgb(117 232 219 / 0.34);
 }
 
 .notch-tools button:disabled {
