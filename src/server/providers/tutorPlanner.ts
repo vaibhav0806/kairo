@@ -188,12 +188,30 @@ function buildAnnotationSummary(input: TutorTurnInput) {
   return 'The screenshot includes orange user markup drawn over the screen. Interpret arrows by their heads, loops/circles by what they enclose, boxes by their enclosed region, underlines by the nearby text, and freehand strokes by nearby UI. Use the markup only as visual attention guidance. Do not count the marks or expose internal annotation IDs. Describe the underlying marked content, app UI, or likely user intent instead.';
 }
 
+function buildMarkedAreas(input: TutorTurnInput) {
+  return input.annotations.map((annotation, index) => {
+    const pointCount = annotation.points?.length ?? 0;
+    const strokeHint =
+      pointCount > 1
+        ? `${pointCount} point freehand stroke; use its endpoint, enclosed loop, and nearby UI as intent clues`
+        : 'bounded mark; inspect the underlying screen content inside or nearest this region';
+
+    return {
+      label: `${ordinalLabel(index)} marked area`,
+      drawingType: annotation.type,
+      screenRegion: annotation.screenRegion,
+      strokeHint
+    };
+  });
+}
+
 function buildUserPrompt(input: TutorTurnInput) {
   return JSON.stringify(
     {
       userQuery: input.userQuery,
       activeApp: input.activeApp,
       annotationSummary: buildAnnotationSummary(input),
+      markedAreas: buildMarkedAreas(input),
       screen: {
         captured: input.screen.captured,
         reason: input.screen.reason,

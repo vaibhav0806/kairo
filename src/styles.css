@@ -507,7 +507,6 @@ input {
   box-shadow:
     0 0 0 7px rgb(245 193 86 / 0.16),
     0 0 22px rgb(245 193 86 / 0.26);
-  animation: notch-orb-pulse 900ms ease-in-out infinite;
 }
 
 .notch-card[data-voice-state="recording"] .notch-orb {
@@ -515,7 +514,6 @@ input {
   box-shadow:
     0 0 0 7px rgb(255 139 88 / 0.16),
     0 0 24px rgb(255 139 88 / 0.34);
-  animation: notch-orb-pulse 900ms ease-in-out infinite;
 }
 
 .notch-card[data-state="showing_step"] .notch-orb {
@@ -533,7 +531,7 @@ input {
 }
 
 .notch-prompt[data-visible="false"] {
-  opacity: 0.72;
+  opacity: 0.58;
 }
 
 .notch-prompt input {
@@ -627,7 +625,7 @@ input {
 .notch-prompt input:disabled,
 .notch-prompt button:disabled {
   cursor: default;
-  opacity: 0.68;
+  opacity: 0.48;
 }
 
 .notch-tool-row {
@@ -688,6 +686,12 @@ input {
   background: rgb(255 255 255 / 0.16);
 }
 
+.notch-tools button:not(:disabled):hover,
+.notch-prompt button:not(:disabled):hover,
+.notch-close:hover {
+  cursor: pointer;
+}
+
 .notch-tools button[aria-pressed="true"] {
   background: rgb(117 232 219 / 0.18);
   border-color: rgb(117 232 219 / 0.32);
@@ -706,7 +710,7 @@ input {
 
 .notch-tools button:disabled {
   cursor: default;
-  opacity: 0.52;
+  opacity: 0.38;
 }
 
 @keyframes notch-orb-pulse {
@@ -738,6 +742,18 @@ input {
       color 100ms ease-out,
       transform 100ms ease-out,
       opacity 100ms ease-out;
+  }
+
+  .notch-card[data-state="thinking"] .notch-orb,
+  .notch-card[data-voice-state="recording"] .notch-orb {
+    animation: notch-orb-pulse 900ms ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notch-card[data-state="thinking"] .notch-orb,
+  .notch-card[data-voice-state="recording"] .notch-orb {
+    animation: none;
   }
 }
 

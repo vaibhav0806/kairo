@@ -9,12 +9,13 @@ import { buildAudioDataUrl } from './audioPlayback';
 import { subscribeToNotchPayload } from './notchEvents';
 import { askTutorFromNotch } from './notchTutor';
 import {
+  getNotchInteractionState,
   isNotchDismissKey,
-  isNotchPromptVisible,
   waitForNotchPaint
 } from './prompt';
 import type { NotchPayload } from './types';
 import {
+  VOICE_SILENCE_THRESHOLD,
   blobToBase64,
   createVoiceRecorder,
   encodeWavFromFloat32Chunks,
@@ -70,14 +71,18 @@ export function NotchApp() {
   const pcmSampleRateRef = useRef<number>(24_000);
   const audioChunksRef = useRef<Blob[]>([]);
   const voiceCancelledRef = useRef(false);
+  const voiceHeardSpeechRef = useRef(false);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
-  const isPromptVisible =
-    isNotchPromptVisible(payload) || voiceCaptureState === 'recording' || voiceCaptureState === 'error';
-  const canUsePrompt = isPromptVisible && !isSubmitting && payload.state !== 'thinking';
-  const canUseVoice =
-    voiceCaptureState === 'recording' ||
-    (isPromptVisible && !isSubmitting && payload.state !== 'thinking' && voiceCaptureState !== 'transcribing');
+  const interaction = getNotchInteractionState({
+    payload,
+    voiceState: voiceCaptureState,
+    isSubmitting
+  });
+  const canSubmitCurrent =
+    interaction.submitMode === 'voice'
+      ? interaction.canUseVoice
+      : interaction.canSubmitText && query.trim().length > 0;
 
   const stopVoiceTracks = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -133,6 +138,7 @@ export function NotchApp() {
 
       const AudioContextConstructor = globalThis.AudioContext;
       if (!AudioContextConstructor || !globalThis.requestAnimationFrame) {
+        voiceHeardSpeechRef.current = true;
         const timeout = window.setTimeout(() => {
           if (recorder.state !== 'inactive') {
             recorder.stop();
@@ -166,8 +172,9 @@ export function NotchApp() {
 
         analyser.getByteTimeDomainData(data);
         const rms = rmsFromTimeDomainData(data);
-        if (rms >= 0.018) {
+        if (rms >= VOICE_SILENCE_THRESHOLD) {
           heardSpeech = true;
+          voiceHeardSpeechRef.current = true;
           silenceStartedAt = null;
         } else if (heardSpeech && silenceStartedAt === null) {
           silenceStartedAt = now;
@@ -362,6 +369,7 @@ export function NotchApp() {
       const { recorder, mimeType } = createVoiceRecorder(stream);
       const AudioContextConstructor = globalThis.AudioContext;
       voiceCancelledRef.current = false;
+      voiceHeardSpeechRef.current = false;
       mediaStreamRef.current = stream;
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
@@ -425,6 +433,11 @@ export function NotchApp() {
         void (async () => {
           if (chunks.length === 0) {
             showVoiceError('No speech was captured. Try again and speak after the shortcut.');
+            return;
+          }
+
+          if (!voiceHeardSpeechRef.current) {
+            showVoiceError('No speech was detected. Try again when you are ready to talk.');
             return;
           }
 
@@ -644,7 +657,7 @@ export function NotchApp() {
         <div className="notch-body">
           <form
             className="notch-prompt"
-            data-visible={isPromptVisible ? 'true' : 'false'}
+            data-visible={interaction.promptVisible ? 'true' : 'false'}
             onSubmit={(event) => {
               event.preventDefault();
               if (isSubmittingRef.current) {
@@ -665,7 +678,7 @@ export function NotchApp() {
             <input
               aria-label="Ask Kairo"
               autoFocus
-              disabled={!canUsePrompt}
+              disabled={!interaction.canUsePrompt}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={promptPlaceholder(payload)}
               value={query}
@@ -674,14 +687,15 @@ export function NotchApp() {
               aria-label={voiceCaptureState === 'recording' ? 'Stop voice input' : 'Start voice input'}
               className="notch-voice-button"
               data-recording={voiceCaptureState === 'recording' ? 'true' : 'false'}
-              disabled={!canUseVoice}
+              disabled={!interaction.canUseVoice}
+              title={voiceCaptureState === 'recording' ? 'Stop voice input' : 'Start voice input'}
               type="button"
               onClick={toggleVoiceCapture}
             >
               <span aria-hidden="true" className="notch-voice-icon" />
             </button>
-            <button disabled={voiceCaptureState !== 'recording' && !canUsePrompt} type="submit">
-              {voiceCaptureState === 'recording' ? 'Send voice' : 'Ask'}
+            <button disabled={!canSubmitCurrent} type="submit">
+              {interaction.submitMode === 'voice' ? 'Done' : 'Ask'}
             </button>
           </form>
 
@@ -694,8 +708,9 @@ export function NotchApp() {
                 <button
                   aria-label={`${option.label} annotation tool`}
                   aria-pressed={activeAnnotationTool === option.tool}
-                  disabled={isSubmitting}
+                  disabled={!interaction.canAnnotate}
                   key={option.tool}
+                  title={option.label}
                   type="button"
                   onClick={() => startAnnotation(option.tool)}
                 >
@@ -704,7 +719,8 @@ export function NotchApp() {
               ))}
               <button
                 aria-label="Undo last annotation"
-                disabled={isSubmitting || annotations.length === 0}
+                disabled={!interaction.canAnnotate || annotations.length === 0}
+                title="Undo"
                 type="button"
                 onClick={undoAnnotation}
               >
@@ -712,7 +728,8 @@ export function NotchApp() {
               </button>
               <button
                 aria-label="Clear annotations"
-                disabled={isSubmitting || annotations.length === 0}
+                disabled={!interaction.canAnnotate || annotations.length === 0}
+                title="Clear"
                 type="button"
                 onClick={clearAnnotations}
               >
@@ -721,7 +738,8 @@ export function NotchApp() {
               <button
                 aria-label="Finish annotations"
                 className="notch-tool-done"
-                disabled={isSubmitting || (!activeAnnotationTool && annotations.length === 0)}
+                disabled={!interaction.canAnnotate || (!activeAnnotationTool && annotations.length === 0)}
+                title="Done"
                 type="button"
                 onClick={finishAnnotation}
               >

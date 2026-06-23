@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import {
   buildNotchAskPayload,
+  getNotchInteractionState,
   isNotchDismissKey,
   isNotchPromptVisible,
   submitNotchPrompt,
@@ -59,5 +60,59 @@ describe('notch prompt behavior', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  test('keeps the prompt usable for follow-up questions after an answer', () => {
+    const interaction = getNotchInteractionState({
+      payload: { ...capturedPayload, state: 'showing_step', layout: 'answer' },
+      voiceState: 'idle',
+      isSubmitting: false
+    });
+
+    expect(interaction.promptVisible).toBe(true);
+    expect(interaction.canUsePrompt).toBe(true);
+    expect(interaction.canSubmitText).toBe(true);
+    expect(interaction.canAnnotate).toBe(true);
+    expect(interaction.promptDisabledReason).toBeNull();
+  });
+
+  test('keeps voice stop available while recording even when text input is disabled', () => {
+    const interaction = getNotchInteractionState({
+      payload: { ...capturedPayload, state: 'listening', layout: 'compact' },
+      voiceState: 'recording',
+      isSubmitting: false
+    });
+
+    expect(interaction.promptVisible).toBe(true);
+    expect(interaction.canUsePrompt).toBe(false);
+    expect(interaction.canUseVoice).toBe(true);
+    expect(interaction.canAnnotate).toBe(false);
+    expect(interaction.submitMode).toBe('voice');
+  });
+
+  test('blocks duplicate submissions while thinking', () => {
+    const interaction = getNotchInteractionState({
+      payload: { ...capturedPayload, state: 'thinking', layout: 'compact' },
+      voiceState: 'transcribing',
+      isSubmitting: true
+    });
+
+    expect(interaction.promptVisible).toBe(false);
+    expect(interaction.canUsePrompt).toBe(false);
+    expect(interaction.canSubmitText).toBe(false);
+    expect(interaction.canUseVoice).toBe(false);
+    expect(interaction.canAnnotate).toBe(false);
+    expect(interaction.promptDisabledReason).toBe('busy');
+  });
+
+  test('does not offer annotation tools before a captured screen exists', () => {
+    const interaction = getNotchInteractionState({
+      payload: { ...capturedPayload, state: 'idle', layout: 'compact' },
+      voiceState: 'idle',
+      isSubmitting: false
+    });
+
+    expect(interaction.promptVisible).toBe(false);
+    expect(interaction.canAnnotate).toBe(false);
   });
 });

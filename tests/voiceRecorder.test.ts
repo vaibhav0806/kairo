@@ -123,6 +123,17 @@ describe('voiceRecorder helpers', () => {
     ).toBe(false);
   });
 
+  test('stops earlier when no speech is detected after the startup window', () => {
+    expect(
+      shouldStopVoiceCapture({
+        elapsedMs: 5000,
+        heardSpeech: false,
+        silenceMs: 5000,
+        rms: 0.001
+      })
+    ).toBe(true);
+  });
+
   test('stops at the maximum recording duration even without detected speech', () => {
     expect(
       shouldStopVoiceCapture({

@@ -3,6 +3,7 @@ export type VoiceCaptureState = 'idle' | 'recording' | 'transcribing' | 'error';
 export const VOICE_SILENCE_THRESHOLD = 0.018;
 export const VOICE_SILENCE_AFTER_SPEECH_MS = 900;
 export const VOICE_MIN_RECORDING_MS = 650;
+export const VOICE_NO_SPEECH_TIMEOUT_MS = 4_800;
 export const VOICE_MAX_RECORDING_MS = 18_000;
 
 const preferredAudioMimeTypes = [
@@ -177,6 +178,7 @@ export function shouldStopVoiceCapture({
   silenceThreshold = VOICE_SILENCE_THRESHOLD,
   minRecordingMs = VOICE_MIN_RECORDING_MS,
   silenceAfterSpeechMs = VOICE_SILENCE_AFTER_SPEECH_MS,
+  noSpeechTimeoutMs = VOICE_NO_SPEECH_TIMEOUT_MS,
   maxRecordingMs = VOICE_MAX_RECORDING_MS
 }: {
   elapsedMs: number;
@@ -186,9 +188,14 @@ export function shouldStopVoiceCapture({
   silenceThreshold?: number;
   minRecordingMs?: number;
   silenceAfterSpeechMs?: number;
+  noSpeechTimeoutMs?: number;
   maxRecordingMs?: number;
 }) {
   if (elapsedMs >= maxRecordingMs) {
+    return true;
+  }
+
+  if (!heardSpeech && elapsedMs >= noSpeechTimeoutMs && rms < silenceThreshold) {
     return true;
   }
 

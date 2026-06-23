@@ -84,6 +84,9 @@ describe('OpenRouter tutor planner adapter', () => {
     expect(JSON.stringify(userMessage.content)).toContain('annotationSummary');
     expect(JSON.stringify(userMessage.content)).toContain('orange user markup');
     expect(JSON.stringify(userMessage.content)).toContain('visual attention guidance');
+    expect(JSON.stringify(userMessage.content)).toContain('markedAreas');
+    expect(JSON.stringify(userMessage.content)).toContain('first marked area');
+    expect(JSON.stringify(userMessage.content)).toContain('rectangle');
     expect(JSON.stringify(userMessage.content)).not.toContain('annotation-1');
     expect(JSON.stringify(userMessage.content)).not.toContain('User annotations: exactly 1');
   });

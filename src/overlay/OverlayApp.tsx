@@ -220,6 +220,10 @@ function AnnotationOverlay({
   }
 
   function handlePointerUp(event: PointerEvent<HTMLElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
     if (draftPenPoints) {
       const points = [...draftPenPoints, displayPointFromPointerEvent(event)];
       const previewAnnotation = createPenAnnotationFromDisplayPoints({
@@ -284,7 +288,10 @@ function AnnotationOverlay({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerCancel={() => {
+        onPointerCancel={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
           setDraftDrag(null);
           setDraftPenPoints(null);
         }}
