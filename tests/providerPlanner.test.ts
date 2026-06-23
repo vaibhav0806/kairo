@@ -105,7 +105,8 @@ describe('OpenRouter tutor planner adapter', () => {
     const messages = (chat.mock.calls as unknown as Array<[OpenRouterMessage[]]>)[0][0];
     expect(String(messages[0].content)).toContain('Answer general user questions directly');
     expect(String(messages[0].content)).toContain('Selected skill context, when relevant: Blender');
-    expect(String(messages[0].content)).toContain('Mention only listed annotation IDs/types');
+    expect(String(messages[0].content)).toContain('Annotation IDs are internal coordinate references only');
+    expect(String(messages[0].content)).toContain('describe the marked screen content or location');
     expect(String(messages[0].content)).not.toContain('Skill: Blender');
   });
 
@@ -175,6 +176,25 @@ describe('OpenRouter tutor planner adapter', () => {
     expect(response.mode).toBe('idle');
     expect(response.screenText).toBe('Hi there. What would you like to learn today?');
     expect(response.voiceText).toBe('Hi there. What would you like to learn today?');
+  });
+
+  test('does not expose internal annotation IDs in user-facing answer text', () => {
+    const response = parseTutorPlannerResponse(
+      JSON.stringify({
+        mode: 'stuck_help',
+        skillSlug: 'browser',
+        voiceText: 'They are labeled annotation-1.',
+        screenText: 'I see annotation-1 on the screen.',
+        visualTargets: [],
+        expectedNextState: 'user_reads_answer'
+      }),
+      tutorInput
+    );
+
+    expect(response.screenText).toBe('I see first marked area on the screen.');
+    expect(response.voiceText).toBe('They are labeled first marked area.');
+    expect(response.screenText).not.toContain('annotation-1');
+    expect(response.voiceText).not.toContain('annotation-1');
   });
 
   test('normalizes nullable provider fields instead of surfacing raw JSON', () => {

@@ -897,7 +897,10 @@ fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
         "Answer general user questions directly. Do not refuse just because the question is outside the selected skill pack.".to_string(),
         "Use the selected skill pack only when it is relevant to the active app or user question.".to_string(),
         "When responding to a user question, prefer mode \"stuck_help\" or \"guided_lesson\"; reserve mode \"idle\" for no-op readiness.".to_string(),
-        "If annotations are present, treat them as user-marked screen areas. Mention only listed annotation IDs/types; do not invent image labels or extra annotations.".to_string(),
+        "If annotations are present, use them as user-marked screen areas and inspect the screenshot to infer what those marked areas point to.".to_string(),
+        "Annotation IDs are internal coordinate references only. Never call them labels and never mention IDs like screen-annotation-1 in voiceText or screenText.".to_string(),
+        "If the user asks about annotations, describe the marked screen content or location, not the annotation objects themselves.".to_string(),
+        "Do not invent image labels or extra annotations.".to_string(),
         format!("Selected skill context, when relevant: {} ({}).", input.skill.display_name, input.skill.slug),
         format!("Constraints: {}", input.constraints.join(" ")),
     ]
@@ -927,7 +930,7 @@ fn build_annotation_summary(input: &TutorTurnInput) -> String {
         .join("; ");
 
     format!(
-        "User annotations: exactly {}. {}. Do not invent unlisted annotations.",
+        "User annotations: exactly {}. Internal coordinate refs: {}. These IDs are not visible labels; do not mention them to the user. Use the screenshot pixels around each marked area to answer.",
         input.annotations.len(),
         annotations
     )
@@ -1437,7 +1440,8 @@ mod tests {
 
         assert!(system_prompt.contains("Answer general user questions directly"));
         assert!(system_prompt.contains("Selected skill context, when relevant: Blender"));
-        assert!(system_prompt.contains("Mention only listed annotation IDs/types"));
+        assert!(system_prompt.contains("Annotation IDs are internal coordinate references only"));
+        assert!(system_prompt.contains("describe the marked screen content or location"));
         assert!(!system_prompt.contains("Skill: Blender"));
     }
 
@@ -1464,7 +1468,8 @@ mod tests {
         assert!(user_prompt.contains("\"annotationSummary\""));
         assert!(user_prompt.contains("User annotations: exactly 1"));
         assert!(user_prompt.contains("screen-annotation-1: pen"));
-        assert!(user_prompt.contains("Do not invent unlisted annotations"));
+        assert!(user_prompt.contains("These IDs are not visible labels"));
+        assert!(user_prompt.contains("Use the screenshot pixels around each marked area"));
     }
 
     #[test]

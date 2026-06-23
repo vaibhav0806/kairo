@@ -110,6 +110,18 @@ function fallbackResponse(input: TutorTurnInput, warning: string, rawContent?: s
   };
 }
 
+function ordinalLabel(index: number) {
+  const labels = ['first', 'second', 'third', 'fourth', 'fifth'];
+  return labels[index] ?? `marked area ${index + 1}`;
+}
+
+function sanitizeInternalAnnotationIds(text: string, input: TutorTurnInput) {
+  return input.annotations.reduce((currentText, annotation, index) => {
+    const replacement = `${ordinalLabel(index)} marked area`;
+    return currentText.split(annotation.id).join(replacement);
+  }, text);
+}
+
 export function parseTutorPlannerResponse(rawContent: string, input: TutorTurnInput): TutorResponse {
   let parsed: z.infer<typeof tutorResponseSchema>;
 
@@ -128,11 +140,14 @@ export function parseTutorPlannerResponse(rawContent: string, input: TutorTurnIn
     }));
   const droppedTargets = normalizedTargets.length - safeTargets.length;
   const warnings = droppedTargets > 0 ? [`Dropped ${droppedTargets} unsafe visual target.`] : [];
+  const voiceText = sanitizeInternalAnnotationIds(parsed.voiceText, input);
+  const screenText = sanitizeInternalAnnotationIds(parsed.screenText.trim() || voiceText, input);
 
   return {
     ...parsed,
     skillSlug: parsed.skillSlug.trim() || input.skill.slug,
-    screenText: parsed.screenText.trim() || parsed.voiceText,
+    voiceText,
+    screenText,
     visualTargets: safeTargets,
     providerMetadata: {
       confidenceState: confidenceState(safeTargets),
@@ -153,7 +168,10 @@ function buildSystemPrompt(input: TutorTurnInput) {
     'Answer general user questions directly. Do not refuse just because the question is outside the selected skill pack.',
     'Use the selected skill pack only when it is relevant to the active app or user question.',
     'When responding to a user question, prefer mode "stuck_help" or "guided_lesson"; reserve mode "idle" for no-op readiness.',
-    'If annotations are present, treat them as user-marked screen areas. Mention only listed annotation IDs/types; do not invent image labels or extra annotations.',
+    'If annotations are present, use them as user-marked screen areas and inspect the screenshot to infer what those marked areas point to.',
+    'Annotation IDs are internal coordinate references only. Never call them labels and never mention IDs like screen-annotation-1 in voiceText or screenText.',
+    'If the user asks about annotations, describe the marked screen content or location, not the annotation objects themselves.',
+    'Do not invent image labels or extra annotations.',
     `Selected skill context, when relevant: ${input.skill.displayName} (${input.skill.slug}).`,
     `Constraints: ${input.constraints.join(' ')}`
   ].join('\n');
@@ -171,7 +189,7 @@ function buildAnnotationSummary(input: TutorTurnInput) {
     })
     .join('; ');
 
-  return `User annotations: exactly ${input.annotations.length}. ${annotations}. Do not invent unlisted annotations.`;
+  return `User annotations: exactly ${input.annotations.length}. Internal coordinate refs: ${annotations}. These IDs are not visible labels; do not mention them to the user. Use the screenshot pixels around each marked area to answer.`;
 }
 
 function buildUserPrompt(input: TutorTurnInput) {
