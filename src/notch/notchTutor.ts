@@ -44,7 +44,14 @@ export async function askTutorFromNotch({
       skillSlug: defaultSkill
     });
 
-    if (response.visualTargets.length > 0 && screenCapture.displayBounds) {
+    if (annotations.length > 0 && screenCapture.displayBounds) {
+      await nativeBridge.showOverlay({
+        mode: 'annotation_preview',
+        displayBounds: screenCapture.displayBounds,
+        targets: [],
+        annotations
+      });
+    } else if (response.visualTargets.length > 0 && screenCapture.displayBounds) {
       await nativeBridge.showOverlay({
         displayBounds: screenCapture.displayBounds,
         targets: response.visualTargets
