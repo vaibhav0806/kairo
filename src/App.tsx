@@ -491,6 +491,13 @@ export function App() {
 
         setAnnotations((currentAnnotations) => [...currentAnnotations, event.payload]);
       }),
+      listen<UserAnnotation[]>('annotation:sync', (event) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setAnnotations(event.payload);
+      }),
       listen('annotation:done', () => {
         if (!isMounted) {
           return;

@@ -10,10 +10,15 @@ import { askTutorFromNotch } from './notchTutor';
 import {
   isNotchDismissKey,
   isNotchPromptVisible,
-  submitNotchPrompt,
   waitForNotchPaint
 } from './prompt';
 import type { NotchPayload } from './types';
+import {
+  blobToBase64,
+  selectAudioMimeType,
+  voiceStatusCopy,
+  type VoiceCaptureState
+} from './voiceRecorder';
 
 const defaultPayload: NotchPayload = {
   state: 'idle',
@@ -48,11 +53,63 @@ export function NotchApp() {
   const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
   const [activeAnnotationTool, setActiveAnnotationTool] = useState<NotchAnnotationTool | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [voiceCaptureState, setVoiceCaptureState] = useState<VoiceCaptureState>('idle');
   const isSubmittingRef = useRef(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const voiceCancelledRef = useRef(false);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
-  const isPromptVisible = isNotchPromptVisible(payload);
+  const isPromptVisible =
+    isNotchPromptVisible(payload) || voiceCaptureState === 'recording' || voiceCaptureState === 'error';
   const canUsePrompt = isPromptVisible && !isSubmitting && payload.state !== 'thinking';
+  const canUseVoice =
+    voiceCaptureState === 'recording' ||
+    (isPromptVisible && !isSubmitting && payload.state !== 'thinking' && voiceCaptureState !== 'transcribing');
+
+  const stopVoiceTracks = useCallback(() => {
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+  }, []);
+
+  const submitQuery = useCallback(
+    async (nextQuery: string) => {
+      const trimmedQuery = nextQuery.trim();
+      if (!trimmedQuery || isSubmittingRef.current) {
+        return;
+      }
+
+      const thinkingPayload = activationStateToNotchPayload('thinking');
+      isSubmittingRef.current = true;
+      setIsSubmitting(true);
+      setVoiceCaptureState('idle');
+      setPayload(thinkingPayload);
+      setQuery('');
+      void nativeBridge.showNotch(thinkingPayload);
+      await waitForNotchPaint();
+
+      try {
+        const answerPayload = await askTutorFromNotch({
+          query: trimmedQuery,
+          nativeBridge,
+          aiProvider: env.aiProvider,
+          defaultSkill: env.defaultSkill,
+          annotations
+        });
+
+        setPayload(answerPayload);
+        setQuery('');
+        setAnnotations([]);
+        setActiveAnnotationTool(null);
+        void nativeBridge.showNotch(answerPayload);
+      } finally {
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+      }
+    },
+    [annotations, env.aiProvider, env.defaultSkill, nativeBridge]
+  );
 
   const startAnnotation = useCallback((tool: NotchAnnotationTool) => {
     setActiveAnnotationTool(tool);
@@ -64,16 +121,136 @@ export function NotchApp() {
     void emit('annotation:finish', {});
   }, []);
 
+  const undoAnnotation = useCallback(() => {
+    void emit('annotation:undo', {});
+  }, []);
+
+  const clearAnnotations = useCallback(() => {
+    setAnnotations([]);
+    setActiveAnnotationTool(null);
+    void emit('annotation:clear', {});
+  }, []);
+
   const hideNotch = useCallback(() => {
+    voiceCancelledRef.current = true;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    stopVoiceTracks();
     isSubmittingRef.current = false;
     setIsSubmitting(false);
+    setVoiceCaptureState('idle');
     setPayload(defaultPayload);
     setQuery('');
     setAnnotations([]);
     setActiveAnnotationTool(null);
     void nativeBridge.hideOverlay();
     void nativeBridge.hideNotch();
-  }, [nativeBridge]);
+  }, [nativeBridge, stopVoiceTracks]);
+
+  const setVoicePayload = useCallback(
+    (state: VoiceCaptureState) => {
+      const copy = voiceStatusCopy(state);
+      const nextPayload: NotchPayload = {
+        state: state === 'transcribing' ? 'thinking' : state === 'recording' ? 'listening' : 'captured',
+        layout: state === 'transcribing' || state === 'recording' ? 'compact' : 'prompt',
+        title: copy.title,
+        detail: copy.detail
+      };
+      setPayload(nextPayload);
+      void nativeBridge.showNotch(nextPayload);
+    },
+    [nativeBridge]
+  );
+
+  const startVoiceCapture = useCallback(async () => {
+    if (!globalThis.navigator?.mediaDevices?.getUserMedia || !globalThis.MediaRecorder) {
+      setVoiceCaptureState('error');
+      setVoicePayload('error');
+      return;
+    }
+
+    try {
+      const stream = await globalThis.navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = selectAudioMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      voiceCancelledRef.current = false;
+      mediaStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const wasCancelled = voiceCancelledRef.current;
+        const chunks = audioChunksRef.current;
+        const recordingMimeType = recorder.mimeType || mimeType || 'audio/webm';
+        mediaRecorderRef.current = null;
+        stopVoiceTracks();
+        audioChunksRef.current = [];
+
+        if (wasCancelled) {
+          setVoiceCaptureState('idle');
+          return;
+        }
+
+        void (async () => {
+          if (chunks.length === 0) {
+            setVoiceCaptureState('error');
+            setVoicePayload('error');
+            return;
+          }
+
+          setVoiceCaptureState('transcribing');
+          setVoicePayload('transcribing');
+          try {
+            const audioBase64 = await blobToBase64(new Blob(chunks, { type: recordingMimeType }));
+            const result = await nativeBridge.transcribeAudio({
+              audioBase64,
+              mimeType: recordingMimeType,
+              filename: `kairo-voice.${recordingMimeType.includes('webm') ? 'webm' : 'wav'}`
+            });
+            const transcript = result.text.trim();
+            if (!transcript) {
+              setVoiceCaptureState('error');
+              setVoicePayload('error');
+              return;
+            }
+
+            setQuery(transcript);
+            await submitQuery(transcript);
+          } catch {
+            setVoiceCaptureState('error');
+            setVoicePayload('error');
+          }
+        })();
+      };
+
+      recorder.start();
+      setVoiceCaptureState('recording');
+      setVoicePayload('recording');
+    } catch {
+      stopVoiceTracks();
+      setVoiceCaptureState('error');
+      setVoicePayload('error');
+    }
+  }, [nativeBridge, setVoicePayload, stopVoiceTracks, submitQuery]);
+
+  const toggleVoiceCapture = useCallback(() => {
+    if (voiceCaptureState === 'recording') {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      return;
+    }
+
+    void startVoiceCapture();
+  }, [startVoiceCapture, voiceCaptureState]);
 
   useEffect(() => {
     document.documentElement.classList.add('notch-document');
@@ -98,12 +275,14 @@ export function NotchApp() {
             isSubmittingRef.current = false;
             setQuery('');
             setIsSubmitting(false);
+            setVoiceCaptureState('idle');
           }
           if (nextPayload.state === 'listening') {
             isSubmittingRef.current = false;
             setAnnotations([]);
             setActiveAnnotationTool(null);
             setIsSubmitting(false);
+            setVoiceCaptureState('idle');
           }
           setPayload(nextPayload);
         }
@@ -133,6 +312,13 @@ export function NotchApp() {
         }
 
         setAnnotations((currentAnnotations) => [...currentAnnotations, event.payload]);
+      }),
+      listen<UserAnnotation[]>('annotation:sync', (event) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setAnnotations(event.payload);
       }),
       listen('annotation:done', () => {
         if (!isMounted) {
@@ -210,34 +396,7 @@ export function NotchApp() {
                 return;
               }
 
-              void submitNotchPrompt(query, async (askPayload) => {
-                const thinkingPayload = activationStateToNotchPayload('thinking');
-                isSubmittingRef.current = true;
-                setIsSubmitting(true);
-                setPayload(thinkingPayload);
-                setQuery('');
-                void nativeBridge.showNotch(thinkingPayload);
-                await waitForNotchPaint();
-
-                try {
-                  const answerPayload = await askTutorFromNotch({
-                    query: askPayload.query,
-                    nativeBridge,
-                    aiProvider: env.aiProvider,
-                    defaultSkill: env.defaultSkill,
-                    annotations
-                  });
-
-                  setPayload(answerPayload);
-                  setQuery('');
-                  setAnnotations([]);
-                  setActiveAnnotationTool(null);
-                  void nativeBridge.showNotch(answerPayload);
-                } finally {
-                  isSubmittingRef.current = false;
-                  setIsSubmitting(false);
-                }
-              }).catch(() => {
+              submitQuery(query).catch(() => {
                 isSubmittingRef.current = false;
                 setIsSubmitting(false);
               });
@@ -251,6 +410,16 @@ export function NotchApp() {
               placeholder={promptPlaceholder(payload)}
               value={query}
             />
+            <button
+              aria-label={voiceCaptureState === 'recording' ? 'Stop voice input' : 'Start voice input'}
+              className="notch-voice-button"
+              data-recording={voiceCaptureState === 'recording' ? 'true' : 'false'}
+              disabled={!canUseVoice}
+              type="button"
+              onClick={toggleVoiceCapture}
+            >
+              <span aria-hidden="true" className="notch-voice-icon" />
+            </button>
             <button disabled={!canUsePrompt} type="submit">
               Ask
             </button>
@@ -273,6 +442,22 @@ export function NotchApp() {
                   <span aria-hidden="true">{option.icon}</span>
                 </button>
               ))}
+              <button
+                aria-label="Undo last annotation"
+                disabled={isSubmitting || annotations.length === 0}
+                type="button"
+                onClick={undoAnnotation}
+              >
+                <span aria-hidden="true">↶</span>
+              </button>
+              <button
+                aria-label="Clear annotations"
+                disabled={isSubmitting || annotations.length === 0}
+                type="button"
+                onClick={clearAnnotations}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
               <button
                 aria-label="Finish annotations"
                 className="notch-tool-done"

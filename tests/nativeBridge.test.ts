@@ -303,6 +303,26 @@ describe('createNativeBridge', () => {
     expect(invoke).toHaveBeenCalledWith('run_tutor_turn', { input });
   });
 
+  test('sends voice recordings to the native transcription proxy', async () => {
+    const input = {
+      audioBase64: 'UklGRg==',
+      mimeType: 'audio/wav',
+      filename: 'voice.wav'
+    };
+    const invoke = vi.fn(async () => ({
+      text: 'open the cube settings',
+      provider: 'sarvam'
+    })) as unknown as NativeInvoke;
+    const bridge = createNativeBridge(invoke);
+
+    await expect(bridge.transcribeAudio(input)).resolves.toEqual({
+      text: 'open the cube settings',
+      provider: 'sarvam'
+    });
+
+    expect(invoke).toHaveBeenCalledWith('transcribe_audio', { input });
+  });
+
   test('surfaces native provider proxy failures', async () => {
     const input = {
       userQuery: 'What should I click?',

@@ -38,6 +38,21 @@ describe('loadKairoEnv', () => {
 
     expect(env.aiProvider).toBe('openrouter');
     expect(env.openRouterModel).toBe('anthropic/claude-sonnet-4');
+    expect(env.openRouterVisionModel).toBe('google/gemini-2.5-flash');
+  });
+
+  test('loads an explicit OpenRouter vision model when configured', () => {
+    const env = loadKairoEnv({
+      KAIRO_AI_PROVIDER: 'openrouter',
+      KAIRO_STT_PROVIDER: 'mock',
+      KAIRO_TTS_PROVIDER: 'mock',
+      OPENROUTER_API_KEY: 'test-key',
+      OPENROUTER_MODEL: 'qwen/qwen3.6-flash',
+      OPENROUTER_VISION_MODEL: 'google/gemini-2.5-pro'
+    });
+
+    expect(env.openRouterModel).toBe('qwen/qwen3.6-flash');
+    expect(env.openRouterVisionModel).toBe('google/gemini-2.5-pro');
   });
 
   test('requires Sarvam key when Sarvam handles speech', () => {

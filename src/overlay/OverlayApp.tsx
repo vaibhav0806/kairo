@@ -110,17 +110,38 @@ function AnnotationOverlay({
 
   useEffect(() => {
     let isMounted = true;
-    let unlisten: (() => void) | undefined;
+    const unlisteners: Array<() => void> = [];
 
-    void listen('annotation:finish', () => {
-      if (!isMounted) {
-        return;
-      }
+    void Promise.all([
+      listen('annotation:finish', () => {
+        if (!isMounted) {
+          return;
+        }
 
-      onDone(annotationsRef.current);
-    })
-      .then((nextUnlisten) => {
-        unlisten = nextUnlisten;
+        onDone(annotationsRef.current);
+      }),
+      listen('annotation:undo', () => {
+        if (!isMounted) {
+          return;
+        }
+
+        setAnnotations((current) => {
+          const nextAnnotations = current.slice(0, -1);
+          void emit('annotation:sync', nextAnnotations);
+          return nextAnnotations;
+        });
+      }),
+      listen('annotation:clear', () => {
+        if (!isMounted) {
+          return;
+        }
+
+        setAnnotations([]);
+        void emit('annotation:sync', []);
+      })
+    ])
+      .then((nextUnlisteners) => {
+        unlisteners.push(...nextUnlisteners);
       })
       .catch(() => {
         // Browser preview and tests run without the Tauri event bus.
@@ -128,7 +149,7 @@ function AnnotationOverlay({
 
     return () => {
       isMounted = false;
-      unlisten?.();
+      unlisteners.forEach((unlisten) => unlisten());
     };
   }, [onDone]);
 

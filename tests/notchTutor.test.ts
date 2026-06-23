@@ -44,6 +44,7 @@ function createBridge(overrides: Partial<NativeBridge> = {}): NativeBridge {
         expectedNextState: 'user_asks_next'
       })
     ),
+    transcribeAudio: vi.fn(async () => ({ text: 'hello', provider: 'sarvam' })),
     registerActivationShortcut: vi.fn(),
     ...overrides
   } as NativeBridge;

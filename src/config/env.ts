@@ -12,6 +12,7 @@ const rawEnvSchema = z.object({
   KAIRO_ENABLE_WEB_RESEARCH: z.string().default('false'),
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_MODEL: z.string().default('~openai/gpt-latest'),
+  OPENROUTER_VISION_MODEL: z.string().default('google/gemini-2.5-flash'),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
   OPENROUTER_SITE_URL: z.string().url().optional(),
   OPENROUTER_APP_TITLE: z.string().default('Kairo Tutor'),
@@ -37,6 +38,7 @@ export type KairoEnv = {
   defaultSkill: string;
   enableWebResearch: boolean;
   openRouterModel: string;
+  openRouterVisionModel: string;
   openRouterBaseUrl: string;
   openRouterSiteUrl?: string;
   openRouterAppTitle: string;
@@ -91,6 +93,7 @@ export function loadKairoEnv(
     defaultSkill: parsed.KAIRO_DEFAULT_SKILL,
     enableWebResearch: parsed.KAIRO_ENABLE_WEB_RESEARCH === 'true',
     openRouterModel: parsed.OPENROUTER_MODEL,
+    openRouterVisionModel: parsed.OPENROUTER_VISION_MODEL,
     openRouterBaseUrl: parsed.OPENROUTER_BASE_URL,
     openRouterSiteUrl: parsed.OPENROUTER_SITE_URL,
     openRouterAppTitle: parsed.OPENROUTER_APP_TITLE,

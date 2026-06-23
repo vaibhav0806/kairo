@@ -56,6 +56,17 @@ export type NativeScreenCapture = {
 
 export type NativeOverlayDisplayBounds = NonNullable<NativeScreenCapture['displayBounds']>;
 
+export type NativeTranscribeAudioInput = {
+  audioBase64: string;
+  mimeType: string;
+  filename?: string;
+};
+
+export type NativeTranscriptionResult = {
+  text: string;
+  provider: string;
+};
+
 export type NativeOverlayPayload = {
   mode?: 'visual' | 'annotate' | 'annotation_preview';
   displayBounds: NativeOverlayDisplayBounds;
@@ -82,6 +93,7 @@ export type NativeBridge = {
   getCurrentNotchPayload(): Promise<NotchPayload | null>;
   hideNotch(): Promise<void>;
   runTutorTurn(input: TutorTurnInput): Promise<string>;
+  transcribeAudio(input: NativeTranscribeAudioInput): Promise<NativeTranscriptionResult>;
   registerActivationShortcut(onActivated: () => void | Promise<void>): Promise<NativeShortcutRegistration>;
 };
 
@@ -333,6 +345,10 @@ export function createNativeBridge(
 
     async runTutorTurn(input) {
       return invoke<string>('run_tutor_turn', { input });
+    },
+
+    async transcribeAudio(input) {
+      return invoke<NativeTranscriptionResult>('transcribe_audio', { input });
     },
 
     async registerActivationShortcut(onActivated) {

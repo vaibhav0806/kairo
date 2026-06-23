@@ -12,6 +12,7 @@ use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, State};
 use tauri_plugin_global_shortcut::ShortcutState;
 
 const KAIRO_ACTIVATION_SHORTCUT: &str = "CommandOrControl+Shift+Space";
+const DEFAULT_OPENROUTER_VISION_MODEL: &str = "google/gemini-2.5-flash";
 
 #[cfg(target_os = "macos")]
 use block2::RcBlock;
@@ -191,6 +192,21 @@ struct TutorTurnInput {
     screen: TutorScreenInput,
     skill: TutorSkillPack,
     constraints: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TranscribeAudioInput {
+    audio_base64: String,
+    mime_type: String,
+    filename: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TranscriptionResult {
+    text: String,
+    provider: String,
 }
 
 #[cfg(target_os = "macos")]
@@ -994,6 +1010,92 @@ fn build_openrouter_request_body(
     }))
 }
 
+fn select_openrouter_request_model(
+    input: &TutorTurnInput,
+    text_model: &str,
+    vision_model: &str,
+) -> (String, bool) {
+    if input.screen.captured && input.screen.image_base64.is_some() {
+        return (vision_model.to_string(), true);
+    }
+
+    (text_model.to_string(), false)
+}
+
+fn audio_filename(input: &TranscribeAudioInput) -> String {
+    if let Some(filename) = input
+        .filename
+        .as_deref()
+        .map(str::trim)
+        .filter(|filename| !filename.is_empty())
+    {
+        return filename.to_string();
+    }
+
+    let extension = if input.mime_type.contains("mpeg") || input.mime_type.contains("mp3") {
+        "mp3"
+    } else if input.mime_type.contains("mp4") {
+        "m4a"
+    } else if input.mime_type.contains("webm") {
+        "webm"
+    } else {
+        "wav"
+    };
+
+    format!("kairo-voice.{extension}")
+}
+
+fn decode_audio_base64(input: &TranscribeAudioInput) -> Result<Vec<u8>, String> {
+    use base64::Engine;
+
+    base64::engine::general_purpose::STANDARD
+        .decode(input.audio_base64.trim())
+        .map_err(|error| format!("Voice recording was not valid base64 audio: {error}"))
+}
+
+fn parse_provider_json_error(payload: &Value, fallback: &str) -> String {
+    payload
+        .get("error")
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            payload
+                .get("detail")
+                .and_then(|detail| detail.get("message"))
+                .and_then(Value::as_str)
+        })
+        .or_else(|| payload.get("message").and_then(Value::as_str))
+        .unwrap_or(fallback)
+        .to_string()
+}
+
+async fn parse_transcription_response(
+    response: reqwest::Response,
+    transcript_keys: &[&str],
+    missing_message: &str,
+) -> Result<String, String> {
+    let status = response.status();
+    let payload = response
+        .json::<Value>()
+        .await
+        .map_err(|error| format!("STT response was not JSON: {error}"))?;
+
+    if !status.is_success() {
+        return Err(parse_provider_json_error(
+            &payload,
+            &format!("STT request failed with {status}"),
+        ));
+    }
+
+    transcript_keys
+        .iter()
+        .find_map(|key| payload.get(*key).and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(ToString::to_string)
+        .ok_or_else(|| missing_message.to_string())
+}
+
 #[derive(Debug)]
 struct OpenRouterChatError {
     message: String,
@@ -1077,7 +1179,8 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
     let model = provider_env("OPENROUTER_MODEL", "~openai/gpt-latest");
     let vision_model = provider_env_optional("OPENROUTER_VISION_MODEL")
         .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_OPENROUTER_VISION_MODEL.to_string());
     let base_url = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
     let site_url = provider_env_optional("OPENROUTER_SITE_URL");
     let app_title = provider_env("OPENROUTER_APP_TITLE", "Kairo Tutor");
@@ -1097,7 +1200,11 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
         &api_key,
         &app_title,
         site_url_ref,
-        build_openrouter_request_body(&input, vision_model.as_deref().unwrap_or(&model), true)?,
+        {
+            let (request_model, include_screenshot) =
+                select_openrouter_request_model(&input, &model, &vision_model);
+            build_openrouter_request_body(&input, &request_model, include_screenshot)?
+        },
     )
     .await;
 
@@ -1130,6 +1237,85 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
         }
         Err(error) => Err(error.message),
     }
+}
+
+#[tauri::command]
+async fn transcribe_audio(input: TranscribeAudioInput) -> Result<TranscriptionResult, String> {
+    let provider = provider_env("KAIRO_STT_PROVIDER", "mock");
+    if provider == "mock" {
+        return Ok(TranscriptionResult {
+            text: String::new(),
+            provider,
+        });
+    }
+
+    let audio_bytes = decode_audio_base64(&input)?;
+    if audio_bytes.is_empty() {
+        return Err("Voice recording was empty.".to_string());
+    }
+
+    let filename = audio_filename(&input);
+    let part = reqwest::multipart::Part::bytes(audio_bytes)
+        .file_name(filename)
+        .mime_str(&input.mime_type)
+        .map_err(|error| format!("Unsupported voice recording MIME type: {error}"))?;
+    let timeout = Duration::from_millis(provider_timeout_ms(provider_env_optional(
+        "KAIRO_STT_TIMEOUT_MS",
+    )));
+    let client = reqwest::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(|error| format!("Failed to build STT client: {error}"))?;
+
+    if provider == "sarvam" {
+        let api_key = provider_env_optional("SARVAM_API_KEY")
+            .ok_or_else(|| "SARVAM_API_KEY is required for Sarvam transcription.".to_string())?;
+        let base_url = provider_env("SARVAM_BASE_URL", "https://api.sarvam.ai");
+        let form = reqwest::multipart::Form::new()
+            .part("file", part)
+            .text("model", provider_env("SARVAM_STT_MODEL", "saaras:v3"))
+            .text("mode", provider_env("SARVAM_STT_MODE", "transcribe"));
+        let text = parse_transcription_response(
+            client
+                .post(format!("{}/speech-to-text", base_url.trim_end_matches('/')))
+                .header("api-subscription-key", api_key)
+                .multipart(form)
+                .send()
+                .await
+                .map_err(|error| format!("Sarvam STT request failed: {error}"))?,
+            &["transcript", "text"],
+            "Sarvam STT response did not include transcript text.",
+        )
+        .await?;
+
+        return Ok(TranscriptionResult { text, provider });
+    }
+
+    if provider == "elevenlabs" {
+        let api_key = provider_env_optional("ELEVENLABS_API_KEY").ok_or_else(|| {
+            "ELEVENLABS_API_KEY is required for ElevenLabs transcription.".to_string()
+        })?;
+        let base_url = provider_env("ELEVENLABS_BASE_URL", "https://api.elevenlabs.io");
+        let form = reqwest::multipart::Form::new()
+            .part("file", part)
+            .text("model_id", provider_env("ELEVENLABS_STT_MODEL", "scribe_v1"));
+        let text = parse_transcription_response(
+            client
+                .post(format!("{}/v1/speech-to-text", base_url.trim_end_matches('/')))
+                .header("xi-api-key", api_key)
+                .multipart(form)
+                .send()
+                .await
+                .map_err(|error| format!("ElevenLabs STT request failed: {error}"))?,
+            &["text"],
+            "ElevenLabs STT response did not include transcript text.",
+        )
+        .await?;
+
+        return Ok(TranscriptionResult { text, provider });
+    }
+
+    Err(format!("Unsupported KAIRO_STT_PROVIDER={provider}."))
 }
 
 #[tauri::command]
@@ -1308,7 +1494,8 @@ pub fn run() {
             show_notch,
             get_current_notch_payload,
             hide_notch,
-            run_tutor_turn
+            run_tutor_turn,
+            transcribe_audio
         ])
         .run(tauri::generate_context!())
         .expect("error while running Kairo Tutor");
@@ -1317,9 +1504,11 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_openrouter_messages, build_openrouter_request_body, notch_window_size,
-        parse_local_env, provider_timeout_ms, OverlayDisplayBounds, ScreenRegion,
+        audio_filename, build_openrouter_messages, build_openrouter_request_body,
+        decode_audio_base64, notch_window_size, parse_local_env, provider_timeout_ms,
+        select_openrouter_request_model, OverlayDisplayBounds, ScreenRegion, TranscribeAudioInput,
         TutorActiveAppContext, TutorAnnotation, TutorScreenInput, TutorSkillPack, TutorTurnInput,
+        DEFAULT_OPENROUTER_VISION_MODEL,
     };
     use serde_json::json;
 
@@ -1406,6 +1595,46 @@ mod tests {
 
         assert!(user_message["content"].is_string());
         assert!(!user_message["content"].to_string().contains("image_url"));
+    }
+
+    #[test]
+    fn openrouter_request_model_uses_default_vision_model_for_screenshots() {
+        let input = sample_tutor_turn_input();
+        let (model, include_screenshot) = select_openrouter_request_model(
+            &input,
+            "qwen/qwen3.6-flash",
+            DEFAULT_OPENROUTER_VISION_MODEL,
+        );
+
+        assert_eq!(model, DEFAULT_OPENROUTER_VISION_MODEL);
+        assert!(include_screenshot);
+    }
+
+    #[test]
+    fn openrouter_request_model_uses_text_model_without_screenshot() {
+        let mut input = sample_tutor_turn_input();
+        input.screen.captured = false;
+        input.screen.image_base64 = None;
+        let (model, include_screenshot) = select_openrouter_request_model(
+            &input,
+            "qwen/qwen3.6-flash",
+            DEFAULT_OPENROUTER_VISION_MODEL,
+        );
+
+        assert_eq!(model, "qwen/qwen3.6-flash");
+        assert!(!include_screenshot);
+    }
+
+    #[test]
+    fn audio_upload_helpers_decode_and_name_voice_recordings() {
+        let input = TranscribeAudioInput {
+            audio_base64: "UklGRg==".to_string(),
+            mime_type: "audio/webm".to_string(),
+            filename: None,
+        };
+
+        assert_eq!(decode_audio_base64(&input).expect("audio should decode"), b"RIFF");
+        assert_eq!(audio_filename(&input), "kairo-voice.webm");
     }
 
     #[test]

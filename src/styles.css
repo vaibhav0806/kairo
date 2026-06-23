@@ -511,7 +511,7 @@ input {
   align-items: center;
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 46px auto;
   min-height: 48px;
   opacity: 1;
 }
@@ -544,6 +544,48 @@ input {
   min-height: 46px;
   padding: 0 18px;
   white-space: nowrap;
+}
+
+.notch-prompt .notch-voice-button {
+  align-items: center;
+  background: rgb(255 255 255 / 0.1);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  color: #eef4f6;
+  display: inline-flex;
+  justify-content: center;
+  min-width: 46px;
+  padding: 0;
+}
+
+.notch-prompt .notch-voice-button:hover {
+  background: rgb(255 255 255 / 0.16);
+}
+
+.notch-prompt .notch-voice-button[data-recording="true"] {
+  background: rgb(255 139 88 / 0.18);
+  border-color: rgb(255 139 88 / 0.36);
+}
+
+.notch-voice-icon {
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  display: block;
+  height: 16px;
+  margin: 0;
+  position: relative;
+  width: 12px;
+}
+
+.notch-voice-icon::after {
+  background: currentColor;
+  border-radius: 999px;
+  bottom: -9px;
+  content: "";
+  height: 7px;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 2px;
 }
 
 .notch-prompt input:disabled,
@@ -588,6 +630,16 @@ input {
   min-width: 42px;
   padding: 0;
   white-space: nowrap;
+}
+
+.notch-tools button span {
+  color: inherit;
+  display: inline;
+  font-size: 1rem;
+  line-height: 1;
+  margin: 0;
+  overflow: visible;
+  -webkit-line-clamp: unset;
 }
 
 .notch-tools button:hover {
