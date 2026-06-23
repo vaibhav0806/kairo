@@ -27,12 +27,12 @@ export type OverlayPayload = {
   annotations?: UserAnnotation[];
 };
 
-const annotationTools: OverlayAnnotationTool[] = [
-  'rectangle',
-  'circle',
-  'highlight',
-  'underline',
-  'pen'
+const annotationTools: Array<{ label: string; tool: OverlayAnnotationTool }> = [
+  { label: 'Box', tool: 'rectangle' },
+  { label: 'Circle', tool: 'circle' },
+  { label: 'Glow', tool: 'highlight' },
+  { label: 'Line', tool: 'underline' },
+  { label: 'Pen', tool: 'pen' }
 ];
 
 function displayPointFromPointerEvent(event: PointerEvent<HTMLElement>): AnnotationPoint {
@@ -214,24 +214,35 @@ function AnnotationOverlay({
 
   return (
     <div className="annotation-overlay-mode">
-      <div className="annotation-overlay-toolbar">
-        {annotationTools.map((nextTool) => (
-          <button
-            aria-pressed={tool === nextTool}
-            className={tool === nextTool ? 'selected' : undefined}
-            key={nextTool}
-            type="button"
-            onClick={() => setTool(nextTool)}
-          >
-            {nextTool}
-          </button>
-        ))}
-        <button type="button" onClick={() => onDone(annotations)}>
+      <div className="annotation-overlay-toolbar" role="toolbar" aria-label="Annotation tools">
+        <div className="annotation-overlay-tool-group">
+          {annotationTools.map((option) => (
+            <button
+              aria-label={`${option.label} annotation tool`}
+              aria-pressed={tool === option.tool}
+              className={tool === option.tool ? 'selected' : undefined}
+              key={option.tool}
+              type="button"
+              onClick={() => setTool(option.tool)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <span className="annotation-overlay-count" aria-live="polite">
+          {annotations.length} mark{annotations.length === 1 ? '' : 's'}
+        </span>
+        <button
+          className="annotation-overlay-done"
+          type="button"
+          onClick={() => onDone(annotations)}
+        >
           Done
         </button>
       </div>
       <div
         className="annotation-overlay-canvas"
+        data-tool={tool}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

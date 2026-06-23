@@ -49,4 +49,18 @@ describe('activation state', () => {
       detail: 'You are on the OpenRouter page.'
     });
   });
+
+  test('extracts readable answer text from accidental provider JSON strings', () => {
+    expect(
+      tutorResponseToNotchPayload({
+        mode: 'idle',
+        skillSlug: 'general',
+        voiceText:
+          '{"mode":"idle","skillSlug":null,"voiceText":"Hello from voice","screenText":"Hello from screen","visualTargets":[]}',
+        screenText: '',
+        visualTargets: [],
+        expectedNextState: 'user_asks_question'
+      }).detail
+    ).toBe('Hello from screen');
+  });
 });

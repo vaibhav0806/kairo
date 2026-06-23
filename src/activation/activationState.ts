@@ -75,11 +75,25 @@ export function activationStateToNotchPayload(state: ActivationState): NotchPayl
   return payloads[state];
 }
 
+function visibleResponseText(text: string) {
+  const trimmedText = text.trim();
+  if (!trimmedText.startsWith('{')) {
+    return trimmedText;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmedText) as Partial<TutorResponse>;
+    return (parsed.screenText || parsed.voiceText || trimmedText).trim();
+  } catch {
+    return trimmedText;
+  }
+}
+
 export function tutorResponseToNotchPayload(response: TutorResponse): NotchPayload {
   return {
     state: 'showing_step',
     layout: 'answer',
     title: 'Kairo answered',
-    detail: response.screenText || response.voiceText
+    detail: visibleResponseText(response.screenText || response.voiceText)
   };
 }

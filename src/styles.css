@@ -236,25 +236,28 @@ input {
 }
 
 .annotation-shape {
+  filter: drop-shadow(0 4px 12px rgb(0 0 0 / 0.22));
   position: absolute;
 }
 
 .annotation-shape.rectangle {
-  border: 3px solid #f97316;
+  border: 3px solid #ff8a3d;
+  border-radius: 6px;
 }
 
 .annotation-shape.circle {
-  border: 3px solid #f97316;
+  border: 3px solid #ff8a3d;
   border-radius: 999px;
 }
 
 .annotation-shape.highlight {
-  background: rgb(250 204 21 / 0.34);
-  border: 2px solid rgb(250 204 21 / 0.85);
+  background: rgb(255 214 92 / 0.28);
+  border: 2px solid rgb(255 214 92 / 0.86);
+  border-radius: 6px;
 }
 
 .annotation-shape.underline {
-  border-bottom: 5px solid #f97316;
+  border-bottom: 5px solid #ff8a3d;
 }
 
 .annotation-shape.pen {
@@ -263,10 +266,10 @@ input {
 
 .annotation-shape.pen polyline {
   fill: none;
-  stroke: #f97316;
+  stroke: #ff8a3d;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 4px;
+  stroke-width: 5px;
   vector-effect: non-scaling-stroke;
 }
 
@@ -282,8 +285,11 @@ input {
 }
 
 .overlay-target.highlight_box {
-  border: 3px solid #53e0cf;
-  box-shadow: 0 0 0 9999px rgb(10 14 18 / 0.12);
+  border: 3px solid #75e8db;
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 9999px rgb(10 14 18 / 0.08),
+    0 0 24px rgb(117 232 219 / 0.24);
 }
 
 .overlay-target.ghost_cursor {
@@ -323,7 +329,7 @@ input {
 }
 
 .overlay-target.underline {
-  border-bottom: 5px solid #53e0cf;
+  border-bottom: 5px solid #75e8db;
 }
 
 .overlay-target.spotlight {
@@ -331,7 +337,7 @@ input {
   border-radius: 999px;
   box-shadow:
     0 0 0 9999px rgb(10 14 18 / 0.48),
-    0 0 26px rgb(83 224 207 / 0.55);
+    0 0 26px rgb(117 232 219 / 0.55);
 }
 
 .overlay-shell {
@@ -354,51 +360,71 @@ input {
   height: 100vh;
   justify-content: center;
   overflow: hidden;
-  padding: 8px;
+  padding: 10px;
 }
 
 .notch-card {
   align-items: center;
-  background: rgb(18 20 23 / 0.92);
-  border: 1px solid rgb(255 255 255 / 0.12);
+  backdrop-filter: blur(28px) saturate(1.25);
+  background:
+    linear-gradient(180deg, rgb(28 31 36 / 0.88), rgb(13 15 18 / 0.92)),
+    rgb(16 18 22 / 0.9);
+  border: 1px solid rgb(255 255 255 / 0.14);
   border-radius: 999px;
   box-shadow:
-    0 16px 40px rgb(0 0 0 / 0.32),
-    inset 0 1px 0 rgb(255 255 255 / 0.14);
+    0 22px 58px rgb(0 0 0 / 0.42),
+    0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
   color: #f6f8f9;
   display: flex;
-  gap: 12px;
-  height: 58px;
+  gap: 14px;
+  height: 64px;
+  isolation: isolate;
   max-width: 100%;
-  padding: 10px 12px;
-  width: 100%;
+  overflow: hidden;
+  padding: 12px 14px;
+  transform: translateZ(0);
+  width: min(100%, 460px);
 }
 
 .notch-card[data-layout="prompt"],
 .notch-card[data-layout="answer"] {
-  border-radius: 28px;
+  border-radius: 34px;
   display: grid;
-  gap: 10px 12px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  min-height: 138px;
-  padding: 14px 16px;
+  gap: 14px;
+  grid-template-columns: 18px minmax(0, 1fr) 42px;
+  min-height: 158px;
+  padding: 18px;
+  width: min(100%, 680px);
+}
+
+.notch-card[data-layout="answer"] {
+  min-height: 142px;
 }
 
 .notch-card strong,
 .notch-card span {
   display: block;
-  line-height: 1.15;
-  white-space: nowrap;
+  min-width: 0;
 }
 
 .notch-card strong {
-  font-size: 0.95rem;
+  font-size: 1rem;
+  letter-spacing: 0;
+  line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notch-card span {
-  color: #aeb9c2;
-  font-size: 0.78rem;
-  margin-top: 4px;
+  color: #b8c1c8;
+  font-size: 0.82rem;
+  line-height: 1.28;
+  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notch-copy {
@@ -407,34 +433,54 @@ input {
 
 .notch-close {
   align-items: center;
-  background: rgb(255 255 255 / 0.1);
-  border: 1px solid rgb(255 255 255 / 0.12);
+  background: rgb(255 255 255 / 0.11);
+  border: 1px solid rgb(255 255 255 / 0.14);
   border-radius: 999px;
   color: #c7d0d7;
   cursor: pointer;
   display: inline-flex;
   flex: 0 0 auto;
-  font-size: 0.8rem;
+  font-size: 1rem;
   font-weight: 800;
-  height: 26px;
+  height: 40px;
   justify-content: center;
   line-height: 1;
   padding: 0;
-  width: 26px;
+  width: 40px;
 }
 
 .notch-close:hover {
-  background: rgb(255 255 255 / 0.16);
+  background: rgb(255 255 255 / 0.18);
   color: #f6f8f9;
+}
+
+.notch-close:active,
+.notch-prompt button:active {
+  transform: translateY(1px);
+}
+
+.notch-close:focus-visible,
+.notch-prompt input:focus-visible,
+.notch-prompt button:focus-visible,
+.annotation-overlay-toolbar button:focus-visible {
+  outline: 2px solid rgb(117 232 219 / 0.95);
+  outline-offset: 2px;
 }
 
 .notch-card[data-layout="prompt"] .notch-close,
 .notch-card[data-layout="answer"] .notch-close {
+  align-self: start;
   justify-self: end;
+}
+
+.notch-card[data-layout="prompt"] .notch-orb,
+.notch-card[data-layout="answer"] .notch-orb {
+  margin-top: 7px;
 }
 
 .notch-card[data-layout="answer"] .notch-copy {
   align-self: center;
+  grid-column: 2 / 3;
 }
 
 .notch-card[data-layout="answer"] span {
@@ -447,9 +493,11 @@ input {
 }
 
 .notch-orb {
-  background: #58dbc9;
+  background: #75e8db;
   border-radius: 999px;
-  box-shadow: 0 0 0 6px rgb(88 219 201 / 0.16);
+  box-shadow:
+    0 0 0 7px rgb(117 232 219 / 0.14),
+    0 0 22px rgb(117 232 219 / 0.28);
   flex: 0 0 auto;
   height: 14px;
   width: 14px;
@@ -462,7 +510,9 @@ input {
 
 .notch-card[data-state="thinking"] .notch-orb {
   background: #f5c156;
-  box-shadow: 0 0 0 6px rgb(245 193 86 / 0.16);
+  box-shadow:
+    0 0 0 7px rgb(245 193 86 / 0.16),
+    0 0 22px rgb(245 193 86 / 0.26);
   animation: notch-orb-pulse 900ms ease-in-out infinite;
 }
 
@@ -474,34 +524,35 @@ input {
 .notch-prompt {
   align-items: center;
   display: grid;
-  gap: 8px;
+  gap: 10px;
   grid-column: 1 / -1;
   grid-template-columns: minmax(0, 1fr) auto auto;
-  min-height: 44px;
+  min-height: 48px;
 }
 
 .notch-prompt input {
-  background: rgb(255 255 255 / 0.1);
-  border: 1px solid rgb(255 255 255 / 0.16);
+  background: rgb(255 255 255 / 0.09);
+  border: 1px solid rgb(255 255 255 / 0.18);
   border-radius: 999px;
   color: #f6f8f9;
+  height: 46px;
   min-width: 0;
-  outline: none;
-  padding: 9px 12px;
+  padding: 0 16px;
 }
 
 .notch-prompt input::placeholder {
-  color: #8f9ca6;
+  color: #909ca7;
 }
 
 .notch-prompt button {
-  background: #58dbc9;
+  background: #75e8db;
   border: 0;
   border-radius: 999px;
-  color: #0f171a;
+  color: #071013;
   cursor: pointer;
   font-weight: 800;
-  padding: 9px 12px;
+  min-height: 46px;
+  padding: 0 18px;
   white-space: nowrap;
 }
 
@@ -529,7 +580,28 @@ input {
   }
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .notch-card {
+    transition:
+      opacity 150ms ease-out,
+      transform 150ms ease-out;
+  }
+
+  .notch-close,
+  .notch-prompt button,
+  .annotation-overlay-toolbar button {
+    transition:
+      background-color 100ms ease-out,
+      color 100ms ease-out,
+      transform 100ms ease-out,
+      opacity 100ms ease-out;
+  }
+}
+
 .annotation-overlay-mode {
+  background:
+    radial-gradient(circle at 50% 0%, rgb(117 232 219 / 0.08), transparent 30%),
+    linear-gradient(180deg, rgb(5 7 10 / 0.08), transparent 24%);
   inset: 0;
   pointer-events: auto;
   position: fixed;
@@ -544,36 +616,84 @@ input {
 
 .annotation-overlay-toolbar {
   align-items: center;
-  background: rgb(18 20 23 / 0.92);
-  border: 1px solid rgb(255 255 255 / 0.12);
+  backdrop-filter: blur(26px) saturate(1.25);
+  background:
+    linear-gradient(180deg, rgb(31 34 39 / 0.9), rgb(12 14 17 / 0.9)),
+    rgb(16 18 22 / 0.9);
+  border: 1px solid rgb(255 255 255 / 0.14);
   border-radius: 999px;
-  box-shadow: 0 12px 34px rgb(0 0 0 / 0.28);
+  box-shadow:
+    0 20px 54px rgb(0 0 0 / 0.36),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
   display: flex;
-  gap: 8px;
+  gap: 10px;
   left: 50%;
   max-width: calc(100vw - 32px);
   overflow-x: auto;
-  padding: 8px;
+  padding: 8px 10px;
   position: absolute;
-  top: 56px;
+  top: 52px;
   transform: translateX(-50%);
   z-index: 4;
 }
 
+@supports (-webkit-backdrop-filter: blur(1px)) {
+  .notch-card {
+    -webkit-backdrop-filter: blur(28px) saturate(1.25);
+  }
+
+  .annotation-overlay-toolbar {
+    -webkit-backdrop-filter: blur(26px) saturate(1.25);
+  }
+}
+
+.annotation-overlay-tool-group {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
 .annotation-overlay-toolbar button {
-  background: rgb(255 255 255 / 0.1);
-  border: 1px solid rgb(255 255 255 / 0.14);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 999px;
   color: #f6f8f9;
   cursor: pointer;
   font-weight: 800;
-  padding: 8px 10px;
-  text-transform: capitalize;
+  min-height: 42px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.annotation-overlay-toolbar button:hover {
+  background: rgb(255 255 255 / 0.12);
 }
 
 .annotation-overlay-toolbar button.selected {
-  background: #58dbc9;
-  color: #0f171a;
+  background: #75e8db;
+  box-shadow: 0 8px 24px rgb(117 232 219 / 0.18);
+  color: #071013;
+}
+
+.annotation-overlay-toolbar button:active {
+  transform: translateY(1px);
+}
+
+.annotation-overlay-count {
+  color: #aeb9c2;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.annotation-overlay-toolbar .annotation-overlay-done {
+  background: rgb(255 255 255 / 0.14);
+  color: #ffffff;
+  padding: 0 16px;
+}
+
+.annotation-overlay-toolbar .annotation-overlay-done:hover {
+  background: rgb(255 255 255 / 0.2);
 }
 
 .annotation-overlay-canvas {
@@ -584,6 +704,10 @@ input {
   touch-action: none;
   width: 100%;
   z-index: 3;
+}
+
+.annotation-overlay-canvas[data-tool="pen"] {
+  cursor: cell;
 }
 
 .timeline {
