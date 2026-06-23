@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import {
   type AnnotationPoint,
   type AnnotationTool,
@@ -394,11 +394,13 @@ export function App() {
     setActiveApp(nextActiveApp);
     setPermissions(nextPermissions);
     setScreenCapture(nextScreenCapture);
-    showActivationState(
-      reduceActivationState(listeningState, {
-        type: nextScreenCapture.captured ? 'capture_complete' : 'capture_failed'
-      })
-    );
+    const nextState = reduceActivationState(listeningState, {
+      type: nextScreenCapture.captured ? 'capture_complete' : 'capture_failed'
+    });
+    showActivationState(nextState);
+    if (nextScreenCapture.captured) {
+      void emit('voice:start', {});
+    }
   }, [nativeBridge, showActivationState]);
 
   async function captureNativeScreen() {

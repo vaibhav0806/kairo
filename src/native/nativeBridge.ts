@@ -67,6 +67,16 @@ export type NativeTranscriptionResult = {
   provider: string;
 };
 
+export type NativeSynthesizeSpeechInput = {
+  text: string;
+};
+
+export type NativeSpeechSynthesisResult = {
+  audioBase64: string;
+  mimeType: string;
+  provider: string;
+};
+
 export type NativeOverlayPayload = {
   mode?: 'visual' | 'annotate' | 'annotation_preview';
   displayBounds: NativeOverlayDisplayBounds;
@@ -94,6 +104,7 @@ export type NativeBridge = {
   hideNotch(): Promise<void>;
   runTutorTurn(input: TutorTurnInput): Promise<string>;
   transcribeAudio(input: NativeTranscribeAudioInput): Promise<NativeTranscriptionResult>;
+  synthesizeSpeech(input: NativeSynthesizeSpeechInput): Promise<NativeSpeechSynthesisResult>;
   registerActivationShortcut(onActivated: () => void | Promise<void>): Promise<NativeShortcutRegistration>;
 };
 
@@ -349,6 +360,10 @@ export function createNativeBridge(
 
     async transcribeAudio(input) {
       return invoke<NativeTranscriptionResult>('transcribe_audio', { input });
+    },
+
+    async synthesizeSpeech(input) {
+      return invoke<NativeSpeechSynthesisResult>('synthesize_speech', { input });
     },
 
     async registerActivationShortcut(onActivated) {

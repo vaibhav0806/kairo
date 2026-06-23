@@ -390,6 +390,14 @@ input {
   width: min(100%, 724px);
 }
 
+.notch-card[data-voice-state="recording"] {
+  border-color: rgb(255 139 88 / 0.3);
+  box-shadow:
+    0 24px 64px rgb(0 0 0 / 0.46),
+    0 0 0 1px rgb(255 139 88 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.13);
+}
+
 .notch-header {
   align-items: start;
   display: grid;
@@ -502,6 +510,14 @@ input {
   animation: notch-orb-pulse 900ms ease-in-out infinite;
 }
 
+.notch-card[data-voice-state="recording"] .notch-orb {
+  background: #ff8b58;
+  box-shadow:
+    0 0 0 7px rgb(255 139 88 / 0.16),
+    0 0 24px rgb(255 139 88 / 0.34);
+  animation: notch-orb-pulse 900ms ease-in-out infinite;
+}
+
 .notch-card[data-state="showing_step"] .notch-orb {
   background: #8fd694;
   box-shadow: 0 0 0 6px rgb(143 214 148 / 0.16);
@@ -528,6 +544,10 @@ input {
   height: 46px;
   min-width: 0;
   padding: 0 16px;
+  transition:
+    border-color 100ms ease-out,
+    background-color 100ms ease-out,
+    box-shadow 100ms ease-out;
 }
 
 .notch-prompt input::placeholder {
@@ -543,7 +563,16 @@ input {
   font-weight: 800;
   min-height: 46px;
   padding: 0 18px;
+  transition:
+    background-color 100ms ease-out,
+    color 100ms ease-out,
+    opacity 100ms ease-out,
+    transform 100ms ease-out;
   white-space: nowrap;
+}
+
+.notch-prompt button:not(:disabled):hover {
+  background: #8ef0e5;
 }
 
 .notch-prompt .notch-voice-button {
@@ -564,6 +593,13 @@ input {
 .notch-prompt .notch-voice-button[data-recording="true"] {
   background: rgb(255 139 88 / 0.18);
   border-color: rgb(255 139 88 / 0.36);
+  color: #ffd7c5;
+}
+
+.notch-prompt .notch-voice-button[data-recording="true"] .notch-voice-icon {
+  border-radius: 5px;
+  height: 15px;
+  width: 15px;
 }
 
 .notch-voice-icon {
@@ -629,6 +665,12 @@ input {
   min-height: 40px;
   min-width: 42px;
   padding: 0;
+  transition:
+    background-color 100ms ease-out,
+    border-color 100ms ease-out,
+    color 100ms ease-out,
+    opacity 100ms ease-out,
+    transform 100ms ease-out;
   white-space: nowrap;
 }
 

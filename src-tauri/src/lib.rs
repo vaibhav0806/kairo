@@ -209,6 +209,20 @@ struct TranscriptionResult {
     provider: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SynthesizeSpeechInput {
+    text: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SpeechSynthesisResult {
+    audio_base64: String,
+    mime_type: String,
+    provider: String,
+}
+
 #[cfg(target_os = "macos")]
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
@@ -915,7 +929,9 @@ fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
         "When responding to a user question, prefer mode \"stuck_help\" or \"guided_lesson\"; reserve mode \"idle\" for no-op readiness.".to_string(),
         "If annotations are present, use them as user-marked screen areas and inspect the screenshot to infer what those marked areas point to.".to_string(),
         "Annotation IDs are internal coordinate references only. Never call them labels and never mention IDs like screen-annotation-1 in voiceText or screenText.".to_string(),
-        "Treat orange drawings, arrows, circles, and doodles as visual attention guides. Do not count, name, or describe the marks themselves unless the user explicitly asks about the drawing marks.".to_string(),
+        "Treat orange drawings, arrows, circles, and doodles as visual attention guides. Infer the intended target from arrow heads, enclosed areas, nearby labels, and stroke direction.".to_string(),
+        "Do not count, name, or describe the marks themselves unless the user explicitly asks about the drawing marks.".to_string(),
+        "If the user asks whether you see annotations, answer what the annotations appear to highlight on the screen, not just that marks exist.".to_string(),
         "If the user asks about a marked area, answer what underlying screen content or UI element appears to be marked. If the drawing is ambiguous, say what it may be pointing to and ask a brief clarification.".to_string(),
         "Do not invent image labels or extra annotation objects.".to_string(),
         format!("Selected skill context, when relevant: {} ({}).", input.skill.display_name, input.skill.slug),
@@ -929,7 +945,7 @@ fn build_annotation_summary(input: &TutorTurnInput) -> String {
         return "No user annotations.".to_string();
     }
 
-    "The screenshot includes orange user markup drawn over the screen. Use the markup only as visual attention guidance for interpreting the screenshot. Do not count the marks or expose internal annotation IDs. Describe the underlying marked content, app UI, or likely user intent instead.".to_string()
+    "The screenshot includes orange user markup drawn over the screen. Interpret arrows by their heads, loops/circles by what they enclose, boxes by their enclosed region, underlines by the nearby text, and freehand strokes by nearby UI. Use the markup only as visual attention guidance. Do not count the marks or expose internal annotation IDs. Describe the underlying marked content, app UI, or likely user intent instead.".to_string()
 }
 
 fn build_tutor_user_prompt(input: &TutorTurnInput) -> Result<String, String> {
@@ -1096,6 +1112,73 @@ async fn parse_transcription_response(
         .ok_or_else(|| missing_message.to_string())
 }
 
+async fn parse_sarvam_tts_response(response: reqwest::Response) -> Result<String, String> {
+    let status = response.status();
+    let payload = response
+        .json::<Value>()
+        .await
+        .map_err(|error| format!("Sarvam TTS response was not JSON: {error}"))?;
+
+    if !status.is_success() {
+        return Err(parse_provider_json_error(
+            &payload,
+            &format!("Sarvam TTS request failed with {status}"),
+        ));
+    }
+
+    payload
+        .get("audios")
+        .and_then(Value::as_array)
+        .and_then(|audios| audios.first())
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|audio| !audio.is_empty())
+        .map(ToString::to_string)
+        .ok_or_else(|| "Sarvam TTS response did not include audio.".to_string())
+}
+
+async fn parse_binary_audio_response(
+    response: reqwest::Response,
+    provider_name: &str,
+    default_mime_type: &str,
+) -> Result<(String, String), String> {
+    use base64::Engine;
+
+    let status = response.status();
+    let mime_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or(default_mime_type)
+        .to_string();
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| format!("{provider_name} TTS response could not be read: {error}"))?;
+
+    if !status.is_success() {
+        if let Ok(payload) = serde_json::from_slice::<Value>(&bytes) {
+            return Err(parse_provider_json_error(
+                &payload,
+                &format!("{provider_name} TTS request failed with {status}"),
+            ));
+        }
+
+        return Err(format!("{provider_name} TTS request failed with {status}"));
+    }
+
+    if bytes.is_empty() {
+        return Err(format!(
+            "{provider_name} TTS response did not include audio."
+        ));
+    }
+
+    Ok((
+        base64::engine::general_purpose::STANDARD.encode(bytes),
+        mime_type,
+    ))
+}
+
 #[derive(Debug)]
 struct OpenRouterChatError {
     message: String,
@@ -1194,19 +1277,13 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
         .build()
         .map_err(|error| format!("Failed to build OpenRouter client: {error}"))?;
     let site_url_ref = site_url.as_deref();
-    let first_result = send_openrouter_chat_request(
-        &client,
-        &endpoint,
-        &api_key,
-        &app_title,
-        site_url_ref,
-        {
+    let first_result =
+        send_openrouter_chat_request(&client, &endpoint, &api_key, &app_title, site_url_ref, {
             let (request_model, include_screenshot) =
                 select_openrouter_request_model(&input, &model, &vision_model);
             build_openrouter_request_body(&input, &request_model, include_screenshot)?
-        },
-    )
-    .await;
+        })
+        .await;
 
     match first_result {
         Ok(content) => Ok(content),
@@ -1296,12 +1373,16 @@ async fn transcribe_audio(input: TranscribeAudioInput) -> Result<TranscriptionRe
             "ELEVENLABS_API_KEY is required for ElevenLabs transcription.".to_string()
         })?;
         let base_url = provider_env("ELEVENLABS_BASE_URL", "https://api.elevenlabs.io");
-        let form = reqwest::multipart::Form::new()
-            .part("file", part)
-            .text("model_id", provider_env("ELEVENLABS_STT_MODEL", "scribe_v1"));
+        let form = reqwest::multipart::Form::new().part("file", part).text(
+            "model_id",
+            provider_env("ELEVENLABS_STT_MODEL", "scribe_v1"),
+        );
         let text = parse_transcription_response(
             client
-                .post(format!("{}/v1/speech-to-text", base_url.trim_end_matches('/')))
+                .post(format!(
+                    "{}/v1/speech-to-text",
+                    base_url.trim_end_matches('/')
+                ))
                 .header("xi-api-key", api_key)
                 .multipart(form)
                 .send()
@@ -1316,6 +1397,93 @@ async fn transcribe_audio(input: TranscribeAudioInput) -> Result<TranscriptionRe
     }
 
     Err(format!("Unsupported KAIRO_STT_PROVIDER={provider}."))
+}
+
+#[tauri::command]
+async fn synthesize_speech(input: SynthesizeSpeechInput) -> Result<SpeechSynthesisResult, String> {
+    let provider = provider_env("KAIRO_TTS_PROVIDER", "mock");
+    let text = input.text.trim();
+    if provider == "mock" || text.is_empty() {
+        return Ok(SpeechSynthesisResult {
+            audio_base64: String::new(),
+            mime_type: "audio/mpeg".to_string(),
+            provider,
+        });
+    }
+
+    let timeout = Duration::from_millis(provider_timeout_ms(provider_env_optional(
+        "KAIRO_TTS_TIMEOUT_MS",
+    )));
+    let client = reqwest::Client::builder()
+        .timeout(timeout)
+        .build()
+        .map_err(|error| format!("Failed to build TTS client: {error}"))?;
+
+    if provider == "sarvam" {
+        let api_key = provider_env_optional("SARVAM_API_KEY")
+            .ok_or_else(|| "SARVAM_API_KEY is required for Sarvam speech synthesis.".to_string())?;
+        let base_url = provider_env("SARVAM_BASE_URL", "https://api.sarvam.ai");
+        let audio_base64 = parse_sarvam_tts_response(
+            client
+                .post(format!("{}/text-to-speech", base_url.trim_end_matches('/')))
+                .header("api-subscription-key", api_key)
+                .header("Content-Type", "application/json")
+                .json(&json!({
+                    "text": text,
+                    "target_language_code": provider_env("SARVAM_TTS_LANGUAGE_CODE", "en-IN"),
+                    "speaker": provider_env("SARVAM_TTS_SPEAKER", "anushka"),
+                    "model": provider_env("SARVAM_TTS_MODEL", "bulbul:v3"),
+                    "output_audio_codec": "wav",
+                    "speech_sample_rate": 24000,
+                }))
+                .send()
+                .await
+                .map_err(|error| format!("Sarvam TTS request failed: {error}"))?,
+        )
+        .await?;
+
+        return Ok(SpeechSynthesisResult {
+            audio_base64,
+            mime_type: "audio/wav".to_string(),
+            provider,
+        });
+    }
+
+    if provider == "elevenlabs" {
+        let api_key = provider_env_optional("ELEVENLABS_API_KEY").ok_or_else(|| {
+            "ELEVENLABS_API_KEY is required for ElevenLabs speech synthesis.".to_string()
+        })?;
+        let base_url = provider_env("ELEVENLABS_BASE_URL", "https://api.elevenlabs.io");
+        let voice_id = provider_env("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM");
+        let (audio_base64, mime_type) = parse_binary_audio_response(
+            client
+                .post(format!(
+                    "{}/v1/text-to-speech/{}",
+                    base_url.trim_end_matches('/'),
+                    voice_id
+                ))
+                .header("xi-api-key", api_key)
+                .header("Content-Type", "application/json")
+                .json(&json!({
+                    "text": text,
+                    "model_id": provider_env("ELEVENLABS_TTS_MODEL", "eleven_multilingual_v2"),
+                }))
+                .send()
+                .await
+                .map_err(|error| format!("ElevenLabs TTS request failed: {error}"))?,
+            "ElevenLabs",
+            "audio/mpeg",
+        )
+        .await?;
+
+        return Ok(SpeechSynthesisResult {
+            audio_base64,
+            mime_type,
+            provider,
+        });
+    }
+
+    Err(format!("Unsupported KAIRO_TTS_PROVIDER={provider}."))
 }
 
 #[tauri::command]
@@ -1495,7 +1663,8 @@ pub fn run() {
             get_current_notch_payload,
             hide_notch,
             run_tutor_turn,
-            transcribe_audio
+            transcribe_audio,
+            synthesize_speech
         ])
         .run(tauri::generate_context!())
         .expect("error while running Kairo Tutor");
@@ -1506,9 +1675,9 @@ mod tests {
     use super::{
         audio_filename, build_openrouter_messages, build_openrouter_request_body,
         decode_audio_base64, notch_window_size, parse_local_env, provider_timeout_ms,
-        select_openrouter_request_model, OverlayDisplayBounds, ScreenRegion, TranscribeAudioInput,
-        TutorActiveAppContext, TutorAnnotation, TutorScreenInput, TutorSkillPack, TutorTurnInput,
-        DEFAULT_OPENROUTER_VISION_MODEL,
+        select_openrouter_request_model, OverlayDisplayBounds, ScreenRegion, SynthesizeSpeechInput,
+        TranscribeAudioInput, TutorActiveAppContext, TutorAnnotation, TutorScreenInput,
+        TutorSkillPack, TutorTurnInput, DEFAULT_OPENROUTER_VISION_MODEL,
     };
     use serde_json::json;
 
@@ -1633,7 +1802,10 @@ mod tests {
             filename: None,
         };
 
-        assert_eq!(decode_audio_base64(&input).expect("audio should decode"), b"RIFF");
+        assert_eq!(
+            decode_audio_base64(&input).expect("audio should decode"),
+            b"RIFF"
+        );
         assert_eq!(audio_filename(&input), "kairo-voice.webm");
     }
 
@@ -1649,9 +1821,8 @@ mod tests {
         assert!(system_prompt.contains("Answer general user questions directly"));
         assert!(system_prompt.contains("Selected skill context, when relevant: Blender"));
         assert!(system_prompt.contains("Annotation IDs are internal coordinate references only"));
-        assert!(system_prompt.contains(
-            "Treat orange drawings, arrows, circles, and doodles as visual attention guides"
-        ));
+        assert!(system_prompt.contains("Infer the intended target from arrow heads"));
+        assert!(system_prompt.contains("answer what the annotations appear to highlight"));
         assert!(!system_prompt.contains("Skill: Blender"));
     }
 
@@ -1677,9 +1848,27 @@ mod tests {
 
         assert!(user_prompt.contains("\"annotationSummary\""));
         assert!(user_prompt.contains("orange user markup"));
+        assert!(user_prompt.contains("Interpret arrows by their heads"));
         assert!(user_prompt.contains("visual attention guidance"));
         assert!(!user_prompt.contains("User annotations: exactly 1"));
         assert!(!user_prompt.contains("screen-annotation-1"));
+    }
+
+    #[test]
+    fn mock_speech_synthesis_returns_silent_audio_result() {
+        std::env::set_var("KAIRO_TTS_PROVIDER", "mock");
+
+        let result =
+            tauri::async_runtime::block_on(super::synthesize_speech(SynthesizeSpeechInput {
+                text: "Hello from Kairo.".to_string(),
+            }))
+            .expect("mock synthesis should not fail");
+
+        assert_eq!(result.audio_base64, "");
+        assert_eq!(result.mime_type, "audio/mpeg");
+        assert_eq!(result.provider, "mock");
+
+        std::env::remove_var("KAIRO_TTS_PROVIDER");
     }
 
     #[test]

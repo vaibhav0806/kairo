@@ -5,6 +5,7 @@ import { loadBrowserEnv } from '../config/env';
 import type { UserAnnotation } from '../core/types';
 import { createNativeBridge } from '../native/nativeBridge';
 import { createAnnotationStartPayload, type NotchAnnotationTool } from './annotationActions';
+import { buildAudioDataUrl } from './audioPlayback';
 import { subscribeToNotchPayload } from './notchEvents';
 import { askTutorFromNotch } from './notchTutor';
 import {
@@ -57,6 +58,7 @@ export function NotchApp() {
   const isSubmittingRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const answerAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const voiceCancelledRef = useRef(false);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
@@ -73,6 +75,41 @@ export function NotchApp() {
     mediaStreamRef.current = null;
   }, []);
 
+  const stopAnswerPlayback = useCallback(() => {
+    if (!answerAudioRef.current) {
+      return;
+    }
+
+    answerAudioRef.current.pause();
+    answerAudioRef.current.src = '';
+    answerAudioRef.current = null;
+  }, []);
+
+  const playAnswerAudio = useCallback(
+    async (text: string) => {
+      stopAnswerPlayback();
+      const trimmedText = text.trim();
+      if (!trimmedText) {
+        return;
+      }
+
+      try {
+        const result = await nativeBridge.synthesizeSpeech({ text: trimmedText });
+        const audioUrl = buildAudioDataUrl(result);
+        if (!audioUrl) {
+          return;
+        }
+
+        const audio = new Audio(audioUrl);
+        answerAudioRef.current = audio;
+        await audio.play();
+      } catch {
+        // Speech playback is best-effort; the answer should remain visible if audio fails.
+      }
+    },
+    [nativeBridge, stopAnswerPlayback]
+  );
+
   const submitQuery = useCallback(
     async (nextQuery: string) => {
       const trimmedQuery = nextQuery.trim();
@@ -81,6 +118,7 @@ export function NotchApp() {
       }
 
       const thinkingPayload = activationStateToNotchPayload('thinking');
+      stopAnswerPlayback();
       isSubmittingRef.current = true;
       setIsSubmitting(true);
       setVoiceCaptureState('idle');
@@ -103,12 +141,13 @@ export function NotchApp() {
         setAnnotations([]);
         setActiveAnnotationTool(null);
         void nativeBridge.showNotch(answerPayload);
+        void playAnswerAudio(answerPayload.detail);
       } finally {
         isSubmittingRef.current = false;
         setIsSubmitting(false);
       }
     },
-    [annotations, env.aiProvider, env.defaultSkill, nativeBridge]
+    [annotations, env.aiProvider, env.defaultSkill, nativeBridge, playAnswerAudio, stopAnswerPlayback]
   );
 
   const startAnnotation = useCallback((tool: NotchAnnotationTool) => {
@@ -132,6 +171,7 @@ export function NotchApp() {
   }, []);
 
   const hideNotch = useCallback(() => {
+    stopAnswerPlayback();
     voiceCancelledRef.current = true;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -147,7 +187,7 @@ export function NotchApp() {
     setActiveAnnotationTool(null);
     void nativeBridge.hideOverlay();
     void nativeBridge.hideNotch();
-  }, [nativeBridge, stopVoiceTracks]);
+  }, [nativeBridge, stopAnswerPlayback, stopVoiceTracks]);
 
   const setVoicePayload = useCallback(
     (state: VoiceCaptureState) => {
@@ -165,6 +205,7 @@ export function NotchApp() {
   );
 
   const startVoiceCapture = useCallback(async () => {
+    stopAnswerPlayback();
     if (!globalThis.navigator?.mediaDevices?.getUserMedia || !globalThis.MediaRecorder) {
       setVoiceCaptureState('error');
       setVoicePayload('error');
@@ -239,7 +280,7 @@ export function NotchApp() {
       setVoiceCaptureState('error');
       setVoicePayload('error');
     }
-  }, [nativeBridge, setVoicePayload, stopVoiceTracks, submitQuery]);
+  }, [nativeBridge, setVoicePayload, stopAnswerPlayback, stopVoiceTracks, submitQuery]);
 
   const toggleVoiceCapture = useCallback(() => {
     if (voiceCaptureState === 'recording') {
@@ -331,6 +372,13 @@ export function NotchApp() {
         setPayload(capturedPayload);
         setIsSubmitting(false);
         void nativeBridge.showNotch(capturedPayload);
+      }),
+      listen('voice:start', () => {
+        if (!isMounted || isSubmittingRef.current) {
+          return;
+        }
+
+        void startVoiceCapture();
       })
     ])
       .then((nextUnlisteners) => {
@@ -344,7 +392,7 @@ export function NotchApp() {
       isMounted = false;
       unlisteners.forEach((unlisten) => unlisten());
     };
-  }, [nativeBridge]);
+  }, [nativeBridge, startVoiceCapture]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -369,6 +417,7 @@ export function NotchApp() {
         data-busy={isSubmitting ? 'true' : 'false'}
         data-layout={payload.layout}
         data-state={payload.state}
+        data-voice-state={voiceCaptureState}
       >
         <header className="notch-header">
           <div className="notch-orb" aria-hidden="true" />

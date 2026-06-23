@@ -323,6 +323,26 @@ describe('createNativeBridge', () => {
     expect(invoke).toHaveBeenCalledWith('transcribe_audio', { input });
   });
 
+  test('sends answer text to the native speech synthesis proxy', async () => {
+    const input = {
+      text: 'Click the cube once.'
+    };
+    const invoke = vi.fn(async () => ({
+      audioBase64: 'UklGRg==',
+      mimeType: 'audio/wav',
+      provider: 'sarvam'
+    })) as unknown as NativeInvoke;
+    const bridge = createNativeBridge(invoke);
+
+    await expect(bridge.synthesizeSpeech(input)).resolves.toEqual({
+      audioBase64: 'UklGRg==',
+      mimeType: 'audio/wav',
+      provider: 'sarvam'
+    });
+
+    expect(invoke).toHaveBeenCalledWith('synthesize_speech', { input });
+  });
+
   test('surfaces native provider proxy failures', async () => {
     const input = {
       userQuery: 'What should I click?',
