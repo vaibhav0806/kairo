@@ -463,6 +463,7 @@ input {
 .notch-card[data-state="thinking"] .notch-orb {
   background: #f5c156;
   box-shadow: 0 0 0 6px rgb(245 193 86 / 0.16);
+  animation: notch-orb-pulse 900ms ease-in-out infinite;
 }
 
 .notch-card[data-state="showing_step"] .notch-orb {
@@ -507,6 +508,25 @@ input {
 .notch-prompt .notch-secondary {
   background: rgb(255 255 255 / 0.12);
   color: #f6f8f9;
+}
+
+.notch-prompt input:disabled,
+.notch-prompt button:disabled {
+  cursor: progress;
+  opacity: 0.68;
+}
+
+@keyframes notch-orb-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.72;
+    transform: scale(1.18);
+  }
 }
 
 .annotation-overlay-mode {

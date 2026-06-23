@@ -3,7 +3,8 @@ import {
   buildNotchAskPayload,
   isNotchDismissKey,
   isNotchPromptVisible,
-  submitNotchPrompt
+  submitNotchPrompt,
+  waitForNotchPaint
 } from '../src/notch/prompt';
 import type { NotchPayload } from '../src/notch/types';
 
@@ -40,5 +41,22 @@ describe('notch prompt behavior', () => {
   test('treats Escape as the notch dismiss key', () => {
     expect(isNotchDismissKey('Escape')).toBe(true);
     expect(isNotchDismissKey('Enter')).toBe(false);
+  });
+
+  test('can yield one browser frame before heavier ask work begins', async () => {
+    const frame = vi.fn((callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    vi.stubGlobal('requestAnimationFrame', frame);
+
+    try {
+      await waitForNotchPaint();
+
+      expect(frame).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

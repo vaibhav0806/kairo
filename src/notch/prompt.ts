@@ -28,3 +28,14 @@ export async function submitNotchPrompt(query: string, emitAsk: EmitNotchAsk) {
 
   await emitAsk(payload);
 }
+
+export function waitForNotchPaint() {
+  return new Promise<void>((resolve) => {
+    if (typeof globalThis.requestAnimationFrame === 'function') {
+      globalThis.requestAnimationFrame(() => resolve());
+      return;
+    }
+
+    globalThis.setTimeout(resolve, 0);
+  });
+}

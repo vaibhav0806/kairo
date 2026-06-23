@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
 import { activationStateToNotchPayload } from '../activation/activationState';
 import { loadBrowserEnv } from '../config/env';
@@ -6,7 +6,12 @@ import type { UserAnnotation } from '../core/types';
 import { createNativeBridge } from '../native/nativeBridge';
 import { subscribeToNotchPayload } from './notchEvents';
 import { askTutorFromNotch } from './notchTutor';
-import { isNotchDismissKey, isNotchPromptVisible, submitNotchPrompt } from './prompt';
+import {
+  isNotchDismissKey,
+  isNotchPromptVisible,
+  submitNotchPrompt,
+  waitForNotchPaint
+} from './prompt';
 import type { NotchPayload } from './types';
 
 const defaultPayload: NotchPayload = {
@@ -20,11 +25,15 @@ export function NotchApp() {
   const [payload, setPayload] = useState<NotchPayload>(defaultPayload);
   const [query, setQuery] = useState('');
   const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
   const isPromptVisible = isNotchPromptVisible(payload);
 
   const hideNotch = useCallback(() => {
+    isSubmittingRef.current = false;
+    setIsSubmitting(false);
     setPayload(defaultPayload);
     setQuery('');
     setAnnotations([]);
@@ -52,10 +61,14 @@ export function NotchApp() {
       onPayload: (nextPayload) => {
         if (isMounted) {
           if (nextPayload.state === 'captured') {
+            isSubmittingRef.current = false;
             setQuery('');
+            setIsSubmitting(false);
           }
           if (nextPayload.state === 'listening') {
+            isSubmittingRef.current = false;
             setAnnotations([]);
+            setIsSubmitting(false);
           }
           setPayload(nextPayload);
         }
@@ -92,7 +105,9 @@ export function NotchApp() {
         }
 
         const capturedPayload = activationStateToNotchPayload('captured');
+        isSubmittingRef.current = false;
         setPayload(capturedPayload);
+        setIsSubmitting(false);
         void nativeBridge.showNotch(capturedPayload);
       })
     ])
@@ -107,7 +122,7 @@ export function NotchApp() {
       isMounted = false;
       unlisteners.forEach((unlisten) => unlisten());
     };
-  }, [hideNotch]);
+  }, [nativeBridge]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -122,11 +137,17 @@ export function NotchApp() {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nativeBridge]);
+  }, [hideNotch]);
 
   return (
     <main className="notch-shell" aria-label="Kairo assistant status">
-      <div className="notch-card" data-layout={payload.layout} data-state={payload.state}>
+      <div
+        aria-busy={isSubmitting || payload.state === 'thinking'}
+        className="notch-card"
+        data-busy={isSubmitting ? 'true' : 'false'}
+        data-layout={payload.layout}
+        data-state={payload.state}
+      >
         <div className="notch-orb" aria-hidden="true" />
         <div className="notch-copy">
           <strong>{payload.title}</strong>
@@ -145,37 +166,56 @@ export function NotchApp() {
             className="notch-prompt"
             onSubmit={(event) => {
               event.preventDefault();
+              if (isSubmittingRef.current) {
+                return;
+              }
+
               void submitNotchPrompt(query, async (askPayload) => {
                 const thinkingPayload = activationStateToNotchPayload('thinking');
+                isSubmittingRef.current = true;
+                setIsSubmitting(true);
                 setPayload(thinkingPayload);
                 setQuery('');
-                await nativeBridge.showNotch(thinkingPayload);
+                void nativeBridge.showNotch(thinkingPayload);
+                await waitForNotchPaint();
 
-                const answerPayload = await askTutorFromNotch({
-                  query: askPayload.query,
-                  nativeBridge,
-                  aiProvider: env.aiProvider,
-                  defaultSkill: env.defaultSkill,
-                  annotations
-                });
+                try {
+                  const answerPayload = await askTutorFromNotch({
+                    query: askPayload.query,
+                    nativeBridge,
+                    aiProvider: env.aiProvider,
+                    defaultSkill: env.defaultSkill,
+                    annotations
+                  });
 
-                setPayload(answerPayload);
-                await nativeBridge.showNotch(answerPayload);
-                setQuery('');
-                setAnnotations([]);
+                  setPayload(answerPayload);
+                  setQuery('');
+                  setAnnotations([]);
+                  void nativeBridge.showNotch(answerPayload);
+                } finally {
+                  isSubmittingRef.current = false;
+                  setIsSubmitting(false);
+                }
+              }).catch(() => {
+                isSubmittingRef.current = false;
+                setIsSubmitting(false);
               });
             }}
           >
             <input
               aria-label="Ask Kairo"
               autoFocus
+              disabled={isSubmitting}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Ask about this screen"
               value={query}
             />
-            <button type="submit">Ask</button>
+            <button disabled={isSubmitting} type="submit">
+              Ask
+            </button>
             <button
               className="notch-secondary"
+              disabled={isSubmitting}
               type="button"
               onClick={() => {
                 void emit('annotation:start', {});
