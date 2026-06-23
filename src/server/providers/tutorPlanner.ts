@@ -22,11 +22,23 @@ const providerVisualTargetSchema = z.object({
 
 const tutorResponseSchema = z.object({
   mode: z.enum(['idle', 'stuck_help', 'guided_lesson']),
-  skillSlug: z.string().optional().default(''),
+  skillSlug: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? ''),
   voiceText: z.string().min(1),
-  screenText: z.string().optional().default(''),
-  visualTargets: z.array(providerVisualTargetSchema).optional().default([]),
-  expectedNextState: z.string().optional().default('user_next_action')
+  screenText: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? ''),
+  visualTargets: z
+    .array(providerVisualTargetSchema)
+    .nullish()
+    .transform((value) => value ?? []),
+  expectedNextState: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? 'user_next_action')
 });
 
 type ProviderVisualTarget = z.infer<typeof providerVisualTargetSchema>;
@@ -134,6 +146,7 @@ function buildSystemPrompt(input: TutorTurnInput) {
     'You are Kairo Tutor, a screen-native software tutor.',
     'Return only JSON that matches this TypeScript shape:',
     '{ mode: "idle" | "stuck_help" | "guided_lesson", skillSlug: string, voiceText: string, screenText: string, visualTargets: VisualTarget[], expectedNextState: string }',
+    'Never return null for string fields. Use an empty string when a string field has no value.',
     'VisualTarget kind must be one of highlight_box, ghost_cursor, arrow, underline, spotlight.',
     'Use screenRegion pixel coordinates only for visible UI areas you are confident about.',
     'Give exactly one short next step. Do not invent app state.',

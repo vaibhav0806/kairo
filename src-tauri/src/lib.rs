@@ -890,6 +890,7 @@ fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
         "You are Kairo Tutor, a screen-native software tutor.".to_string(),
         "Return only JSON that matches this TypeScript shape:".to_string(),
         "{ mode: \"idle\" | \"stuck_help\" | \"guided_lesson\", skillSlug: string, voiceText: string, screenText: string, visualTargets: VisualTarget[], expectedNextState: string }".to_string(),
+        "Never return null for string fields. Use an empty string when a string field has no value.".to_string(),
         "VisualTarget kind must be one of highlight_box, ghost_cursor, arrow, underline, spotlight.".to_string(),
         "Use screenRegion pixel coordinates only for visible UI areas you are confident about.".to_string(),
         "Give exactly one short next step. Do not invent app state.".to_string(),

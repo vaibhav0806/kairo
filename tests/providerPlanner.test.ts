@@ -177,6 +177,25 @@ describe('OpenRouter tutor planner adapter', () => {
     expect(response.voiceText).toBe('Hi there. What would you like to learn today?');
   });
 
+  test('normalizes nullable provider fields instead of surfacing raw JSON', () => {
+    const rawContent = JSON.stringify({
+      mode: 'stuck_help',
+      skillSlug: null,
+      voiceText: 'Yes, I see 5 annotations on the screen.',
+      screenText: 'Yes, I see 5 annotations on the screen.',
+      visualTargets: null,
+      expectedNextState: null
+    });
+
+    const response = parseTutorPlannerResponse(rawContent, tutorInput);
+
+    expect(response.skillSlug).toBe('blender');
+    expect(response.screenText).toBe('Yes, I see 5 annotations on the screen.');
+    expect(response.voiceText).toBe('Yes, I see 5 annotations on the screen.');
+    expect(response.visualTargets).toEqual([]);
+    expect(response.expectedNextState).toBe('user_next_action');
+  });
+
   test('normalizes provider JSON with incomplete visual target fields instead of surfacing raw JSON', () => {
     const response = parseTutorPlannerResponse(
       JSON.stringify({
