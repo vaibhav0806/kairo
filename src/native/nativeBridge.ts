@@ -123,7 +123,6 @@ export type NativeBridgeDependencies = {
 };
 
 export const KAIRO_DEFAULT_ACTIVATION_SHORTCUT = 'CommandOrControl+Shift+Space';
-export const ANNOTATION_OVERLAY_RESERVED_TOP = 252;
 
 function fallbackActiveApp(): NativeActiveApp {
   return {
@@ -151,16 +150,10 @@ function fallbackScreenCapture(): NativeScreenCapture {
 export function createAnnotationOverlayBounds(
   displayBounds: NativeOverlayDisplayBounds
 ): NativeOverlayDisplayBounds {
-  const reservedTop = Math.min(
-    ANNOTATION_OVERLAY_RESERVED_TOP,
-    Math.max(0, displayBounds.height - 120)
-  );
-
-  return {
-    ...displayBounds,
-    y: displayBounds.y + reservedTop,
-    height: Math.max(120, displayBounds.height - reservedTop)
-  };
+  // Cover the entire display so the user can draw anywhere — including beside the
+  // notch. The notch panel sits above the overlay (level 1001), so it stays
+  // clickable even though the overlay now spans the full screen underneath it.
+  return { ...displayBounds };
 }
 
 async function readBrowserMicrophonePermission(): Promise<NativePermissionState> {

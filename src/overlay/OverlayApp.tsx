@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
 import {
+  eraseAnnotationAtPoint,
   type AnnotationPoint,
-  type AnnotationTool,
-  type DragAnnotationTool,
-  createAnnotationFromDrag
+  type AnnotationTool
 } from '../annotations/annotationTools';
 import type { ScreenDimensions, UserAnnotation, VisualTarget } from '../core/types';
 import { createNativeBridge } from '../native/nativeBridge';
-import { createAnnotationFromDisplayDrag, createPenAnnotationFromDisplayPoints } from './annotationMode';
+import { createPenAnnotationFromDisplayPoints, toScreenPoint } from './annotationMode';
 import { subscribeToOverlayPayload } from './overlayEvents';
 import { VisualOverlay } from './VisualOverlay';
 
-type OverlayAnnotationTool = Exclude<AnnotationTool, 'erase'>;
+// Only free-draw pen and erase are exposed.
+type OverlayAnnotationTool = Extract<AnnotationTool, 'pen' | 'erase'>;
 
 type OverlayDisplayBounds = ScreenDimensions & {
   x: number;
@@ -91,11 +91,6 @@ function AnnotationOverlay({
 }) {
   const [tool, setTool] = useState<OverlayAnnotationTool>(initialTool);
   const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
-  const [draftDrag, setDraftDrag] = useState<{
-    type: DragAnnotationTool;
-    start: AnnotationPoint;
-    end: AnnotationPoint;
-  } | null>(null);
   const [draftPenPoints, setDraftPenPoints] = useState<AnnotationPoint[] | null>(null);
   const sequence = useRef(0);
   const annotationsRef = useRef<UserAnnotation[]>([]);
@@ -168,21 +163,25 @@ function AnnotationOverlay({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onDone]);
 
-  const draftAnnotation = draftDrag
-    ? createAnnotationFromDisplayDrag({
+  const draftAnnotation = draftPenPoints
+    ? createPenAnnotationFromDisplayPoints({
         id: 'draft-annotation',
-        type: draftDrag.type,
         displayBounds,
-        start: draftDrag.start,
-        end: draftDrag.end
+        points: draftPenPoints
       })
-    : draftPenPoints
-      ? createPenAnnotationFromDisplayPoints({
-          id: 'draft-annotation',
-          displayBounds,
-          points: draftPenPoints
-        })
     : null;
+
+  // Remove the topmost annotation under the cursor (object eraser).
+  function eraseAtPoint(point: AnnotationPoint) {
+    const screenPoint = toScreenPoint(point, displayBounds);
+    setAnnotations((current) => {
+      const next = eraseAnnotationAtPoint(current, screenPoint);
+      if (next !== current) {
+        void emit('annotation:sync', next);
+      }
+      return next;
+    });
+  }
 
   function handlePointerDown(event: PointerEvent<HTMLElement>) {
     if (event.button !== 0) {
@@ -191,32 +190,26 @@ function AnnotationOverlay({
 
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = displayPointFromPointerEvent(event);
-    if (tool === 'pen') {
-      setDraftPenPoints([point]);
+    if (tool === 'erase') {
+      eraseAtPoint(point);
       return;
     }
 
-    setDraftDrag({
-      type: tool,
-      start: point,
-      end: point
-    });
+    setDraftPenPoints([point]);
   }
 
   function handlePointerMove(event: PointerEvent<HTMLElement>) {
+    if (tool === 'erase') {
+      // Drag the eraser to remove several marks in one stroke.
+      if ((event.buttons & 1) === 1) {
+        eraseAtPoint(displayPointFromPointerEvent(event));
+      }
+      return;
+    }
+
     if (draftPenPoints) {
       setDraftPenPoints([...draftPenPoints, displayPointFromPointerEvent(event)]);
-      return;
     }
-
-    if (!draftDrag) {
-      return;
-    }
-
-    setDraftDrag({
-      ...draftDrag,
-      end: displayPointFromPointerEvent(event)
-    });
   }
 
   function handlePointerUp(event: PointerEvent<HTMLElement>) {
@@ -224,57 +217,30 @@ function AnnotationOverlay({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
-    if (draftPenPoints) {
-      const points = [...draftPenPoints, displayPointFromPointerEvent(event)];
-      const previewAnnotation = createPenAnnotationFromDisplayPoints({
-        id: 'preview',
-        displayBounds,
-        points
-      });
-      setDraftPenPoints(null);
-
-      if (
-        points.length < 2 ||
-        Math.max(previewAnnotation.screenRegion.width, previewAnnotation.screenRegion.height) < 4
-      ) {
-        return;
-      }
-
-      sequence.current += 1;
-      const annotation = createPenAnnotationFromDisplayPoints({
-        id: `screen-annotation-${sequence.current}`,
-        displayBounds,
-        points
-      });
-      setAnnotations((current) => [...current, annotation]);
-      void emit('annotation:add', annotation);
+    if (tool === 'erase' || !draftPenPoints) {
       return;
     }
 
-    if (!draftDrag) {
-      return;
-    }
-
-    const end = displayPointFromPointerEvent(event);
-    const previewAnnotation = createAnnotationFromDrag({
+    const points = [...draftPenPoints, displayPointFromPointerEvent(event)];
+    const previewAnnotation = createPenAnnotationFromDisplayPoints({
       id: 'preview',
-      type: draftDrag.type,
-      start: draftDrag.start,
-      end
+      displayBounds,
+      points
     });
-    setDraftDrag(null);
+    setDraftPenPoints(null);
 
-    if (previewAnnotation.screenRegion.width < 4 || previewAnnotation.screenRegion.height < 4) {
+    if (
+      points.length < 2 ||
+      Math.max(previewAnnotation.screenRegion.width, previewAnnotation.screenRegion.height) < 4
+    ) {
       return;
     }
 
     sequence.current += 1;
-    const annotation = createAnnotationFromDisplayDrag({
+    const annotation = createPenAnnotationFromDisplayPoints({
       id: `screen-annotation-${sequence.current}`,
-      type: draftDrag.type,
       displayBounds,
-      start: draftDrag.start,
-      end
+      points
     });
     setAnnotations((current) => [...current, annotation]);
     void emit('annotation:add', annotation);
@@ -292,7 +258,6 @@ function AnnotationOverlay({
           if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
           }
-          setDraftDrag(null);
           setDraftPenPoints(null);
         }}
         role="presentation"

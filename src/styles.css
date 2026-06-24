@@ -692,9 +692,24 @@ input {
 }
 
 .notch-tools button[aria-pressed="true"] {
-  background: rgb(117 232 219 / 0.18);
-  border-color: rgb(117 232 219 / 0.32);
-  color: #d9fffb;
+  background: #75e8db;
+  border-color: #75e8db;
+  box-shadow: 0 0 0 3px rgb(117 232 219 / 0.22);
+  color: #04201d;
+  gap: 7px;
+  padding: 0 14px;
+}
+
+.notch-tools button[aria-pressed="true"]:not(:disabled):hover {
+  background: #8ff0e5;
+  border-color: #8ff0e5;
+  color: #04201d;
+}
+
+.notch-tool-label {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .notch-tools .notch-tool-done {
@@ -855,6 +870,10 @@ input {
 }
 
 .annotation-overlay-canvas {
+  /* A transparent WKWebView (and a borderless window) won't deliver pointer
+     events on fully-transparent pixels — they fall through to the app below — so
+     a near-invisible fill is needed to make the whole canvas hit-testable. */
+  background-color: rgb(0 0 0 / 0.02);
   cursor: crosshair;
   height: 100%;
   inset: 0;
@@ -866,6 +885,10 @@ input {
 
 .annotation-overlay-canvas[data-tool="pen"] {
   cursor: cell;
+}
+
+.annotation-overlay-canvas[data-tool="erase"] {
+  cursor: crosshair;
 }
 
 .timeline {

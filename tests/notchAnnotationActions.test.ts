@@ -6,7 +6,7 @@ import {
 
 describe('notch annotation actions', () => {
   test('builds a typed annotation start payload', () => {
-    expect(createAnnotationStartPayload('circle')).toEqual({ tool: 'circle' });
+    expect(createAnnotationStartPayload('erase')).toEqual({ tool: 'erase' });
   });
 
   test('defaults missing annotation start payloads to pen', () => {

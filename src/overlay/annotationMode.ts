@@ -7,7 +7,7 @@ import {
 import type { UserAnnotation } from '../core/types';
 import type { DisplayBounds } from './coordinates';
 
-function toScreenPoint(point: AnnotationPoint, displayBounds: DisplayBounds): AnnotationPoint {
+export function toScreenPoint(point: AnnotationPoint, displayBounds: DisplayBounds): AnnotationPoint {
   const scaleFactor = displayBounds.scaleFactor > 0 ? displayBounds.scaleFactor : 1;
 
   return {

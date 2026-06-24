@@ -1,6 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
 import {
-  ANNOTATION_OVERLAY_RESERVED_TOP,
   createAnnotationOverlayBounds,
   createNativeBridge,
   type NativeInvoke,
@@ -203,7 +202,7 @@ describe('createNativeBridge', () => {
 
     await expect(bridge.showOverlay(payload)).resolves.toBeUndefined();
     await expect(bridge.showAnnotationOverlay(payload.displayBounds)).resolves.toBeUndefined();
-    await expect(bridge.showAnnotationOverlay(payload.displayBounds, 'circle')).resolves.toBeUndefined();
+    await expect(bridge.showAnnotationOverlay(payload.displayBounds, 'erase')).resolves.toBeUndefined();
     const annotationDisplayBounds = createAnnotationOverlayBounds(payload.displayBounds);
     const annotationPreviewPayload = {
       mode: 'annotation_preview' as const,
@@ -239,7 +238,7 @@ describe('createNativeBridge', () => {
         mode: 'annotate',
         displayBounds: annotationDisplayBounds,
         targets: [],
-        initialTool: 'circle'
+        initialTool: 'erase'
       }
     });
     expect(invoke).toHaveBeenCalledWith('update_overlay', { payload: annotationPreviewPayload });
@@ -248,7 +247,7 @@ describe('createNativeBridge', () => {
     expect(invoke).toHaveBeenCalledWith('hide_overlay');
   });
 
-  test('keeps annotation overlay below the notch controls', () => {
+  test('covers the whole display so the user can draw anywhere', () => {
     const displayBounds = {
       x: 0,
       y: 0,
@@ -257,11 +256,7 @@ describe('createNativeBridge', () => {
       scaleFactor: 1
     };
 
-    expect(createAnnotationOverlayBounds(displayBounds)).toEqual({
-      ...displayBounds,
-      y: ANNOTATION_OVERLAY_RESERVED_TOP,
-      height: displayBounds.height - ANNOTATION_OVERLAY_RESERVED_TOP
-    });
+    expect(createAnnotationOverlayBounds(displayBounds)).toEqual(displayBounds);
   });
 
   test('shows and hides the native notch assistant window', async () => {

@@ -1,6 +1,7 @@
-import type { UserAnnotation } from '../core/types';
+import type { AnnotationTool } from '../annotations/annotationTools';
 
-export type NotchAnnotationTool = UserAnnotation['type'];
+// Only two tools are exposed in the notch: free-draw pen and erase.
+export type NotchAnnotationTool = Extract<AnnotationTool, 'pen' | 'erase'>;
 
 export type NotchAnnotationStartPayload = {
   tool: NotchAnnotationTool;

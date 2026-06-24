@@ -59,28 +59,6 @@ const PenIcon = () => (
     <path d="M5 19l1-4L16.5 4.5a1.8 1.8 0 0 1 2.6 0l.4.4a1.8 1.8 0 0 1 0 2.6L9 18l-4 1z" />
   </NotchIcon>
 );
-const RectangleIcon = () => (
-  <NotchIcon>
-    <rect x="4.5" y="6.5" width="15" height="11" rx="2.5" />
-  </NotchIcon>
-);
-const CircleIcon = () => (
-  <NotchIcon>
-    <circle cx="12" cy="12" r="7.5" />
-  </NotchIcon>
-);
-const HighlightIcon = () => (
-  <NotchIcon>
-    <path d="M9 13l-1.2 4.2 4.2-1.2 7.2-7.2a2.1 2.1 0 0 0-3-3L9 13z" />
-    <path d="M6 20.5h6" />
-  </NotchIcon>
-);
-const UnderlineIcon = () => (
-  <NotchIcon>
-    <path d="M6.5 4.5v6a5.5 5.5 0 0 0 11 0v-6" />
-    <path d="M5 20h14" />
-  </NotchIcon>
-);
 const UndoIcon = () => (
   <NotchIcon>
     <path d="M9 7L4.5 11.5 9 16" />
@@ -117,11 +95,7 @@ const StopIcon = () => (
 );
 
 const annotationTools: Array<{ label: string; icon: ReactNode; tool: NotchAnnotationTool }> = [
-  { label: 'Pen', icon: <PenIcon />, tool: 'pen' },
-  { label: 'Rectangle', icon: <RectangleIcon />, tool: 'rectangle' },
-  { label: 'Circle', icon: <CircleIcon />, tool: 'circle' },
-  { label: 'Highlight', icon: <HighlightIcon />, tool: 'highlight' },
-  { label: 'Underline', icon: <UnderlineIcon />, tool: 'underline' }
+  { label: 'Pen', icon: <PenIcon />, tool: 'pen' }
 ];
 
 function promptPlaceholder(payload: NotchPayload) {
@@ -130,10 +104,10 @@ function promptPlaceholder(payload: NotchPayload) {
 
 function annotationCountText(count: number) {
   if (count === 0) {
-    return 'No marks';
+    return '';
   }
 
-  return `${count} mark${count === 1 ? '' : 's'}`;
+  return `${count} annotation${count === 1 ? '' : 's'}`;
 }
 
 export function NotchApp() {
@@ -378,6 +352,13 @@ export function NotchApp() {
 
   const startAnnotation = useCallback(
     async (tool: NotchAnnotationTool) => {
+      // Tapping the already-active tool toggles it off: stop drawing and let the
+      // overlay become click-through preview (drawn marks stay visible).
+      if (activeAnnotationTool === tool) {
+        setActiveAnnotationTool(null);
+        void emit('annotation:finish', {});
+        return;
+      }
       setActiveAnnotationTool(tool);
       // Show the drawing overlay from the notch (the main window's webview is
       // hidden/suspended, so its listener can't be relied on). Reuse the
@@ -386,7 +367,7 @@ export function NotchApp() {
         capturedScreenRef.current?.displayBounds ?? (await nativeBridge.getDisplayBounds());
       await nativeBridge.showAnnotationOverlay(bounds, tool);
     },
-    [nativeBridge]
+    [activeAnnotationTool, nativeBridge]
   );
 
   const finishAnnotation = useCallback(() => {
@@ -679,6 +660,10 @@ export function NotchApp() {
           setActiveAnnotationTool(null);
           setIsSubmitting(false);
           updateVoiceCaptureState('idle');
+          // Clear any leftover annotation overlay from a previous session. The
+          // notch drives this (not the hidden/suspended main window) so a fresh
+          // shortcut press is a reliable reset even if the overlay was orphaned.
+          void nativeBridge.hideOverlay();
           // New activation: re-arm auto-listen for the upcoming captured state.
           autoListenStartedRef.current = false;
         }
@@ -862,21 +847,27 @@ export function NotchApp() {
           </form>
 
           <div className="notch-tool-row" aria-label="Annotation tools" role="toolbar">
-            <span className="notch-tool-count" aria-live="polite">
-              {annotationCountText(annotations.length)}
-            </span>
+            {annotations.length > 0 ? (
+              <span className="notch-tool-count" aria-live="polite">
+                {annotationCountText(annotations.length)}
+              </span>
+            ) : null}
             <div className="notch-tools">
               {annotationTools.map((option) => (
                 <button
                   aria-label={`${option.label} annotation tool`}
                   aria-pressed={activeAnnotationTool === option.tool}
+                  data-active={activeAnnotationTool === option.tool ? 'true' : 'false'}
                   disabled={!interaction.canAnnotate}
                   key={option.tool}
-                  title={option.label}
+                  title={activeAnnotationTool === option.tool ? `${option.label} (on)` : option.label}
                   type="button"
                   onClick={() => startAnnotation(option.tool)}
                 >
                   <span aria-hidden="true">{option.icon}</span>
+                  {activeAnnotationTool === option.tool ? (
+                    <span className="notch-tool-label">{option.label}</span>
+                  ) : null}
                 </button>
               ))}
               <button

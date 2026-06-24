@@ -20,8 +20,20 @@ const DEFAULT_OPENROUTER_VISION_MODEL: &str = "google/gemini-2.5-flash";
 // Non-activating NSPanel for the notch. A non-activating panel can receive
 // input without activating the app, so showing it does not pull the user out
 // of another app's full-screen Space (a plain NSWindow cannot do this).
+// Both Kairo surfaces are non-activating panels that CAN become key. A plain
+// borderless NSWindow returns canBecomeKeyWindow=NO, so it can never take focus
+// and every click falls through to the app behind it — that's why the overlay
+// couldn't catch pen draws. (One tauri_panel! block: the macro imports helpers,
+// so it can only be invoked once.)
 tauri_panel! {
     panel!(NotchPanel {
+        config: {
+            can_become_key_window: true,
+            is_floating_panel: true
+        }
+    })
+
+    panel!(OverlayPanel {
         config: {
             can_become_key_window: true,
             is_floating_panel: true
@@ -135,6 +147,8 @@ struct OverlayPayload {
 #[derive(Default)]
 struct OverlayState {
     current_payload: Mutex<Option<OverlayPayload>>,
+    panel: Mutex<Option<PanelHandle<tauri::Wry>>>,
+    window: Mutex<Option<tauri::WebviewWindow>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -677,10 +691,6 @@ fn capture_screen() -> ScreenCaptureResult {
     }
 }
 
-fn ensure_overlay_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
-    ensure_configured_window(app, "overlay")
-}
-
 fn ensure_configured_window(
     app: &tauri::AppHandle,
     label: &str,
@@ -703,32 +713,6 @@ fn ensure_configured_window(
         .map_err(|error| format!("Failed to create {label} window: {error}"))
 }
 
-// Tauri/tao's visibleOnAllWorkspaces only sets CanJoinAllSpaces, which is not
-// enough to draw over a macOS full-screen app's dedicated Space. Adding
-// FullScreenAuxiliary lets a non-activating window composite into the active
-// full-screen Space, and a raised window level keeps it above the full-screen
-// content (tao's always-on-top only uses NSFloatingWindowLevel, which is too low).
-#[cfg(target_os = "macos")]
-fn elevate_window_over_fullscreen(window: &tauri::WebviewWindow) {
-    let Ok(ns_window_ptr) = window.ns_window() else {
-        return;
-    };
-    if ns_window_ptr.is_null() {
-        return;
-    }
-    let ns_window: &objc2_app_kit::NSWindow =
-        unsafe { &*(ns_window_ptr as *const objc2_app_kit::NSWindow) };
-    let behavior = objc2_app_kit::NSWindowCollectionBehavior::CanJoinAllSpaces
-        | objc2_app_kit::NSWindowCollectionBehavior::FullScreenAuxiliary
-        | objc2_app_kit::NSWindowCollectionBehavior::Stationary;
-    ns_window.setCollectionBehavior(behavior);
-    // NSStatusWindowLevel (25) floats over normal windows but not over a
-    // full-screen app's content. NSScreenSaverWindowLevel (1000) sits above it.
-    ns_window.setLevel(1000);
-}
-
-#[cfg(not(target_os = "macos"))]
-fn elevate_window_over_fullscreen(_window: &tauri::WebviewWindow) {}
 
 // Hide a Kairo window from screen capture/recording — including our own
 // screenshot of the user's screen — so the tutor never sees Kairo's own UI
@@ -804,24 +788,73 @@ fn ensure_notch_panel(app: &tauri::AppHandle) -> Result<PanelHandle<tauri::Wry>,
     Ok(panel)
 }
 
+fn ensure_overlay_panel(app: &tauri::AppHandle) -> Result<PanelHandle<tauri::Wry>, String> {
+    let overlay_state = app.state::<OverlayState>();
+    if let Some(panel) = overlay_state
+        .panel
+        .lock()
+        .map_err(|_| "Failed to lock overlay panel state.".to_string())?
+        .clone()
+    {
+        return Ok(panel);
+    }
+
+    let window = ensure_configured_window(app, "overlay")?;
+    let panel = window
+        .to_panel::<OverlayPanel>()
+        .map_err(|error| format!("Failed to convert overlay window to panel: {error}"))?;
+
+    // Below the notch (1001) so its toolbar stays reachable, above app content.
+    panel.set_level(1000);
+    // Non-activating + can-become-key: the user can draw without activating Kairo
+    // (no Space switch). A plain borderless window can't become key, so it can't
+    // catch draw clicks at all.
+    panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
+    panel.set_collection_behavior(
+        CollectionBehavior::new()
+            .full_screen_auxiliary()
+            .can_join_all_spaces()
+            .stationary()
+            .into(),
+    );
+    panel.set_has_shadow(false);
+    // Needed so pen drags (pointermove) fire while the panel is key over another app.
+    panel.set_accepts_mouse_moved_events(true);
+    panel.set_released_when_closed(false);
+
+    *overlay_state
+        .window
+        .lock()
+        .map_err(|_| "Failed to lock overlay window state.".to_string())? = Some(window);
+    *overlay_state
+        .panel
+        .lock()
+        .map_err(|_| "Failed to lock overlay panel state.".to_string())? = Some(panel.clone());
+
+    Ok(panel)
+}
+
+fn overlay_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
+    ensure_overlay_panel(app)?;
+    app.state::<OverlayState>()
+        .window
+        .lock()
+        .map_err(|_| "Failed to lock overlay window state.".to_string())?
+        .clone()
+        .ok_or_else(|| "Overlay panel has no backing window".to_string())
+}
+
 fn configure_overlay_window(
     window: &tauri::WebviewWindow,
     payload: &OverlayPayload,
 ) -> Result<(), String> {
     let is_annotation_mode = payload.mode.as_deref() == Some("annotate");
-    window
-        .set_focusable(is_annotation_mode)
-        .map_err(|error| format!("Failed to keep overlay non-focusable: {error}"))?;
-    window
-        .set_always_on_top(true)
-        .map_err(|error| format!("Failed to keep overlay above other windows: {error}"))?;
-    window
-        .set_skip_taskbar(true)
-        .map_err(|error| format!("Failed to keep overlay out of the taskbar: {error}"))?;
+    // Annotate mode: catch clicks/drags so the user can draw. Visual-guidance
+    // mode: click-through so the user keeps interacting with their app. Level,
+    // key-ability, collection behaviour and shadow are owned by the panel.
     window
         .set_ignore_cursor_events(!is_annotation_mode)
-        .map_err(|error| format!("Failed to keep overlay click-through: {error}"))?;
-    let _ = window.set_shadow(false);
+        .map_err(|error| format!("Failed to set overlay click-through: {error}"))?;
     window
         .set_position(LogicalPosition::new(
             payload.display_bounds.x,
@@ -835,7 +868,6 @@ fn configure_overlay_window(
         ))
         .map_err(|error| format!("Failed to size overlay: {error}"))?;
 
-    elevate_window_over_fullscreen(window);
     // NOTE: the overlay is intentionally NOT excluded from screen capture — the
     // user's pen annotations live here and must appear in the tutor's screenshot.
 
@@ -1657,14 +1689,16 @@ fn show_overlay(
     state: State<'_, OverlayState>,
     payload: OverlayPayload,
 ) -> Result<(), String> {
-    let window = ensure_overlay_window(&app)?;
+    let panel = ensure_overlay_panel(&app)?;
+    let window = overlay_window(&app)?;
     configure_overlay_window(&window, &payload)?;
     store_overlay_payload(&state, Some(payload.clone()))?;
-    window
-        .show()
-        .map_err(|error| format!("Failed to show overlay: {error}"))?;
     if payload.mode.as_deref() == Some("annotate") {
-        let _ = window.set_focus();
+        // Make the panel key so it actually receives pen clicks/drags.
+        panel.show_and_make_key();
+    } else {
+        // Visual guidance is click-through — show without stealing key focus.
+        panel.show();
     }
     emit_overlay_payload(&window, payload)
 }
@@ -1675,7 +1709,7 @@ fn update_overlay(
     state: State<'_, OverlayState>,
     payload: OverlayPayload,
 ) -> Result<(), String> {
-    let window = ensure_overlay_window(&app)?;
+    let window = overlay_window(&app)?;
     configure_overlay_window(&window, &payload)?;
     store_overlay_payload(&state, Some(payload.clone()))?;
     emit_overlay_payload(&window, payload)
@@ -1716,12 +1750,15 @@ fn get_current_overlay_payload(
 }
 
 #[tauri::command]
-fn hide_overlay(app: tauri::AppHandle, state: State<'_, OverlayState>) -> Result<(), String> {
+fn hide_overlay(_app: tauri::AppHandle, state: State<'_, OverlayState>) -> Result<(), String> {
     store_overlay_payload(&state, None)?;
-    if let Some(window) = app.get_webview_window("overlay") {
-        window
-            .hide()
-            .map_err(|error| format!("Failed to hide overlay: {error}"))?;
+    if let Some(panel) = state
+        .panel
+        .lock()
+        .map_err(|_| "Failed to lock overlay panel state.".to_string())?
+        .clone()
+    {
+        panel.hide();
     }
     Ok(())
 }
@@ -1851,6 +1888,10 @@ pub fn run() {
             // shortcut press shows it instantly instead of building it lazily.
             if let Err(error) = ensure_notch_panel(app.handle()) {
                 eprintln!("Kairo Tutor: failed to pre-create notch panel: {error}");
+            }
+            // Same for the annotation overlay panel.
+            if let Err(error) = ensure_overlay_panel(app.handle()) {
+                eprintln!("Kairo Tutor: failed to pre-create overlay panel: {error}");
             }
             Ok(())
         })
