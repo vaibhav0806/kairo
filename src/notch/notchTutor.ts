@@ -4,7 +4,7 @@ import { createTutorOrchestrator } from '../core/orchestrator';
 import { createRuntimeTutorPlanner, type RuntimeTutorProvider } from '../core/runtimePlanner';
 import { createTutorRuntimeErrorResponse } from '../core/tutorErrors';
 import type { UserAnnotation } from '../core/types';
-import type { NativeBridge } from '../native/nativeBridge';
+import type { NativeBridge, NativeScreenCapture } from '../native/nativeBridge';
 import type { NotchPayload } from './types';
 
 export type AskTutorFromNotchOptions = {
@@ -13,6 +13,9 @@ export type AskTutorFromNotchOptions = {
   aiProvider: RuntimeTutorProvider;
   defaultSkill: string;
   annotations?: UserAnnotation[];
+  // Screenshot captured at voice-start; reused here so the ask doesn't wait on a
+  // fresh capture. Falls back to capturing now (e.g. typed input, no voice).
+  screenCapture?: NativeScreenCapture | null;
 };
 
 export async function askTutorFromNotch({
@@ -20,7 +23,8 @@ export async function askTutorFromNotch({
   nativeBridge,
   aiProvider,
   defaultSkill,
-  annotations = []
+  annotations = [],
+  screenCapture: providedCapture
 }: AskTutorFromNotchOptions): Promise<NotchPayload> {
   try {
     const mockPlanner = createMockTutorPlanner();
@@ -30,7 +34,8 @@ export async function askTutorFromNotch({
       mockPlanner
     });
     const orchestrator = createTutorOrchestrator({ planner });
-    const screenCapture = await nativeBridge.captureScreen();
+    const screenCapture =
+      (providedCapture?.captured ? providedCapture : null) ?? (await nativeBridge.captureScreen());
     const activeApp = screenCapture.activeApp ?? (await nativeBridge.getActiveApp());
     const response = await orchestrator.runTextTurn({
       request: {

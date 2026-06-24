@@ -12,7 +12,6 @@ import {
 import {
   type ActivationState,
   activationStateToNotchPayload,
-  captureFailureToNotchPayload,
   reduceActivationState,
   tutorResponseToNotchPayload
 } from './activation/activationState';
@@ -385,29 +384,18 @@ export function App() {
   const handleActivationShortcut = useCallback(() => {
     setIsOverlayActive(false);
     void nativeBridge.hideOverlay();
-    // Show the ready state immediately so voice starts without waiting on the
-    // slow screen capture. The tutor turn captures the screen fresh on submit,
-    // so the activation capture only refreshes context — run it in the
-    // background instead of blocking the prompt/voice from appearing.
+    // Show the ready state immediately so voice can start. The screenshot is
+    // captured by the notch at voice-start (no double-capture here); only refresh
+    // active-app + permission context in the background.
     showActivationState(reduceActivationState('listening', { type: 'capture_complete' }));
 
-    void Promise.all([
-      nativeBridge.getActiveApp(),
-      nativeBridge.getPermissionStatus(),
-      nativeBridge.captureScreen()
-    ])
-      .then(([nextActiveApp, nextPermissions, nextScreenCapture]) => {
+    void Promise.all([nativeBridge.getActiveApp(), nativeBridge.getPermissionStatus()])
+      .then(([nextActiveApp, nextPermissions]) => {
         setActiveApp(nextActiveApp);
         setPermissions(nextPermissions);
-        setScreenCapture(nextScreenCapture);
-        // Sensitive-app captures are blocked for safety — surface that even
-        // though the prompt already opened.
-        if (nextScreenCapture.blockedSensitiveApp) {
-          void nativeBridge.showNotch(captureFailureToNotchPayload(nextScreenCapture.reason));
-        }
       })
       .catch(() => {
-        // Background refresh is best-effort; the tutor turn re-captures on submit.
+        // Background refresh is best-effort.
       });
   }, [nativeBridge, showActivationState]);
 

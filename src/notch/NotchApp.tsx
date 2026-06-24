@@ -3,7 +3,7 @@ import { emit, listen } from '@tauri-apps/api/event';
 import { activationStateToNotchPayload } from '../activation/activationState';
 import { loadBrowserEnv } from '../config/env';
 import type { UserAnnotation } from '../core/types';
-import { createNativeBridge } from '../native/nativeBridge';
+import { createNativeBridge, type NativeScreenCapture } from '../native/nativeBridge';
 import { createAnnotationStartPayload, type NotchAnnotationTool } from './annotationActions';
 import { buildAudioDataUrl } from './audioPlayback';
 import { subscribeToNotchPayload } from './notchEvents';
@@ -163,6 +163,9 @@ export function NotchApp() {
   // Call the latest startVoiceCapture without making it an effect dependency
   // (otherwise the payload subscription re-subscribes on every render and loops).
   const startVoiceCaptureRef = useRef<() => void>(() => {});
+  // Screenshot taken at voice-start, reused by the tutor turn so the ask doesn't
+  // wait on a fresh capture.
+  const capturedScreenRef = useRef<NativeScreenCapture | null>(null);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
   const interaction = getNotchInteractionState({
@@ -347,7 +350,8 @@ export function NotchApp() {
           nativeBridge,
           aiProvider: env.aiProvider,
           defaultSkill: env.defaultSkill,
-          annotations
+          annotations,
+          screenCapture: capturedScreenRef.current
         });
 
         setPayload(answerPayload);
@@ -402,6 +406,7 @@ export function NotchApp() {
     stopVoiceTracks();
     // Re-arm auto-listen so the next activation opens the mic again.
     autoListenStartedRef.current = false;
+    capturedScreenRef.current = null;
     isSubmittingRef.current = false;
     setIsSubmitting(false);
     updateVoiceCaptureState('idle');
@@ -457,6 +462,16 @@ export function NotchApp() {
       showVoiceError('Microphone recording is unavailable in this runtime.');
       return;
     }
+
+    // Capture the screen exactly when voice capture starts — async so it never
+    // blocks recording. The tutor turn reuses this instead of re-capturing.
+    capturedScreenRef.current = null;
+    void nativeBridge
+      .captureScreen()
+      .then((result) => {
+        capturedScreenRef.current = result;
+      })
+      .catch(() => {});
 
     try {
       const stream = await acquireMicrophoneStream();
