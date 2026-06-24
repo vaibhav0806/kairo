@@ -1443,22 +1443,33 @@ async fn transcribe_audio(input: TranscribeAudioInput) -> Result<TranscriptionRe
         let api_key = provider_env_optional("SARVAM_API_KEY")
             .ok_or_else(|| "SARVAM_API_KEY is required for Sarvam transcription.".to_string())?;
         let base_url = provider_env("SARVAM_BASE_URL", "https://api.sarvam.ai");
+        // Pin the language so Sarvam doesn't auto-detect the wrong one (it
+        // guessed gu-IN on a cold first recording and returned an empty
+        // transcript). Set SARVAM_STT_LANGUAGE_CODE=unknown to auto-detect.
         let form = reqwest::multipart::Form::new()
             .part("file", part)
             .text("model", provider_env("SARVAM_STT_MODEL", "saaras:v3"))
-            .text("mode", provider_env("SARVAM_STT_MODE", "transcribe"));
-        let text = parse_transcription_response(
-            client
-                .post(format!("{}/speech-to-text", base_url.trim_end_matches('/')))
-                .header("api-subscription-key", api_key)
-                .multipart(form)
-                .send()
-                .await
-                .map_err(|error| format!("Sarvam STT request failed: {error}"))?,
-            &["transcript", "text"],
-            "Sarvam STT response did not include transcript text.",
-        )
-        .await?;
+            .text("mode", provider_env("SARVAM_STT_MODE", "transcribe"))
+            .text(
+                "language_code",
+                provider_env("SARVAM_STT_LANGUAGE_CODE", "en-IN"),
+            );
+        let response = client
+            .post(format!("{}/speech-to-text", base_url.trim_end_matches('/')))
+            .header("api-subscription-key", api_key)
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|error| format!("Sarvam STT request failed: {error}"))?;
+        let body = response.text().await.unwrap_or_default();
+        let value: Value = serde_json::from_str(&body)
+            .map_err(|error| format!("Sarvam STT response was not JSON: {error}"))?;
+        let text = value
+            .get("transcript")
+            .or_else(|| value.get("text"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| "Sarvam STT response did not include transcript text.".to_string())?
+            .to_string();
 
         return Ok(TranscriptionResult { text, provider });
     }
@@ -1609,6 +1620,11 @@ fn update_overlay(
     configure_overlay_window(&window, &payload)?;
     store_overlay_payload(&state, Some(payload.clone()))?;
     emit_overlay_payload(&window, payload)
+}
+
+#[tauri::command]
+fn debug_log(message: String) {
+    eprintln!("[fe-diag] {message}");
 }
 
 #[tauri::command]
@@ -1767,6 +1783,7 @@ pub fn run() {
             request_required_permissions,
             open_permission_settings,
             restart_app,
+            debug_log,
             capture_screen,
             show_overlay,
             update_overlay,

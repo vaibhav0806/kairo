@@ -68,7 +68,8 @@ const VIRTUAL_INPUT_RE =
 const BUILTIN_INPUT_RE = /built-?in|macbook|imac|mac\s?mini|mac\s?studio|internal|microphone/i;
 
 export async function acquireMicrophoneStream(
-  mediaDevices: MediaDevices | undefined = globalThis.navigator?.mediaDevices
+  mediaDevices: MediaDevices | undefined = globalThis.navigator?.mediaDevices,
+  log: (message: string) => void = () => {}
 ): Promise<MediaStream> {
   if (!mediaDevices?.getUserMedia) {
     throw new Error('Microphone recording is unavailable in this runtime.');
@@ -80,6 +81,12 @@ export async function acquireMicrophoneStream(
     autoGainControl: true
   };
 
+  // Acquire a default stream FIRST. Device labels are hidden until a getUserMedia
+  // grant, so without this the first call can't identify the real built-in mic
+  // and may bind to a silent virtual device (e.g. BlackHole) — the cause of an
+  // empty first transcription.
+  let stream = await mediaDevices.getUserMedia({ audio: baseConstraints });
+
   try {
     const devices = await mediaDevices.enumerateDevices();
     const inputs = devices.filter((device) => device.kind === 'audioinput' && device.deviceId);
@@ -88,17 +95,26 @@ export async function acquireMicrophoneStream(
         (device) => BUILTIN_INPUT_RE.test(device.label) && !VIRTUAL_INPUT_RE.test(device.label)
       ) ??
       inputs.find((device) => !VIRTUAL_INPUT_RE.test(device.label) && device.deviceId !== 'default');
+    const current = stream.getAudioTracks()[0];
+    const currentId = current?.getSettings().deviceId;
 
-    if (preferred?.deviceId) {
-      return await mediaDevices.getUserMedia({
+    log(
+      `mic: current="${current?.label ?? ''}" preferred="${preferred?.label ?? ''}" switch=${Boolean(
+        preferred?.deviceId && preferred.deviceId !== currentId
+      )}`
+    );
+
+    if (preferred?.deviceId && preferred.deviceId !== currentId) {
+      stream.getTracks().forEach((track) => track.stop());
+      stream = await mediaDevices.getUserMedia({
         audio: { ...baseConstraints, deviceId: { exact: preferred.deviceId } }
       });
     }
-  } catch {
-    // Fall through to the default device if enumeration or the scoped request fails.
+  } catch (error) {
+    log(`mic select error: ${String(error)}`);
   }
 
-  return mediaDevices.getUserMedia({ audio: true });
+  return stream;
 }
 
 export function voiceStatusCopy(state: VoiceCaptureState) {

@@ -91,6 +91,7 @@ export type NativeBridge = {
   requestRequiredPermissions(): Promise<NativePermissionStatus>;
   openPermissionSettings(permission: NativePermissionKey): Promise<void>;
   restartApp(): Promise<void>;
+  debugLog(message: string): Promise<void>;
   captureScreen(): Promise<NativeScreenCapture>;
   showOverlay(payload: NativeOverlayPayload): Promise<void>;
   showAnnotationOverlay(
@@ -284,6 +285,14 @@ export function createNativeBridge(
         await invoke<void>('restart_app');
       } catch {
         // Browser previews cannot restart the native app.
+      }
+    },
+
+    async debugLog(message) {
+      try {
+        await invoke<void>('debug_log', { message });
+      } catch {
+        // No-op outside the native runtime.
       }
     },
 
