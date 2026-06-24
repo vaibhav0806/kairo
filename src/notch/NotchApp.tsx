@@ -661,10 +661,12 @@ export function NotchApp() {
         }
         setPayload(nextPayload);
 
-        // Start listening automatically once the screen is captured, so the
-        // shortcut opens the mic without a second click. Deduped per activation.
+        // Start listening automatically on activation, so the shortcut opens the
+        // mic without a second click. Driven by the native listening/captured
+        // payload (not the hidden main window, whose webview macOS may suspend).
+        // Deduped per activation via autoListenStartedRef.
         if (
-          nextPayload.state === 'captured' &&
+          (nextPayload.state === 'listening' || nextPayload.state === 'captured') &&
           !mediaRecorderRef.current &&
           !isSubmittingRef.current &&
           !autoListenStartedRef.current &&

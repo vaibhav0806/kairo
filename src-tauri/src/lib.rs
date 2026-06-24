@@ -149,9 +149,11 @@ struct NotchPayload {
 #[derive(Default)]
 struct NotchState {
     current_payload: Mutex<Option<NotchPayload>>,
-    // The crate's panel registry lookup (get_webview_panel) is unreliable across
-    // call sites, so we keep our own handle to show/hide the notch panel.
+    // The crate's panel registry lookup (get_webview_panel) and panel.to_window()
+    // are unreliable after hide/show, so we keep our own handles to the panel
+    // (for show/hide) and its backing window (for size/position/emit).
     panel: Mutex<Option<PanelHandle<tauri::Wry>>>,
+    window: Mutex<Option<tauri::WebviewWindow>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -732,7 +734,13 @@ fn ensure_notch_panel(app: &tauri::AppHandle) -> Result<PanelHandle<tauri::Wry>,
     // Deliver mouse-moved events so CSS :hover works while the panel is shown
     // over another (possibly full-screen) app without activating it.
     panel.set_accepts_mouse_moved_events(true);
+    // Keep the panel alive across hide/show so the shortcut can reopen it.
+    panel.set_released_when_closed(false);
 
+    *notch_state
+        .window
+        .lock()
+        .map_err(|_| "Failed to lock notch window state.".to_string())? = Some(window);
     *notch_state
         .panel
         .lock()
@@ -873,8 +881,11 @@ fn show_notch_with_payload(
     payload: Option<NotchPayload>,
 ) -> Result<(), String> {
     let panel = ensure_notch_panel(app)?;
-    let window = panel
-        .to_window()
+    let window = state
+        .window
+        .lock()
+        .map_err(|_| "Failed to lock notch window state.".to_string())?
+        .clone()
         .ok_or_else(|| "Notch panel has no backing window.".to_string())?;
     let is_prompt_mode = payload
         .as_ref()
