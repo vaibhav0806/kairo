@@ -6,6 +6,7 @@ export default defineConfig({
   base: './',
   envPrefix: ['VITE_', 'KAIRO_'],
   server: {
-    port: 5173
+    port: 5273,
+    strictPort: true
   }
 });
