@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
 import { activationStateToNotchPayload } from '../activation/activationState';
 import { loadBrowserEnv } from '../config/env';
@@ -34,12 +34,94 @@ const defaultPayload: NotchPayload = {
   detail: 'Press the shortcut to start'
 };
 
-const annotationTools: Array<{ label: string; icon: string; tool: NotchAnnotationTool }> = [
-  { label: 'Pen', icon: '✎', tool: 'pen' },
-  { label: 'Rectangle', icon: '□', tool: 'rectangle' },
-  { label: 'Circle', icon: '○', tool: 'circle' },
-  { label: 'Highlight', icon: '◐', tool: 'highlight' },
-  { label: 'Underline', icon: '_', tool: 'underline' }
+function NotchIcon({ children, size = 18 }: { children: ReactNode; size?: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="notch-icon"
+      fill="none"
+      height={size}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.9}
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      {children}
+    </svg>
+  );
+}
+
+const PenIcon = () => (
+  <NotchIcon>
+    <path d="M15.5 5.5l3 3" />
+    <path d="M5 19l1-4L16.5 4.5a1.8 1.8 0 0 1 2.6 0l.4.4a1.8 1.8 0 0 1 0 2.6L9 18l-4 1z" />
+  </NotchIcon>
+);
+const RectangleIcon = () => (
+  <NotchIcon>
+    <rect x="4.5" y="6.5" width="15" height="11" rx="2.5" />
+  </NotchIcon>
+);
+const CircleIcon = () => (
+  <NotchIcon>
+    <circle cx="12" cy="12" r="7.5" />
+  </NotchIcon>
+);
+const HighlightIcon = () => (
+  <NotchIcon>
+    <path d="M9 13l-1.2 4.2 4.2-1.2 7.2-7.2a2.1 2.1 0 0 0-3-3L9 13z" />
+    <path d="M6 20.5h6" />
+  </NotchIcon>
+);
+const UnderlineIcon = () => (
+  <NotchIcon>
+    <path d="M6.5 4.5v6a5.5 5.5 0 0 0 11 0v-6" />
+    <path d="M5 20h14" />
+  </NotchIcon>
+);
+const UndoIcon = () => (
+  <NotchIcon>
+    <path d="M9 7L4.5 11.5 9 16" />
+    <path d="M4.5 11.5H15a4.5 4.5 0 0 1 0 9h-1.5" />
+  </NotchIcon>
+);
+const ClearIcon = () => (
+  <NotchIcon>
+    <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+  </NotchIcon>
+);
+const DoneIcon = () => (
+  <NotchIcon>
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </NotchIcon>
+);
+const CloseIcon = () => (
+  <NotchIcon size={16}>
+    <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+  </NotchIcon>
+);
+const MicIcon = () => (
+  <NotchIcon>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
+    <path d="M12 17.5V21" />
+    <path d="M8.5 21h7" />
+  </NotchIcon>
+);
+const StopIcon = () => (
+  <svg aria-hidden="true" className="notch-icon" fill="currentColor" height="15" viewBox="0 0 24 24" width="15">
+    <rect x="6.5" y="6.5" width="11" height="11" rx="3" />
+  </svg>
+);
+
+const annotationTools: Array<{ label: string; icon: ReactNode; tool: NotchAnnotationTool }> = [
+  { label: 'Pen', icon: <PenIcon />, tool: 'pen' },
+  { label: 'Rectangle', icon: <RectangleIcon />, tool: 'rectangle' },
+  { label: 'Circle', icon: <CircleIcon />, tool: 'circle' },
+  { label: 'Highlight', icon: <HighlightIcon />, tool: 'highlight' },
+  { label: 'Underline', icon: <UnderlineIcon />, tool: 'underline' }
 ];
 
 function promptPlaceholder(payload: NotchPayload) {
@@ -73,6 +155,11 @@ export function NotchApp() {
   const audioChunksRef = useRef<Blob[]>([]);
   const voiceCancelledRef = useRef(false);
   const voiceHeardSpeechRef = useRef(false);
+  // Auto-listen: start voice capture as soon as the screen is captured after a
+  // shortcut activation. `started` dedupes repeat captured payloads for one
+  // activation; `suppressed` skips auto-listen when returning from annotating.
+  const autoListenStartedRef = useRef(false);
+  const autoListenSuppressedRef = useRef(false);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
   const interaction = getNotchInteractionState({
@@ -527,22 +614,41 @@ export function NotchApp() {
       listen,
       readCurrentPayload: () => nativeBridge.getCurrentNotchPayload(),
       onPayload: (nextPayload) => {
-        if (isMounted) {
-          if (nextPayload.state === 'captured' && !mediaRecorderRef.current) {
-            isSubmittingRef.current = false;
-            setQuery('');
-            setIsSubmitting(false);
-            updateVoiceCaptureState('idle');
-          }
-          if (nextPayload.state === 'listening' && !mediaRecorderRef.current) {
-            isSubmittingRef.current = false;
-            setAnnotations([]);
-            setActiveAnnotationTool(null);
-            setIsSubmitting(false);
-            updateVoiceCaptureState('idle');
-          }
-          setPayload(nextPayload);
+        if (!isMounted) {
+          return;
         }
+        if (nextPayload.state === 'captured' && !mediaRecorderRef.current) {
+          isSubmittingRef.current = false;
+          setQuery('');
+          setIsSubmitting(false);
+          updateVoiceCaptureState('idle');
+        }
+        if (nextPayload.state === 'listening' && !mediaRecorderRef.current) {
+          isSubmittingRef.current = false;
+          setAnnotations([]);
+          setActiveAnnotationTool(null);
+          setIsSubmitting(false);
+          updateVoiceCaptureState('idle');
+          // New activation: re-arm auto-listen for the upcoming captured state.
+          autoListenStartedRef.current = false;
+        }
+        setPayload(nextPayload);
+
+        // Start listening automatically once the screen is captured, so the
+        // shortcut opens the mic without a second click. Deduped per activation.
+        if (
+          nextPayload.state === 'captured' &&
+          !mediaRecorderRef.current &&
+          !isSubmittingRef.current &&
+          !autoListenStartedRef.current &&
+          !autoListenSuppressedRef.current &&
+          Boolean(globalThis.navigator?.mediaDevices?.getUserMedia) &&
+          Boolean(globalThis.MediaRecorder)
+        ) {
+          autoListenStartedRef.current = true;
+          void startVoiceCapture();
+        }
+        autoListenSuppressedRef.current = false;
       }
     })
       .then((nextUnlisten) => {
@@ -556,7 +662,7 @@ export function NotchApp() {
       isMounted = false;
       unlisten?.();
     };
-  }, [nativeBridge, updateVoiceCaptureState]);
+  }, [nativeBridge, startVoiceCapture, updateVoiceCaptureState]);
 
   useEffect(() => {
     let isMounted = true;
@@ -587,6 +693,8 @@ export function NotchApp() {
         setActiveAnnotationTool(null);
         setPayload(capturedPayload);
         setIsSubmitting(false);
+        // Returning from annotating should not re-open the mic.
+        autoListenSuppressedRef.current = true;
         void nativeBridge.showNotch(capturedPayload);
       }),
       listen('voice:start', () => {
@@ -652,7 +760,7 @@ export function NotchApp() {
             type="button"
             onClick={hideNotch}
           >
-            x
+            <CloseIcon />
           </button>
         </header>
 
@@ -694,7 +802,7 @@ export function NotchApp() {
               type="button"
               onClick={toggleVoiceCapture}
             >
-              <span aria-hidden="true" className="notch-voice-icon" />
+              {voiceCaptureState === 'recording' ? <StopIcon /> : <MicIcon />}
             </button>
             <button disabled={!canSubmitCurrent} type="submit">
               {interaction.submitMode === 'voice' ? 'Done' : 'Ask'}
@@ -726,7 +834,7 @@ export function NotchApp() {
                 type="button"
                 onClick={undoAnnotation}
               >
-                <span aria-hidden="true">↶</span>
+                <UndoIcon />
               </button>
               <button
                 aria-label="Clear annotations"
@@ -735,7 +843,7 @@ export function NotchApp() {
                 type="button"
                 onClick={clearAnnotations}
               >
-                <span aria-hidden="true">×</span>
+                <ClearIcon />
               </button>
               <button
                 aria-label="Finish annotations"
@@ -745,7 +853,7 @@ export function NotchApp() {
                 type="button"
                 onClick={finishAnnotation}
               >
-                <span aria-hidden="true">✓</span>
+                <DoneIcon />
               </button>
             </div>
           </div>

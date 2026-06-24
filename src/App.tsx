@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { emit, listen } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
 import {
   type AnnotationPoint,
   type AnnotationTool,
@@ -400,7 +400,6 @@ export function App() {
         type: 'capture_complete'
       });
       showActivationState(nextState);
-      void emit('voice:start', {});
       return;
     }
 

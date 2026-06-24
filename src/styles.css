@@ -371,12 +371,11 @@ input {
   background:
     linear-gradient(180deg, rgb(28 31 36 / 0.88), rgb(13 15 18 / 0.92)),
     rgb(16 18 22 / 0.9);
-  border: 1px solid rgb(255 255 255 / 0.14);
-  border-radius: 36px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 30px;
   box-shadow:
-    0 22px 58px rgb(0 0 0 / 0.42),
-    0 1px 0 rgb(255 255 255 / 0.08),
-    inset 0 1px 0 rgb(255 255 255 / 0.12);
+    0 1px 0 rgb(255 255 255 / 0.06),
+    inset 0 1px 0 rgb(255 255 255 / 0.09);
   color: #f6f8f9;
   display: grid;
   gap: 14px;
@@ -388,14 +387,31 @@ input {
   padding: 18px;
   transform: translateZ(0);
   width: min(100%, 724px);
+  animation: notch-card-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes notch-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notch-card {
+    animation: none;
+  }
 }
 
 .notch-card[data-voice-state="recording"] {
-  border-color: rgb(255 139 88 / 0.3);
+  border-color: rgb(255 139 88 / 0.32);
   box-shadow:
-    0 24px 64px rgb(0 0 0 / 0.46),
-    0 0 0 1px rgb(255 139 88 / 0.08),
-    inset 0 1px 0 rgb(255 255 255 / 0.13);
+    0 0 0 1px rgb(255 139 88 / 0.12),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
 }
 
 .notch-header {
@@ -594,32 +610,10 @@ input {
   color: #ffd7c5;
 }
 
-.notch-prompt .notch-voice-button[data-recording="true"] .notch-voice-icon {
-  border-radius: 5px;
-  height: 15px;
-  width: 15px;
-}
-
-.notch-voice-icon {
-  border: 2px solid currentColor;
-  border-radius: 999px;
+.notch-icon {
   display: block;
-  height: 16px;
-  margin: 0;
-  position: relative;
-  width: 12px;
-}
-
-.notch-voice-icon::after {
-  background: currentColor;
-  border-radius: 999px;
-  bottom: -9px;
-  content: "";
-  height: 7px;
-  left: 50%;
-  position: absolute;
-  transform: translateX(-50%);
-  width: 2px;
+  flex: 0 0 auto;
+  pointer-events: none;
 }
 
 .notch-prompt input:disabled,
@@ -653,37 +647,42 @@ input {
 }
 
 .notch-tools button {
-  background: rgb(255 255 255 / 0.1);
-  border: 1px solid rgb(255 255 255 / 0.12);
+  align-items: center;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.1);
   border-radius: 999px;
-  color: #eef4f6;
+  color: #dfe7ec;
   cursor: pointer;
-  font-size: 1.1rem;
-  font-weight: 800;
+  display: inline-flex;
+  justify-content: center;
   min-height: 40px;
-  min-width: 42px;
+  min-width: 40px;
   padding: 0;
   transition:
-    background-color 100ms ease-out,
-    border-color 100ms ease-out,
-    color 100ms ease-out,
-    opacity 100ms ease-out,
-    transform 100ms ease-out;
+    background-color 120ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out,
+    opacity 120ms ease-out,
+    transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
   white-space: nowrap;
 }
 
 .notch-tools button span {
+  align-items: center;
   color: inherit;
-  display: inline;
-  font-size: 1rem;
+  display: inline-flex;
+  justify-content: center;
   line-height: 1;
   margin: 0;
   overflow: visible;
   -webkit-line-clamp: unset;
 }
 
-.notch-tools button:hover {
+.notch-tools button:not(:disabled):hover {
   background: rgb(255 255 255 / 0.16);
+  border-color: rgb(255 255 255 / 0.2);
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .notch-tools button:not(:disabled):hover,
