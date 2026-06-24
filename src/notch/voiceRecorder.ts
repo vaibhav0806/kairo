@@ -60,6 +60,47 @@ export function createVoiceRecorder(
   };
 }
 
+// Virtual / loopback audio devices (e.g. BlackHole, Soundflower, Loopback) show
+// up as audio inputs but carry no real microphone signal, so getUserMedia's
+// default-device pick can silently capture silence. Prefer the real built-in mic.
+const VIRTUAL_INPUT_RE =
+  /blackhole|soundflower|loopback|aggregate|multi-?output|virtual|vb-?cable|\bcable\b|sound siphon|background music/i;
+const BUILTIN_INPUT_RE = /built-?in|macbook|imac|mac\s?mini|mac\s?studio|internal|microphone/i;
+
+export async function acquireMicrophoneStream(
+  mediaDevices: MediaDevices | undefined = globalThis.navigator?.mediaDevices
+): Promise<MediaStream> {
+  if (!mediaDevices?.getUserMedia) {
+    throw new Error('Microphone recording is unavailable in this runtime.');
+  }
+
+  const baseConstraints: MediaTrackConstraints = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true
+  };
+
+  try {
+    const devices = await mediaDevices.enumerateDevices();
+    const inputs = devices.filter((device) => device.kind === 'audioinput' && device.deviceId);
+    const preferred =
+      inputs.find(
+        (device) => BUILTIN_INPUT_RE.test(device.label) && !VIRTUAL_INPUT_RE.test(device.label)
+      ) ??
+      inputs.find((device) => !VIRTUAL_INPUT_RE.test(device.label) && device.deviceId !== 'default');
+
+    if (preferred?.deviceId) {
+      return await mediaDevices.getUserMedia({
+        audio: { ...baseConstraints, deviceId: { exact: preferred.deviceId } }
+      });
+    }
+  } catch {
+    // Fall through to the default device if enumeration or the scoped request fails.
+  }
+
+  return mediaDevices.getUserMedia({ audio: true });
+}
+
 export function voiceStatusCopy(state: VoiceCaptureState) {
   if (state === 'recording') {
     return {

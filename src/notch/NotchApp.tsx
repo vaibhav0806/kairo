@@ -17,6 +17,7 @@ import type { NotchPayload } from './types';
 import {
   VOICE_SILENCE_THRESHOLD,
   blobToBase64,
+  acquireMicrophoneStream,
   createVoiceRecorder,
   encodeWavFromFloat32Chunks,
   rmsFromTimeDomainData,
@@ -149,6 +150,7 @@ export function NotchApp() {
       }
 
       const audioContext = new AudioContextConstructor();
+      void audioContext.resume().catch(() => {});
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 1024;
       const data = new Uint8Array(analyser.fftSize);
@@ -365,7 +367,7 @@ export function NotchApp() {
     }
 
     try {
-      const stream = await globalThis.navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await acquireMicrophoneStream();
       const { recorder, mimeType } = createVoiceRecorder(stream);
       const AudioContextConstructor = globalThis.AudioContext;
       voiceCancelledRef.current = false;
