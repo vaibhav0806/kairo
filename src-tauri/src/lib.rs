@@ -700,6 +700,27 @@ fn elevate_window_over_fullscreen(window: &tauri::WebviewWindow) {
 #[cfg(not(target_os = "macos"))]
 fn elevate_window_over_fullscreen(_window: &tauri::WebviewWindow) {}
 
+// Hide a Kairo window from screen capture/recording — including our own
+// screenshot of the user's screen — so the tutor never sees Kairo's own UI
+// (the notch/overlay). This is the same NSWindowSharingNone trick Loom/CleanShot
+// use to keep themselves out of captures.
+#[cfg(target_os = "macos")]
+fn exclude_window_from_screen_capture(window: &tauri::WebviewWindow) {
+    let Ok(ns_window_ptr) = window.ns_window() else {
+        return;
+    };
+    if ns_window_ptr.is_null() {
+        return;
+    }
+    let ns_window: &objc2_app_kit::NSWindow =
+        unsafe { &*(ns_window_ptr as *const objc2_app_kit::NSWindow) };
+    #[allow(deprecated)]
+    ns_window.setSharingType(objc2_app_kit::NSWindowSharingType::None);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn exclude_window_from_screen_capture(_window: &tauri::WebviewWindow) {}
+
 // Lazily create the notch window, convert it to a non-activating NSPanel, and
 // apply the level / style / collection behavior that let it float over
 // full-screen Spaces. Idempotent: returns the existing panel once converted.
@@ -736,6 +757,8 @@ fn ensure_notch_panel(app: &tauri::AppHandle) -> Result<PanelHandle<tauri::Wry>,
     panel.set_accepts_mouse_moved_events(true);
     // Keep the panel alive across hide/show so the shortcut can reopen it.
     panel.set_released_when_closed(false);
+    // Keep the notch out of the tutor's screenshot of the user's screen.
+    exclude_window_from_screen_capture(&window);
 
     *notch_state
         .window
@@ -781,6 +804,8 @@ fn configure_overlay_window(
         .map_err(|error| format!("Failed to size overlay: {error}"))?;
 
     elevate_window_over_fullscreen(window);
+    // Keep the overlay (highlights/annotations) out of the tutor's screenshot.
+    exclude_window_from_screen_capture(window);
 
     Ok(())
 }
