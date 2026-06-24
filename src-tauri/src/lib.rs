@@ -580,6 +580,35 @@ fn main_display_bounds() -> DisplayBounds {
     }
 }
 
+// Downscale the full-res (Retina) screenshot before it goes to the vision model:
+// fewer pixels + JPEG = much smaller upload and faster inference, with no
+// meaningful loss for reading on-screen UI. Falls back to the original PNG on any
+// decode/encode failure.
+const SCREENSHOT_MAX_EDGE: u32 = 1280;
+
+fn downscale_screenshot(png_bytes: Vec<u8>) -> (Vec<u8>, &'static str) {
+    let Ok(image) = image::load_from_memory(&png_bytes) else {
+        return (png_bytes, "image/png");
+    };
+    let scaled = if image.width().max(image.height()) > SCREENSHOT_MAX_EDGE {
+        image.resize(
+            SCREENSHOT_MAX_EDGE,
+            SCREENSHOT_MAX_EDGE,
+            image::imageops::FilterType::Triangle,
+        )
+    } else {
+        image
+    };
+    let mut out = std::io::Cursor::new(Vec::new());
+    match scaled
+        .to_rgb8()
+        .write_to(&mut out, image::ImageFormat::Jpeg)
+    {
+        Ok(()) => (out.into_inner(), "image/jpeg"),
+        Err(_) => (png_bytes, "image/png"),
+    }
+}
+
 #[tauri::command]
 fn capture_screen() -> ScreenCaptureResult {
     #[cfg(target_os = "macos")]
@@ -604,14 +633,15 @@ fn capture_screen() -> ScreenCaptureResult {
         match capture_screen_with_screencapture() {
             Ok(bytes) => {
                 use base64::Engine;
-                let byte_length = bytes.len();
-                let image_base64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+                let (image_bytes, mime) = downscale_screenshot(bytes);
+                let byte_length = image_bytes.len();
+                let image_base64 = base64::engine::general_purpose::STANDARD.encode(image_bytes);
                 return ScreenCaptureResult {
                     captured: true,
                     reason: None,
                     blocked_sensitive_app: false,
                     active_app: Some(active_app),
-                    image_mime_type: Some("image/png".to_string()),
+                    image_mime_type: Some(mime.to_string()),
                     image_base64: Some(image_base64),
                     byte_length: Some(byte_length),
                     display_bounds: Some(main_display_bounds()),
