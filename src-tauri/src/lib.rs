@@ -1111,12 +1111,6 @@ struct OcrElement {
     region: ScreenRegion,
     center_x_pct: f64,
     center_y_pct: f64,
-    // Normalized box, top-left origin, [0,1] — used to snap a Computer Use point
-    // to this element's tight box when the point lands inside it.
-    norm_x: f64,
-    norm_y_top: f64,
-    norm_w: f64,
-    norm_h: f64,
 }
 
 // Run Apple's Vision OCR on the screenshot bytes and return on-screen text
@@ -1192,10 +1186,6 @@ fn ocr_screenshot(image_bytes: &[u8], bounds: &OverlayDisplayBounds) -> Vec<OcrE
             },
             center_x_pct: (min_x + bw / 2.0) * 100.0,
             center_y_pct: (1.0 - (min_y + bh / 2.0)) * 100.0,
-            norm_x: min_x,
-            norm_y_top: 1.0 - (min_y + bh),
-            norm_w: bw,
-            norm_h: bh,
         });
         if elements.len() >= 200 {
             break;
@@ -1240,10 +1230,11 @@ struct DetectedPoint {
 const COMPUTER_USE_RESOLUTIONS: [(u32, u32); 3] = [(1024, 768), (1280, 800), (1366, 768)];
 
 // Locate the on-screen element the user is asking about using Claude's Computer
-// Use API. The `computer` tool definition activates Claude's specialized
+// Use API. The computer tool definition activates Claude's specialized
 // pixel-counting training, which grounds far more reliably than asking a normal
 // vision model for coordinates — and works on ANY app/OS (icons, Blender, etc.),
-// not just text. Returns None if no element is relevant or the key is unset.
+// not just text. Claude clicks the element's center -> a precise point. None if
+// nothing relevant / no key.
 async fn detect_element_point(
     image_base64: &str,
     bounds: &OverlayDisplayBounds,
@@ -1288,7 +1279,7 @@ async fn detect_element_point(
     let resized_base64 = base64::engine::general_purpose::STANDARD.encode(out.into_inner());
 
     let prompt = format!(
-        "The user asked this while looking at their screen: \"{user_query}\"\n\nIf there is a specific on-screen element (button, icon, menu item, tool, link, panel, label, etc.) the user is asking about or should look at, click on that element. If the question is purely conceptual with no specific element to point to, reply with text saying \"no specific element\"."
+        "The user asked this while looking at their screen: \"{user_query}\"\n\nIf there is a specific on-screen element (button, icon, menu item, tool, link, panel, label, etc.) the user is asking about or should look at, click on the exact center of that element. If the question is purely conceptual with no specific element to point to, reply with text saying \"no specific element\"."
     );
 
     let body = json!({
@@ -1357,102 +1348,61 @@ async fn detect_element_point(
     None
 }
 
-// Turn a detected point into a visual target. If the point lands inside an OCR'd
-// text element, snap to that element's tight (padded) box. Otherwise — icons /
-// non-text — return a small square `pointer` MARKER centered on the point (a ring,
-// Clicky-style), since a point has no reliable size to box. Returns
-// (region, label, is_marker).
-fn build_target_from_point(
+// Strip a leading/trailing ```json ... ``` markdown fence if the model wrapped
+// its JSON in one (it sometimes does despite response_format json_object). Without
+// this the native parse bails and ungrounded targets leak to the frontend.
+fn json_body(content: &str) -> &str {
+    let trimmed = content.trim();
+    if !trimmed.starts_with("```") {
+        return trimmed;
+    }
+    let inner = trimmed.trim_start_matches('`');
+    let inner = inner.strip_prefix("json").unwrap_or(inner);
+    inner.trim_matches(|c: char| c == '`' || c.is_whitespace())
+}
+
+// Replace the model's visualTargets with a single animated `pointer` anchored at
+// the exact point Claude clicked. The point is the ground truth; the frontend
+// draws a cool cursor whose tip sits on it (zero size error, works for anything).
+fn apply_point_target(
+    content: String,
     point: &DetectedPoint,
-    elements: &[OcrElement],
     bounds: &OverlayDisplayBounds,
-) -> (ScreenRegion, Option<String>, bool) {
+) -> String {
+    let Ok(mut parsed) = serde_json::from_str::<Value>(json_body(&content)) else {
+        return content;
+    };
     let scale_factor = if bounds.scale_factor > 0.0 {
         bounds.scale_factor
     } else {
         1.0
     };
-
-    if let Some(element) = elements.iter().find(|e| {
-        point.norm_x >= e.norm_x
-            && point.norm_x <= e.norm_x + e.norm_w
-            && point.norm_y_top >= e.norm_y_top
-            && point.norm_y_top <= e.norm_y_top + e.norm_h
-    }) {
-        // Pad the tight text box so the highlight frames the label comfortably
-        // instead of hugging the glyphs.
-        let region = &element.region;
-        let pad_x = region.width * 0.18 + bounds.width * scale_factor * 0.006;
-        let pad_y = region.height * 0.45 + bounds.height * scale_factor * 0.006;
-        return (
-            ScreenRegion {
-                x: region.x - pad_x,
-                y: region.y - pad_y,
-                width: region.width + pad_x * 2.0,
-                height: region.height + pad_y * 2.0,
-            },
-            Some(element.text.clone()),
-            false,
-        );
-    }
-
-    // Non-text: a small square (rendered as a ring) centered on the exact point.
-    // Square in physical px so the ring is circular regardless of display aspect.
-    let marker_px = bounds.width * scale_factor * 0.04;
-    let center_x = (bounds.x + point.norm_x * bounds.width) * scale_factor;
-    let center_y = (bounds.y + point.norm_y_top * bounds.height) * scale_factor;
-    (
-        ScreenRegion {
-            x: center_x - marker_px / 2.0,
-            y: center_y - marker_px / 2.0,
-            width: marker_px,
-            height: marker_px,
-        },
-        None,
-        true,
-    )
-}
-
-// Replace the model's visualTargets with a single target grounded on the Computer
-// Use point: a box for text, a `pointer` ring marker for icons/non-text.
-fn apply_point_target(
-    content: String,
-    point: &DetectedPoint,
-    elements: &[OcrElement],
-    bounds: &OverlayDisplayBounds,
-) -> String {
-    let Ok(mut parsed) = serde_json::from_str::<Value>(&content) else {
-        return content;
-    };
-    let (region, snapped_label, is_marker) = build_target_from_point(point, elements, bounds);
-    let answer_label = parsed
+    let label = parsed
         .get("visualTargets")
         .and_then(Value::as_array)
         .and_then(|targets| targets.first())
         .and_then(|target| target.get("label"))
         .and_then(Value::as_str)
-        .map(str::to_string);
-    let kind = if is_marker {
-        "pointer".to_string()
-    } else {
-        parsed
-            .get("visualTargets")
-            .and_then(Value::as_array)
-            .and_then(|targets| targets.first())
-            .and_then(|target| target.get("kind"))
-            .and_then(Value::as_str)
-            .filter(|k| matches!(*k, "highlight_box" | "underline" | "spotlight"))
-            .unwrap_or("highlight_box")
-            .to_string()
-    };
-    let label = answer_label.or(snapped_label).unwrap_or_default();
+        .map(str::to_string)
+        .unwrap_or_default();
 
+    // A small square centered on the point (square in physical px so the circle
+    // is round regardless of display aspect). The frontend draws a pulsating
+    // circle + cursor inside it, centered on the exact point.
+    let marker_px = bounds.width * scale_factor * 0.05;
+    let center_x = (bounds.x + point.norm_x * bounds.width) * scale_factor;
+    let center_y = (bounds.y + point.norm_y_top * bounds.height) * scale_factor;
     let target = json!({
-        "kind": kind,
+        "kind": "pointer",
         "targetId": "computer-use",
         "label": label,
         "confidence": 0.95,
-        "screenRegion": { "x": region.x, "y": region.y, "width": region.width, "height": region.height },
+        "screenRegion": {
+            "x": center_x - marker_px / 2.0,
+            "y": center_y - marker_px / 2.0,
+            "width": marker_px,
+            "height": marker_px,
+        },
     });
     if let Some(object) = parsed.as_object_mut() {
         object.insert("visualTargets".to_string(), Value::Array(vec![target]));
@@ -1487,7 +1437,7 @@ fn build_screen_elements_block(elements: &[OcrElement]) -> String {
 // dropped (we can't ground them), which keeps highlights accurate. The model
 // never produces coordinates — they come from OCR.
 fn ground_visual_targets(content: String, elements: &[OcrElement]) -> String {
-    let Ok(mut parsed) = serde_json::from_str::<Value>(&content) else {
+    let Ok(mut parsed) = serde_json::from_str::<Value>(json_body(&content)) else {
         return content;
     };
     let Some(raw_targets) = parsed
@@ -1981,13 +1931,11 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
     let (answer_result, detected_point) = tokio::join!(answer_future, point_future);
     let content = answer_result?;
 
-    // Prefer the Computer Use point — it grounds any element (icons/non-text/any
-    // app), not just OCR'd text. Fall back to OCR Set-of-Mark when it found nothing
-    // (e.g. no ANTHROPIC_API_KEY, or a purely conceptual question).
+    // Prefer Claude's Computer Use point — it grounds any element (icons/non-text/
+    // any app), not just OCR'd text. Fall back to OCR Set-of-Mark when it found
+    // nothing (e.g. no ANTHROPIC_API_KEY, or a purely conceptual question).
     match (detected_point, input.screen.display_bounds.as_ref()) {
-        (Some(point), Some(bounds)) => {
-            Ok(apply_point_target(content, &point, &ocr_elements, bounds))
-        }
+        (Some(point), Some(bounds)) => Ok(apply_point_target(content, &point, bounds)),
         _ => Ok(ground_visual_targets(content, &ocr_elements)),
     }
 }

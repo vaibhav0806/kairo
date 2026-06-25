@@ -91,10 +91,13 @@ function normalizeTarget(target: ProviderVisualTarget, index: number): VisualTar
 
 function fallbackResponse(input: TutorTurnInput, warning: string, rawContent?: string): TutorResponse {
   const providerText = rawContent?.trim();
+  // Never surface raw JSON: a parse failure must not be read aloud or shown
+  // verbatim. Only pass through genuine plain-text answers.
+  const looksLikeJson = !!providerText && /^[`{[]/.test(providerText);
   const visibleText =
-    providerText && providerText.length > 0
+    providerText && providerText.length > 0 && !looksLikeJson
       ? providerText
-      : 'I need one more clear prompt.';
+      : "Sorry, I couldn't read that clearly — could you ask again?";
 
   return {
     mode: 'stuck_help',

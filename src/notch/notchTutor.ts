@@ -18,6 +18,19 @@ export type AskTutorFromNotchOptions = {
   screenCapture?: NativeScreenCapture | null;
 };
 
+// The AI-drawn highlight is transient — auto-dismissed after this long so it
+// doesn't linger as a stale mark once the user scrolls / switches apps. A new
+// turn cancels any pending dismiss.
+const VISUAL_TARGET_DISMISS_MS = 5000;
+let visualTargetDismissTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearVisualTargetDismiss() {
+  if (visualTargetDismissTimer) {
+    clearTimeout(visualTargetDismissTimer);
+    visualTargetDismissTimer = null;
+  }
+}
+
 export async function askTutorFromNotch({
   query,
   nativeBridge,
@@ -26,6 +39,7 @@ export async function askTutorFromNotch({
   annotations = [],
   screenCapture: providedCapture
 }: AskTutorFromNotchOptions): Promise<NotchPayload> {
+  clearVisualTargetDismiss();
   try {
     const mockPlanner = createMockTutorPlanner();
     const planner = createRuntimeTutorPlanner({
@@ -66,6 +80,11 @@ export async function askTutorFromNotch({
         displayBounds: screenCapture.displayBounds,
         targets: response.visualTargets
       });
+      // Auto-dismiss the pointer so it doesn't linger after the user moves on.
+      visualTargetDismissTimer = setTimeout(() => {
+        void nativeBridge.hideOverlay();
+        visualTargetDismissTimer = null;
+      }, VISUAL_TARGET_DISMISS_MS);
     } else {
       await nativeBridge.hideOverlay();
     }
