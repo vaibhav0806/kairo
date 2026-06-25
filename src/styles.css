@@ -343,43 +343,57 @@ input {
     0 0 26px rgb(117 232 219 / 0.55);
 }
 
-/* Pointer: a sleek purple-gradient cursor whose TIP sits on the exact point
-   Claude marked, with staggered purple pulse rings behind it. The div is a small
-   square centered on the point; pings expand from its center, the cursor tip is
-   anchored at that center. */
+/* Pointer: a small purple "main circle" on the exact point Claude marked, a
+   pulsing ring expanding around it for attention, and a compact purple-gradient
+   arrow whose tip rests on the point. All fixed-size and centered on the point
+   (the div is centered on the point; children center via 50% + negative margins). */
 .overlay-target.pointer {
   position: absolute;
 }
 
-/* Two staggered rings expanding from the point — the pulse. */
-.overlay-pointer-ping {
-  animation: overlay-pointer-ping 1.6s ease-out infinite;
-  border: 2px solid rgb(168 109 247 / 0.65);
+/* The steady main circle on the point. */
+.overlay-pointer-ring {
+  animation: overlay-pointer-in 0.3s cubic-bezier(0.2, 1.35, 0.4, 1) both;
+  border: 2.5px solid #a78bfa;
   border-radius: 999px;
-  inset: 0;
+  box-shadow: 0 0 10px rgb(124 58 237 / 0.6);
+  height: 18px;
+  left: 50%;
+  margin: -9px 0 0 -9px;
   position: absolute;
+  top: 50%;
+  width: 18px;
 }
 
-.overlay-pointer-ping.is-delayed {
-  animation-delay: 0.8s;
+/* Pulsing ring expanding outward from the main circle — draws attention. */
+.overlay-pointer-ping {
+  animation: overlay-pointer-ping 1.5s ease-out infinite;
+  border: 2px solid rgb(168 139 250 / 0.7);
+  border-radius: 999px;
+  height: 18px;
+  left: 50%;
+  margin: -9px 0 0 -9px;
+  position: absolute;
+  top: 50%;
+  width: 18px;
 }
 
-/* The cursor. Tip is at viewBox (23,1); rendered at 28x37 that lands at
-   ~(27px, 1px) from the SVG's top-left, so we offset by that to put the tip on
-   the point, and scale from the tip so animations keep it anchored. */
+/* Compact arrow. Tip at viewBox (23,1); rendered 18x24 puts the tip at
+   ~(17px, 1px) from the SVG's top-left, so offset by that to land it on the
+   point, and scale from the tip so animations keep it anchored. */
 .overlay-pointer-cursor {
   animation:
-    overlay-pointer-in 0.32s cubic-bezier(0.2, 1.35, 0.4, 1) both,
-    overlay-pointer-bob 1.6s 0.32s ease-in-out infinite;
-  filter: drop-shadow(0 3px 5px rgb(0 0 0 / 0.45)) drop-shadow(0 0 9px rgb(124 58 237 / 0.6));
-  height: 37px;
+    overlay-pointer-in 0.3s 0.04s cubic-bezier(0.2, 1.35, 0.4, 1) both,
+    overlay-pointer-bob 1.6s 0.34s ease-in-out infinite;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.45)) drop-shadow(0 0 7px rgb(124 58 237 / 0.6));
+  height: 24px;
   left: 50%;
-  margin-left: -27px;
+  margin-left: -17px;
   margin-top: -1px;
   position: absolute;
   top: 50%;
-  transform-origin: 27px 1px;
-  width: 28px;
+  transform-origin: 17px 1px;
+  width: 18px;
 }
 
 .overlay-pointer-label {
@@ -390,10 +404,11 @@ input {
   font-size: 0.72rem;
   font-weight: 700;
   left: 50%;
-  margin-left: 14px;
+  margin-left: 16px;
   padding: 3px 8px;
   position: absolute;
   top: 50%;
+  transform: translateY(-50%);
   white-space: nowrap;
 }
 
@@ -421,7 +436,7 @@ input {
 @keyframes overlay-pointer-ping {
   0% {
     opacity: 0.75;
-    transform: scale(0.5);
+    transform: scale(1);
   }
   100% {
     opacity: 0;

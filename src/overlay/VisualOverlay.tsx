@@ -18,8 +18,9 @@ export function OverlayTarget({
     ? normalizeRegionToDisplayPercent(target.screenRegion, displayBounds)
     : normalizeRegionToPercent(target.screenRegion, dimensions);
 
-  // A pointer marks a single spot: draw a pulsating circle centered on the point,
-  // with a small cursor resting on it (Clicky-style).
+  // A pointer marks a single spot: a small main circle on the point, a pulsating
+  // ring around it for attention, and a compact purple-gradient arrow whose tip
+  // rests on the point. All fixed-size + centered on the point.
   if (target.kind === 'pointer') {
     return (
       <div
@@ -33,7 +34,7 @@ export function OverlayTarget({
         }}
       >
         <span className="overlay-pointer-ping" aria-hidden="true" />
-        <span className="overlay-pointer-ping is-delayed" aria-hidden="true" />
+        <span className="overlay-pointer-ring" aria-hidden="true" />
         <svg className="overlay-pointer-cursor" viewBox="0 0 24 32" aria-hidden="true">
           <defs>
             <linearGradient id="kairo-pointer-grad" x1="0" y1="0" x2="1" y2="1">

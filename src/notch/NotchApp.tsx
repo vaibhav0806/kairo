@@ -122,6 +122,9 @@ export function NotchApp() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const answerAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Dismisses the AI pointer overlay; armed when answer speech finishes (or after
+  // a fallback delay when there is no speech).
+  const overlayDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceMonitorCleanupRef = useRef<(() => void) | null>(null);
   const pcmCaptureCleanupRef = useRef<(() => void) | null>(null);
   const pcmChunksRef = useRef<Float32Array[]>([]);
@@ -181,6 +184,26 @@ export function NotchApp() {
     answerAudioRef.current.src = '';
     answerAudioRef.current = null;
   }, []);
+
+  const cancelOverlayDismiss = useCallback(() => {
+    if (overlayDismissTimerRef.current) {
+      clearTimeout(overlayDismissTimerRef.current);
+      overlayDismissTimerRef.current = null;
+    }
+  }, []);
+
+  // Hide the AI pointer overlay after `delayMs`. Called with the grace delay once
+  // answer speech finishes, so the pointer lasts the whole TTS playback + grace.
+  const scheduleOverlayDismiss = useCallback(
+    (delayMs: number) => {
+      cancelOverlayDismiss();
+      overlayDismissTimerRef.current = setTimeout(() => {
+        overlayDismissTimerRef.current = null;
+        void nativeBridge.hideOverlay();
+      }, delayMs);
+    },
+    [cancelOverlayDismiss, nativeBridge]
+  );
 
   const stopActiveRecording = useCallback(
     (cancelled = false) => {
@@ -279,8 +302,13 @@ export function NotchApp() {
   const playAnswerAudio = useCallback(
     async (text: string) => {
       stopAnswerPlayback();
+      // Keep the AI pointer up for the whole answer, then 5s past where speech
+      // ends. With no speech, fall back to a fixed window so it still clears.
+      const POINTER_GRACE_AFTER_SPEECH_MS = 5000;
+      const POINTER_FALLBACK_MS = 8000;
       const trimmedText = text.trim();
       if (!trimmedText) {
+        scheduleOverlayDismiss(POINTER_FALLBACK_MS);
         return;
       }
 
@@ -288,17 +316,20 @@ export function NotchApp() {
         const result = await nativeBridge.synthesizeSpeech({ text: trimmedText });
         const audioUrl = buildAudioDataUrl(result);
         if (!audioUrl) {
+          scheduleOverlayDismiss(POINTER_FALLBACK_MS);
           return;
         }
 
         const audio = new Audio(audioUrl);
         answerAudioRef.current = audio;
+        audio.onended = () => scheduleOverlayDismiss(POINTER_GRACE_AFTER_SPEECH_MS);
         await audio.play();
       } catch {
         // Speech playback is best-effort; the answer should remain visible if audio fails.
+        scheduleOverlayDismiss(POINTER_FALLBACK_MS);
       }
     },
-    [nativeBridge, stopAnswerPlayback]
+    [nativeBridge, scheduleOverlayDismiss, stopAnswerPlayback]
   );
 
   const submitQuery = useCallback(
@@ -310,6 +341,8 @@ export function NotchApp() {
 
       const thinkingPayload = activationStateToNotchPayload('thinking');
       stopAnswerPlayback();
+      // A new turn supersedes any pending pointer dismiss from the last answer.
+      cancelOverlayDismiss();
       isSubmittingRef.current = true;
       setIsSubmitting(true);
       updateVoiceCaptureState('idle');
@@ -341,6 +374,7 @@ export function NotchApp() {
     },
     [
       annotations,
+      cancelOverlayDismiss,
       env.aiProvider,
       env.defaultSkill,
       nativeBridge,
@@ -387,6 +421,7 @@ export function NotchApp() {
 
   const hideNotch = useCallback(() => {
     stopAnswerPlayback();
+    cancelOverlayDismiss();
     voiceCancelledRef.current = true;
     stopActiveRecording(true);
     mediaRecorderRef.current = null;
@@ -406,6 +441,7 @@ export function NotchApp() {
     void nativeBridge.hideOverlay();
     void nativeBridge.hideNotch();
   }, [
+    cancelOverlayDismiss,
     nativeBridge,
     stopActiveRecording,
     stopAnswerPlayback,
