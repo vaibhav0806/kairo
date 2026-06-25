@@ -1099,14 +1099,463 @@ fn provider_timeout_ms(raw_value: Option<String>) -> u64 {
         .unwrap_or(30_000)
 }
 
+// A text element detected on the user's screen by OCR, with its real on-screen
+// region. The LLM picks elements by `id` (Set-of-Mark grounding) instead of
+// guessing pixel coordinates, which vision models do unreliably.
+#[derive(Debug, Clone)]
+struct OcrElement {
+    id: u32,
+    text: String,
+    // Physical-pixel region, matching the displayBounds.scaleFactor convention the
+    // overlay uses (it divides by scaleFactor to get logical points).
+    region: ScreenRegion,
+    center_x_pct: f64,
+    center_y_pct: f64,
+    // Normalized box, top-left origin, [0,1] — used to snap a Computer Use point
+    // to this element's tight box when the point lands inside it.
+    norm_x: f64,
+    norm_y_top: f64,
+    norm_w: f64,
+    norm_h: f64,
+}
+
+// Run Apple's Vision OCR on the screenshot bytes and return on-screen text
+// elements with accurate regions. Synchronous (Vision's performRequests blocks).
+#[cfg(target_os = "macos")]
+fn ocr_screenshot(image_bytes: &[u8], bounds: &OverlayDisplayBounds) -> Vec<OcrElement> {
+    use objc2::runtime::AnyObject;
+    use objc2::AllocAnyThread;
+    use objc2_foundation::{NSArray, NSData, NSDictionary, NSString};
+    use objc2_vision::{
+        VNImageRequestHandler, VNRecognizeTextRequest, VNRequest, VNRequestTextRecognitionLevel,
+    };
+
+    let data = NSData::with_bytes(image_bytes);
+    let request = VNRecognizeTextRequest::new();
+    unsafe {
+        request.setRecognitionLevel(VNRequestTextRecognitionLevel::Accurate);
+        request.setUsesLanguageCorrection(true);
+    }
+
+    let options: objc2::rc::Retained<NSDictionary<NSString, AnyObject>> = NSDictionary::new();
+    let handler =
+        VNImageRequestHandler::initWithData_options(VNImageRequestHandler::alloc(), &data, &options);
+
+    let request_ref: &VNRequest = &request;
+    let requests = NSArray::from_slice(&[request_ref]);
+    if handler.performRequests_error(&requests).is_err() {
+        return Vec::new();
+    }
+
+    let Some(results) = request.results() else {
+        return Vec::new();
+    };
+
+    let scale_factor = if bounds.scale_factor > 0.0 {
+        bounds.scale_factor
+    } else {
+        1.0
+    };
+    let mut elements: Vec<OcrElement> = Vec::new();
+    for observation in results.iter() {
+        if (unsafe { observation.confidence() } as f64) < 0.3 {
+            continue;
+        }
+        let candidates = observation.topCandidates(1);
+        let Some(top) = candidates.firstObject() else {
+            continue;
+        };
+        let text = top.string().to_string();
+        let text = text.trim().to_string();
+        if text.is_empty() {
+            continue;
+        }
+
+        // Vision boundingBox: normalized [0,1], origin BOTTOM-left of the image.
+        let bbox = unsafe { observation.boundingBox() };
+        let (min_x, min_y) = (bbox.origin.x, bbox.origin.y);
+        let (bw, bh) = (bbox.size.width, bbox.size.height);
+        if bw <= 0.0 || bh <= 0.0 {
+            continue;
+        }
+        let left_logical = bounds.x + min_x * bounds.width;
+        // Flip Y: bottom-left normalized -> top-left logical.
+        let top_logical = bounds.y + (1.0 - (min_y + bh)) * bounds.height;
+        elements.push(OcrElement {
+            id: elements.len() as u32 + 1,
+            text,
+            region: ScreenRegion {
+                x: left_logical * scale_factor,
+                y: top_logical * scale_factor,
+                width: bw * bounds.width * scale_factor,
+                height: bh * bounds.height * scale_factor,
+            },
+            center_x_pct: (min_x + bw / 2.0) * 100.0,
+            center_y_pct: (1.0 - (min_y + bh / 2.0)) * 100.0,
+            norm_x: min_x,
+            norm_y_top: 1.0 - (min_y + bh),
+            norm_w: bw,
+            norm_h: bh,
+        });
+        if elements.len() >= 200 {
+            break;
+        }
+    }
+    elements
+}
+
+#[cfg(not(target_os = "macos"))]
+fn ocr_screenshot(_image_bytes: &[u8], _bounds: &OverlayDisplayBounds) -> Vec<OcrElement> {
+    Vec::new()
+}
+
+// OCR the tutor turn's screenshot (the same image the model sees). Empty when no
+// screenshot is available — pointing is then disabled rather than hallucinated.
+fn ocr_tutor_screenshot(input: &TutorTurnInput) -> Vec<OcrElement> {
+    if !input.screen.captured {
+        return Vec::new();
+    }
+    let (Some(image_base64), Some(bounds)) =
+        (&input.screen.image_base64, &input.screen.display_bounds)
+    else {
+        return Vec::new();
+    };
+    use base64::Engine;
+    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(image_base64) else {
+        return Vec::new();
+    };
+    ocr_screenshot(&bytes, bounds)
+}
+
+// A point on the user's screen, normalized [0,1] with a top-left origin.
+#[derive(Debug, Clone)]
+struct DetectedPoint {
+    norm_x: f64,
+    norm_y_top: f64,
+}
+
+// Anthropic-recommended Computer Use resolutions (width, height). We pick the one
+// whose aspect ratio is closest to the display to avoid distorting the image
+// Claude sees, which improves coordinate accuracy (per Clicky's findings).
+const COMPUTER_USE_RESOLUTIONS: [(u32, u32); 3] = [(1024, 768), (1280, 800), (1366, 768)];
+
+// Locate the on-screen element the user is asking about using Claude's Computer
+// Use API. The `computer` tool definition activates Claude's specialized
+// pixel-counting training, which grounds far more reliably than asking a normal
+// vision model for coordinates — and works on ANY app/OS (icons, Blender, etc.),
+// not just text. Returns None if no element is relevant or the key is unset.
+async fn detect_element_point(
+    image_base64: &str,
+    bounds: &OverlayDisplayBounds,
+    user_query: &str,
+) -> Option<DetectedPoint> {
+    let api_key = provider_env_optional("ANTHROPIC_API_KEY")?;
+    if api_key.trim().is_empty() {
+        return None;
+    }
+    let model = provider_env("ANTHROPIC_COMPUTER_USE_MODEL", "claude-sonnet-4-6");
+    let base_url = provider_env("ANTHROPIC_BASE_URL", "https://api.anthropic.com");
+    let beta = provider_env("ANTHROPIC_COMPUTER_USE_BETA", "computer-use-2025-11-24");
+
+    // Pick the resolution closest to the display's aspect ratio, then stretch the
+    // screenshot to it. Claude points in that space; we map back proportionally.
+    let display_aspect = if bounds.height > 0.0 {
+        bounds.width / bounds.height
+    } else {
+        1.6
+    };
+    let (target_w, target_h) = COMPUTER_USE_RESOLUTIONS
+        .iter()
+        .copied()
+        .min_by(|a, b| {
+            let da = (display_aspect - a.0 as f64 / a.1 as f64).abs();
+            let db = (display_aspect - b.0 as f64 / b.1 as f64).abs();
+            da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .unwrap_or((1280, 800));
+
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(image_base64)
+        .ok()?;
+    let image = image::load_from_memory(&bytes).ok()?;
+    let resized = image.resize_exact(target_w, target_h, image::imageops::FilterType::Triangle);
+    let mut out = std::io::Cursor::new(Vec::new());
+    resized
+        .to_rgb8()
+        .write_to(&mut out, image::ImageFormat::Jpeg)
+        .ok()?;
+    let resized_base64 = base64::engine::general_purpose::STANDARD.encode(out.into_inner());
+
+    let prompt = format!(
+        "The user asked this while looking at their screen: \"{user_query}\"\n\nIf there is a specific on-screen element (button, icon, menu item, tool, link, panel, label, etc.) the user is asking about or should look at, click on that element. If the question is purely conceptual with no specific element to point to, reply with text saying \"no specific element\"."
+    );
+
+    let body = json!({
+        "model": model,
+        "max_tokens": 256,
+        "tools": [{
+            "type": "computer_20251124",
+            "name": "computer",
+            "display_width_px": target_w,
+            "display_height_px": target_h,
+        }],
+        "messages": [{
+            "role": "user",
+            "content": [
+                { "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": resized_base64 } },
+                { "type": "text", "text": prompt },
+            ],
+        }],
+    });
+
+    let response = shared_http_client()
+        .post(format!("{}/v1/messages", base_url.trim_end_matches('/')))
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header("anthropic-beta", beta)
+        .timeout(Duration::from_secs(20))
+        .json(&body)
+        .send()
+        .await
+        .ok()?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        eprintln!(
+            "[cu-diag] computer-use API {status}: {}",
+            text.chars().take(220).collect::<String>()
+        );
+        return None;
+    }
+
+    let payload: Value = response.json().await.ok()?;
+    let content = payload.get("content")?.as_array()?;
+    for block in content {
+        if block.get("type").and_then(Value::as_str) != Some("tool_use") {
+            continue;
+        }
+        let Some(coordinate) = block
+            .get("input")
+            .and_then(|input| input.get("coordinate"))
+            .and_then(Value::as_array)
+        else {
+            continue;
+        };
+        if coordinate.len() != 2 {
+            continue;
+        }
+        let (Some(x), Some(y)) = (coordinate[0].as_f64(), coordinate[1].as_f64()) else {
+            continue;
+        };
+        return Some(DetectedPoint {
+            norm_x: (x / target_w as f64).clamp(0.0, 1.0),
+            norm_y_top: (y / target_h as f64).clamp(0.0, 1.0),
+        });
+    }
+    None
+}
+
+// Turn a detected point into a visual target. If the point lands inside an OCR'd
+// text element, snap to that element's tight (padded) box. Otherwise — icons /
+// non-text — return a small square `pointer` MARKER centered on the point (a ring,
+// Clicky-style), since a point has no reliable size to box. Returns
+// (region, label, is_marker).
+fn build_target_from_point(
+    point: &DetectedPoint,
+    elements: &[OcrElement],
+    bounds: &OverlayDisplayBounds,
+) -> (ScreenRegion, Option<String>, bool) {
+    let scale_factor = if bounds.scale_factor > 0.0 {
+        bounds.scale_factor
+    } else {
+        1.0
+    };
+
+    if let Some(element) = elements.iter().find(|e| {
+        point.norm_x >= e.norm_x
+            && point.norm_x <= e.norm_x + e.norm_w
+            && point.norm_y_top >= e.norm_y_top
+            && point.norm_y_top <= e.norm_y_top + e.norm_h
+    }) {
+        // Pad the tight text box so the highlight frames the label comfortably
+        // instead of hugging the glyphs.
+        let region = &element.region;
+        let pad_x = region.width * 0.18 + bounds.width * scale_factor * 0.006;
+        let pad_y = region.height * 0.45 + bounds.height * scale_factor * 0.006;
+        return (
+            ScreenRegion {
+                x: region.x - pad_x,
+                y: region.y - pad_y,
+                width: region.width + pad_x * 2.0,
+                height: region.height + pad_y * 2.0,
+            },
+            Some(element.text.clone()),
+            false,
+        );
+    }
+
+    // Non-text: a small square (rendered as a ring) centered on the exact point.
+    // Square in physical px so the ring is circular regardless of display aspect.
+    let marker_px = bounds.width * scale_factor * 0.04;
+    let center_x = (bounds.x + point.norm_x * bounds.width) * scale_factor;
+    let center_y = (bounds.y + point.norm_y_top * bounds.height) * scale_factor;
+    (
+        ScreenRegion {
+            x: center_x - marker_px / 2.0,
+            y: center_y - marker_px / 2.0,
+            width: marker_px,
+            height: marker_px,
+        },
+        None,
+        true,
+    )
+}
+
+// Replace the model's visualTargets with a single target grounded on the Computer
+// Use point: a box for text, a `pointer` ring marker for icons/non-text.
+fn apply_point_target(
+    content: String,
+    point: &DetectedPoint,
+    elements: &[OcrElement],
+    bounds: &OverlayDisplayBounds,
+) -> String {
+    let Ok(mut parsed) = serde_json::from_str::<Value>(&content) else {
+        return content;
+    };
+    let (region, snapped_label, is_marker) = build_target_from_point(point, elements, bounds);
+    let answer_label = parsed
+        .get("visualTargets")
+        .and_then(Value::as_array)
+        .and_then(|targets| targets.first())
+        .and_then(|target| target.get("label"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let kind = if is_marker {
+        "pointer".to_string()
+    } else {
+        parsed
+            .get("visualTargets")
+            .and_then(Value::as_array)
+            .and_then(|targets| targets.first())
+            .and_then(|target| target.get("kind"))
+            .and_then(Value::as_str)
+            .filter(|k| matches!(*k, "highlight_box" | "underline" | "spotlight"))
+            .unwrap_or("highlight_box")
+            .to_string()
+    };
+    let label = answer_label.or(snapped_label).unwrap_or_default();
+
+    let target = json!({
+        "kind": kind,
+        "targetId": "computer-use",
+        "label": label,
+        "confidence": 0.95,
+        "screenRegion": { "x": region.x, "y": region.y, "width": region.width, "height": region.height },
+    });
+    if let Some(object) = parsed.as_object_mut() {
+        object.insert("visualTargets".to_string(), Value::Array(vec![target]));
+    }
+    serde_json::to_string(&parsed).unwrap_or(content)
+}
+
+// The on-screen text elements, listed for the model with ids + center positions.
+fn build_screen_elements_block(elements: &[OcrElement]) -> String {
+    if elements.is_empty() {
+        return String::new();
+    }
+    let mut lines = Vec::with_capacity(elements.len() + 1);
+    lines.push(
+        "SCREEN ELEMENTS — text currently visible on the user's screen. Each line is `id: \"text\" @ x%,y%`, where x%,y% is the element's center (x from the left edge, y from the top). To point at or highlight something, set a visualTargets entry's elementId to the id of the matching element below. Only use ids that appear here."
+            .to_string(),
+    );
+    for element in elements {
+        lines.push(format!(
+            "{}: \"{}\" @ {:.0}%,{:.0}%",
+            element.id,
+            element.text.replace('"', "'").replace('\n', " "),
+            element.center_x_pct,
+            element.center_y_pct
+        ));
+    }
+    lines.join("\n")
+}
+
+// Replace each model-chosen visualTarget's elementId with the real OCR region for
+// that element. Targets whose elementId doesn't match a detected element are
+// dropped (we can't ground them), which keeps highlights accurate. The model
+// never produces coordinates — they come from OCR.
+fn ground_visual_targets(content: String, elements: &[OcrElement]) -> String {
+    let Ok(mut parsed) = serde_json::from_str::<Value>(&content) else {
+        return content;
+    };
+    let Some(raw_targets) = parsed
+        .get("visualTargets")
+        .and_then(Value::as_array)
+        .cloned()
+    else {
+        return content;
+    };
+
+    let mut grounded: Vec<Value> = Vec::new();
+    for target in &raw_targets {
+        let element_id = target
+            .get("elementId")
+            .or_else(|| target.get("targetElementId"))
+            .and_then(|value| {
+                value
+                    .as_u64()
+                    .or_else(|| value.as_str().and_then(|s| s.trim().parse::<u64>().ok()))
+            });
+        let Some(element_id) = element_id else {
+            continue;
+        };
+        let Some(element) = elements.iter().find(|e| e.id as u64 == element_id) else {
+            continue;
+        };
+        let kind = match target.get("kind").and_then(Value::as_str) {
+            Some(k @ ("highlight_box" | "arrow" | "underline" | "spotlight" | "ghost_cursor")) => k,
+            _ => "highlight_box",
+        };
+        let label = target
+            .get("label")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| element.text.clone());
+        let confidence = target
+            .get("confidence")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.9);
+        grounded.push(json!({
+            "kind": kind,
+            "targetId": format!("element-{element_id}"),
+            "label": label,
+            "confidence": confidence,
+            "screenRegion": {
+                "x": element.region.x,
+                "y": element.region.y,
+                "width": element.region.width,
+                "height": element.region.height,
+            },
+        }));
+    }
+
+    if let Some(object) = parsed.as_object_mut() {
+        object.insert("visualTargets".to_string(), Value::Array(grounded));
+    }
+    serde_json::to_string(&parsed).unwrap_or(content)
+}
+
 fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
     [
         "You are Kairo Tutor, a screen-native software tutor.".to_string(),
         "Return only JSON that matches this TypeScript shape:".to_string(),
         "{ mode: \"idle\" | \"stuck_help\" | \"guided_lesson\", skillSlug: string, voiceText: string, screenText: string, visualTargets: VisualTarget[], expectedNextState: string }".to_string(),
         "Never return null for string fields. Use an empty string when a string field has no value.".to_string(),
-        "VisualTarget kind must be one of highlight_box, ghost_cursor, arrow, underline, spotlight.".to_string(),
-        "Use screenRegion pixel coordinates only for visible UI areas you are confident about.".to_string(),
+        "Each VisualTarget is { kind, label, elementId }. kind is one of highlight_box, arrow, underline, spotlight. label is a short caption.".to_string(),
+        "To point at or highlight something on the user's screen, add a VisualTarget and set elementId to the id of the most relevant entry in the SCREEN ELEMENTS list given with the user message. NEVER output pixel coordinates or a screenRegion — the exact position is computed from the element you choose.".to_string(),
+        "Only reference element ids that exist in SCREEN ELEMENTS. If nothing on screen is relevant to your answer, return an empty visualTargets array. Use at most two targets, and prefer the single best one.".to_string(),
         "Give exactly one short next step. Do not invent app state.".to_string(),
         "Answer general user questions directly. Do not refuse just because the question is outside the selected skill pack.".to_string(),
         "Use the selected skill pack only when it is relevant to the active app or user question.".to_string(),
@@ -1152,47 +1601,34 @@ fn build_tutor_user_prompt(input: &TutorTurnInput) -> Result<String, String> {
 fn build_openrouter_messages(
     input: &TutorTurnInput,
     include_screenshot: bool,
+    elements: &[OcrElement],
 ) -> Result<Value, String> {
     let user_prompt = build_tutor_user_prompt(input)?;
     let system_prompt = build_tutor_system_prompt(input);
+    let elements_block = build_screen_elements_block(elements);
 
     if include_screenshot && input.screen.captured {
         if let (Some(mime_type), Some(image_base64)) =
             (&input.screen.image_mime_type, &input.screen.image_base64)
         {
+            let mut user_content = vec![json!({ "type": "text", "text": user_prompt })];
+            if !elements_block.is_empty() {
+                user_content.push(json!({ "type": "text", "text": elements_block }));
+            }
+            user_content.push(json!({
+                "type": "image_url",
+                "image_url": { "url": format!("data:{mime_type};base64,{image_base64}") },
+            }));
             return Ok(json!([
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": user_prompt,
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": format!("data:{mime_type};base64,{image_base64}"),
-                            },
-                        },
-                    ],
-                },
+                { "role": "system", "content": system_prompt },
+                { "role": "user", "content": user_content },
             ]));
         }
     }
 
     Ok(json!([
-        {
-            "role": "system",
-            "content": system_prompt,
-        },
-        {
-            "role": "user",
-            "content": user_prompt,
-        },
+        { "role": "system", "content": system_prompt },
+        { "role": "user", "content": user_prompt },
     ]))
 }
 
@@ -1200,10 +1636,11 @@ fn build_openrouter_request_body(
     input: &TutorTurnInput,
     model: &str,
     include_screenshot: bool,
+    elements: &[OcrElement],
 ) -> Result<Value, String> {
     Ok(json!({
         "model": model,
-        "messages": build_openrouter_messages(input, include_screenshot)?,
+        "messages": build_openrouter_messages(input, include_screenshot, elements)?,
         "response_format": { "type": "json_object" },
         "temperature": 0.2,
         "max_tokens": 700,
@@ -1472,45 +1909,86 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
     )));
     let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
+    // OCR the screenshot (fast, local) for the Set-of-Mark fallback and for
+    // snapping the Computer Use point onto a tight text box.
+    let ocr_elements = ocr_tutor_screenshot(&input);
+
     let client = shared_http_client();
     let site_url_ref = site_url.as_deref();
-    let first_result =
-        send_openrouter_chat_request(client, &endpoint, &api_key, &app_title, site_url_ref, timeout, {
+
+    // The verbal answer and the Computer Use pointing are independent, so run them
+    // together — the (slower) pointing call then adds no wall-clock to the turn.
+    let answer_future = async {
+        let request_body = {
             let (request_model, include_screenshot) =
                 select_openrouter_request_model(&input, &model, &vision_model);
-            build_openrouter_request_body(&input, &request_model, include_screenshot)?
-        })
+            build_openrouter_request_body(&input, &request_model, include_screenshot, &ocr_elements)?
+        };
+        let first = send_openrouter_chat_request(
+            client,
+            &endpoint,
+            &api_key,
+            &app_title,
+            site_url_ref,
+            timeout,
+            request_body,
+        )
         .await;
-
-    match first_result {
-        Ok(content) => Ok(content),
-        Err(error)
-            if error.retry_without_screenshot
-                && input.screen.captured
-                && input.screen.image_base64.is_some() =>
-        {
-            eprintln!(
-                "Kairo Tutor OpenRouter screenshot request failed; retrying text-only: {}",
-                error.message
-            );
-            send_openrouter_chat_request(
-                client,
-                &endpoint,
-                &api_key,
-                &app_title,
-                site_url_ref,
-                timeout,
-                build_openrouter_request_body(&input, &model, false)?,
-            )
-            .await
-            .map_err(|retry_error| {
-                format!(
-                    "{} Text-only retry after screenshot failure also failed: {}",
-                    error.message, retry_error.message
+        match first {
+            Ok(content) => Ok(content),
+            Err(error)
+                if error.retry_without_screenshot
+                    && input.screen.captured
+                    && input.screen.image_base64.is_some() =>
+            {
+                eprintln!(
+                    "Kairo Tutor OpenRouter screenshot request failed; retrying text-only: {}",
+                    error.message
+                );
+                send_openrouter_chat_request(
+                    client,
+                    &endpoint,
+                    &api_key,
+                    &app_title,
+                    site_url_ref,
+                    timeout,
+                    build_openrouter_request_body(&input, &model, false, &[])?,
                 )
-            })
+                .await
+                .map_err(|retry_error| {
+                    format!(
+                        "{} Text-only retry after screenshot failure also failed: {}",
+                        error.message, retry_error.message
+                    )
+                })
+            }
+            Err(error) => Err(error.message),
         }
-        Err(error) => Err(error.message),
+    };
+
+    let point_future = async {
+        if !input.screen.captured {
+            return None;
+        }
+        let (Some(image_base64), Some(bounds)) =
+            (&input.screen.image_base64, &input.screen.display_bounds)
+        else {
+            return None;
+        };
+        detect_element_point(image_base64, bounds, &input.user_query).await
+    };
+
+    let (answer_result, detected_point) = tokio::join!(answer_future, point_future);
+    let content = answer_result?;
+
+    // Prefer the Computer Use point — it grounds any element (icons/non-text/any
+    // app), not just OCR'd text. Fall back to OCR Set-of-Mark when it found nothing
+    // (e.g. no ANTHROPIC_API_KEY, or a purely conceptual question).
+    match (detected_point, input.screen.display_bounds.as_ref()) {
+        (Some(point), Some(bounds)) => {
+            Ok(apply_point_target(content, &point, &ocr_elements, bounds))
+        }
+        _ => Ok(ground_visual_targets(content, &ocr_elements)),
     }
 }
 

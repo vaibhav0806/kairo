@@ -8,7 +8,7 @@ export type OpenRouterChatAdapter = {
 };
 
 const providerVisualTargetSchema = z.object({
-  kind: z.enum(['highlight_box', 'ghost_cursor', 'arrow', 'underline', 'spotlight']),
+  kind: z.enum(['highlight_box', 'ghost_cursor', 'arrow', 'underline', 'spotlight', 'pointer']),
   targetId: z.string().optional(),
   label: z.string().optional(),
   confidence: z.number().optional(),

@@ -17,7 +17,7 @@ export type TutorRequest = ActiveAppContext & {
 };
 
 export type VisualTarget = {
-  kind: 'highlight_box' | 'ghost_cursor' | 'arrow' | 'underline' | 'spotlight';
+  kind: 'highlight_box' | 'ghost_cursor' | 'arrow' | 'underline' | 'spotlight' | 'pointer';
   targetId: string;
   label: string;
   confidence: number;
