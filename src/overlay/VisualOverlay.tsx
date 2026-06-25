@@ -34,14 +34,20 @@ export function OverlayTarget({
       >
         <span className="overlay-pointer-ping" aria-hidden="true" />
         <span className="overlay-pointer-ping is-delayed" aria-hidden="true" />
-        <span className="overlay-pointer-ring" aria-hidden="true" />
-        <svg className="overlay-pointer-cursor" viewBox="0 0 32 36" aria-hidden="true">
+        <svg className="overlay-pointer-cursor" viewBox="0 0 24 32" aria-hidden="true">
+          <defs>
+            <linearGradient id="kairo-pointer-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#c79bff" />
+              <stop offset="100%" stopColor="#7c3aed" />
+            </linearGradient>
+          </defs>
           <path
-            d="M1 1 L1 27 L8.5 20.5 L13 31 L18 29 L13.5 18.5 L23 18.5 Z"
-            fill="#ffffff"
-            stroke="#04201d"
-            strokeWidth="1.6"
+            d="M23 1 L23 27 L15.5 20.5 L11 31 L6 29 L10.5 18.5 L1 18.5 Z"
+            fill="url(#kairo-pointer-grad)"
+            stroke="#ffffff"
+            strokeWidth="1.4"
             strokeLinejoin="round"
+            strokeLinecap="round"
           />
         </svg>
         {target.label ? <span className="overlay-pointer-label">{target.label}</span> : null}
