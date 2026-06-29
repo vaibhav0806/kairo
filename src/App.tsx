@@ -31,6 +31,7 @@ import {
 } from './native/nativeBridge';
 import { normalizeRegionToPercent } from './overlay/coordinates';
 import { VisualOverlay } from './overlay/VisualOverlay';
+import { releaseVisualTargets, routeVisualTargets } from './overlay/targetRouting';
 import type { NotchAskPayload } from './notch/prompt';
 import {
   normalizeAnnotationStartPayload,
@@ -548,23 +549,24 @@ export function App() {
 
   useEffect(() => {
     if (!isOverlayActive || response.visualTargets.length === 0) {
-      void nativeBridge.hideOverlay();
+      void releaseVisualTargets(nativeBridge);
       return undefined;
     }
 
-    void nativeBridge.showOverlay({
-      displayBounds: screenCapture?.displayBounds ?? {
+    void routeVisualTargets(
+      nativeBridge,
+      response.visualTargets,
+      screenCapture?.displayBounds ?? {
         x: 0,
         y: 0,
         width: mockPreviewDimensions.width,
         height: mockPreviewDimensions.height,
         scaleFactor: 1
-      },
-      targets: response.visualTargets
-    });
+      }
+    );
 
     return () => {
-      void nativeBridge.hideOverlay();
+      void releaseVisualTargets(nativeBridge);
     };
   }, [
     isOverlayActive,

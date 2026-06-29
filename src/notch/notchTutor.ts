@@ -3,17 +3,10 @@ import { createMockTutorPlanner } from '../core/mockTutor';
 import { createTutorOrchestrator } from '../core/orchestrator';
 import { createRuntimeTutorPlanner, type RuntimeTutorProvider } from '../core/runtimePlanner';
 import { createTutorRuntimeErrorResponse } from '../core/tutorErrors';
-import type { UserAnnotation, VisualTarget } from '../core/types';
+import type { UserAnnotation } from '../core/types';
 import type { NativeBridge, NativeScreenCapture } from '../native/nativeBridge';
+import { routeVisualTargets } from '../overlay/targetRouting';
 import type { NotchPayload } from './types';
-
-// Target kinds the companion cursor flies to (single points). Other kinds are
-// area highlights and stay in the overlay.
-const POINT_KINDS: ReadonlySet<VisualTarget['kind']> = new Set([
-  'pointer',
-  'arrow',
-  'ghost_cursor'
-]);
 
 export type AskTutorFromNotchOptions = {
   query: string;
@@ -71,24 +64,9 @@ export async function askTutorFromNotch({
         annotations
       });
     } else if (response.visualTargets.length > 0 && displayBounds) {
-      const pointTarget = response.visualTargets.find((target) => POINT_KINDS.has(target.kind));
-      const areaTargets = response.visualTargets.filter((target) => !POINT_KINDS.has(target.kind));
-
-      // The companion cursor flies to the primary point-like target; the notch
-      // releases it back to the mouse after TTS playback completes (+grace).
-      if (pointTarget) {
-        await nativeBridge.cursorPoint({
-          screenRegion: pointTarget.screenRegion,
-          displayBounds
-        });
-      }
-
-      // Area targets (boxes/underlines/spotlights) still render in the overlay.
-      if (areaTargets.length > 0) {
-        await nativeBridge.showOverlay({ displayBounds, targets: areaTargets });
-      } else {
-        await nativeBridge.hideOverlay();
-      }
+      // Companion cursor flies to the primary point target; area targets render in
+      // the overlay. The notch releases the cursor after TTS playback (+grace).
+      await routeVisualTargets(nativeBridge, response.visualTargets, displayBounds);
     } else {
       await nativeBridge.hideOverlay();
     }
