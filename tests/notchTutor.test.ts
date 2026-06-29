@@ -31,6 +31,8 @@ function createBridge(overrides: Partial<NativeBridge> = {}): NativeBridge {
     updateOverlay: vi.fn(),
     getCurrentOverlayPayload: vi.fn(),
     hideOverlay: vi.fn(),
+    cursorPoint: vi.fn(),
+    cursorRelease: vi.fn(),
     showNotch: vi.fn(),
     getCurrentNotchPayload: vi.fn(),
     hideNotch: vi.fn(),
@@ -152,6 +154,82 @@ describe('askTutorFromNotch', () => {
         ])
       })
     );
+  });
+
+  test('flies the companion cursor to a pointer target instead of the overlay', async () => {
+    const bridge = createBridge({
+      runTutorTurn: vi.fn(async () =>
+        JSON.stringify({
+          mode: 'stuck_help',
+          skillSlug: 'blender',
+          voiceText: 'The GitHub tab is up here.',
+          screenText: 'The GitHub tab is up here.',
+          visualTargets: [
+            {
+              kind: 'pointer',
+              targetId: 'gh-tab',
+              label: 'GitHub tab',
+              confidence: 0.9,
+              screenRegion: { x: 240, y: 80, width: 120, height: 48 }
+            }
+          ],
+          expectedNextState: 'user_asks_next'
+        })
+      )
+    });
+
+    await askTutorFromNotch({
+      query: 'Where is the GitHub homepage?',
+      nativeBridge: bridge,
+      aiProvider: 'openrouter',
+      defaultSkill: 'blender'
+    });
+
+    expect(bridge.cursorPoint).toHaveBeenCalledWith({
+      screenRegion: { x: 240, y: 80, width: 120, height: 48 },
+      displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 }
+    });
+    // A lone pointer target must not also render in the overlay.
+    expect(bridge.showOverlay).not.toHaveBeenCalled();
+    expect(bridge.hideOverlay).toHaveBeenCalled();
+  });
+
+  test('keeps area targets in the overlay and does not point at them', async () => {
+    const bridge = createBridge({
+      runTutorTurn: vi.fn(async () =>
+        JSON.stringify({
+          mode: 'stuck_help',
+          skillSlug: 'blender',
+          voiceText: 'This whole panel is the inspector.',
+          screenText: 'This whole panel is the inspector.',
+          visualTargets: [
+            {
+              kind: 'highlight_box',
+              targetId: 'inspector',
+              label: 'Inspector',
+              confidence: 0.8,
+              screenRegion: { x: 100, y: 120, width: 220, height: 90 }
+            }
+          ],
+          expectedNextState: 'user_asks_next'
+        })
+      )
+    });
+
+    await askTutorFromNotch({
+      query: 'What is this panel?',
+      nativeBridge: bridge,
+      aiProvider: 'openrouter',
+      defaultSkill: 'blender'
+    });
+
+    expect(bridge.cursorPoint).not.toHaveBeenCalled();
+    expect(bridge.showOverlay).toHaveBeenCalledWith({
+      displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 },
+      targets: [
+        expect.objectContaining({ targetId: 'inspector', kind: 'highlight_box' })
+      ]
+    });
   });
 
   test('returns a visible provider error instead of staying in thinking', async () => {

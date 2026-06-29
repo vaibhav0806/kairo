@@ -1,6 +1,6 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { register as registerGlobalShortcut } from '@tauri-apps/plugin-global-shortcut';
-import type { UserAnnotation, VisualTarget } from '../core/types';
+import type { ScreenRegion, UserAnnotation, VisualTarget } from '../core/types';
 import type { TutorTurnInput } from '../core/orchestrator';
 import type { NotchAnnotationTool } from '../notch/annotationActions';
 import type { NotchPayload } from '../notch/types';
@@ -85,6 +85,11 @@ export type NativeOverlayPayload = {
   initialTool?: NotchAnnotationTool | null;
 };
 
+export type NativeCursorPointInput = {
+  screenRegion: ScreenRegion;
+  displayBounds: NativeOverlayDisplayBounds;
+};
+
 export type NativeBridge = {
   getActiveApp(): Promise<NativeActiveApp>;
   getPermissionStatus(): Promise<NativePermissionStatus>;
@@ -102,6 +107,8 @@ export type NativeBridge = {
   updateOverlay(payload: NativeOverlayPayload): Promise<void>;
   getCurrentOverlayPayload(): Promise<NativeOverlayPayload | null>;
   hideOverlay(): Promise<void>;
+  cursorPoint(input: NativeCursorPointInput): Promise<void>;
+  cursorRelease(): Promise<void>;
   showNotch(payload?: NotchPayload): Promise<void>;
   getCurrentNotchPayload(): Promise<NotchPayload | null>;
   hideNotch(): Promise<void>;
@@ -347,6 +354,22 @@ export function createNativeBridge(
         await invoke<void>('hide_overlay');
       } catch {
         // Browser previews do not have a native overlay window.
+      }
+    },
+
+    async cursorPoint(input) {
+      try {
+        await invoke<void>('cursor_point', { payload: input });
+      } catch {
+        // Browser previews do not have a native cursor window.
+      }
+    },
+
+    async cursorRelease() {
+      try {
+        await invoke<void>('cursor_release');
+      } catch {
+        // Browser previews do not have a native cursor window.
       }
     },
 

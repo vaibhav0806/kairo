@@ -45,6 +45,27 @@
         "shadow": false
       },
       {
+        "label": "cursor",
+        "title": "Kairo Tutor Cursor",
+        "url": "index.html#/cursor",
+        "create": false,
+        "width": 1000,
+        "height": 700,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "visibleOnAllWorkspaces": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "focus": false,
+        "focusable": false,
+        "shadow": false
+      },
+      {
         "label": "notch",
         "title": "Kairo Tutor",
         "url": "index.html#/notch",

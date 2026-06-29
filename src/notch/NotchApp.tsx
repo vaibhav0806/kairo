@@ -203,6 +203,8 @@ export function NotchApp() {
       overlayDismissTimerRef.current = setTimeout(() => {
         overlayDismissTimerRef.current = null;
         void nativeBridge.hideOverlay();
+        // Glide the companion cursor back to shadowing the mouse.
+        void nativeBridge.cursorRelease();
       }, delayMs);
     },
     [cancelOverlayDismiss, nativeBridge]
@@ -353,6 +355,9 @@ export function NotchApp() {
       stopAnswerPlayback();
       // A new turn supersedes any pending pointer dismiss from the last answer.
       cancelOverlayDismiss();
+      // Release any lingering pointing so the cursor shadows the mouse while the
+      // new answer is computed; it flies again only if the answer has a target.
+      void nativeBridge.cursorRelease();
       isSubmittingRef.current = true;
       setIsSubmitting(true);
       updateVoiceCaptureState('idle');
@@ -453,6 +458,7 @@ export function NotchApp() {
     setAnnotations([]);
     setActiveAnnotationTool(null);
     void nativeBridge.hideOverlay();
+    void nativeBridge.cursorRelease();
     void nativeBridge.hideNotch();
   }, [
     cancelOverlayDismiss,
@@ -714,6 +720,7 @@ export function NotchApp() {
           // notch drives this (not the hidden/suspended main window) so a fresh
           // shortcut press is a reliable reset even if the overlay was orphaned.
           void nativeBridge.hideOverlay();
+          void nativeBridge.cursorRelease();
           // New activation: re-arm auto-listen for the upcoming captured state.
           autoListenStartedRef.current = false;
         }

@@ -39,6 +39,15 @@ tauri_panel! {
             is_floating_panel: true
         }
     })
+
+    // The companion cursor never takes input — it is permanently click-through —
+    // so it must NOT become key (otherwise it could steal focus from the user's app).
+    panel!(CursorPanel {
+        config: {
+            can_become_key_window: false,
+            is_floating_panel: true
+        }
+    })
 }
 
 #[cfg(target_os = "macos")]
@@ -51,7 +60,11 @@ use core_foundation::{
     string::{CFString, CFStringRef},
 };
 #[cfg(target_os = "macos")]
-use core_graphics::display::CGDisplay;
+use core_graphics::{
+    display::CGDisplay,
+    event::CGEvent,
+    event_source::{CGEventSource, CGEventSourceStateID},
+};
 #[cfg(target_os = "macos")]
 use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio};
 
@@ -168,6 +181,29 @@ struct NotchState {
     // (for show/hide) and its backing window (for size/position/emit).
     panel: Mutex<Option<PanelHandle<tauri::Wry>>>,
     window: Mutex<Option<tauri::WebviewWindow>>,
+}
+
+// The always-on companion cursor lives in its own click-through panel so it is
+// isolated from the overlay/annotation lifecycle. We keep handles to drive it.
+#[derive(Default)]
+struct CursorState {
+    panel: Mutex<Option<PanelHandle<tauri::Wry>>>,
+    window: Mutex<Option<tauri::WebviewWindow>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MousePoint {
+    x: f64,
+    y: f64,
+}
+
+// Sent to the cursor window to make it fly to (and rest near) an AI target.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CursorPointPayload {
+    screen_region: ScreenRegion,
+    display_bounds: OverlayDisplayBounds,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -853,6 +889,125 @@ fn overlay_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String
         .clone()
         .ok_or_else(|| "Overlay panel has no backing window".to_string())
 }
+
+// Lazily create the companion cursor panel: an always-on, full-display,
+// permanently click-through NSPanel that floats above everything (including the
+// notch) and never intercepts input. Capture-excluded like the other Kairo
+// surfaces so the pet never lands in the tutor's own grounding screenshots.
+fn ensure_cursor_panel(app: &tauri::AppHandle) -> Result<PanelHandle<tauri::Wry>, String> {
+    let cursor_state = app.state::<CursorState>();
+    if let Some(panel) = cursor_state
+        .panel
+        .lock()
+        .map_err(|_| "Failed to lock cursor panel state.".to_string())?
+        .clone()
+    {
+        return Ok(panel);
+    }
+
+    let window = ensure_configured_window(app, "cursor")?;
+    let panel = window
+        .to_panel::<CursorPanel>()
+        .map_err(|error| format!("Failed to convert cursor window to panel: {error}"))?;
+
+    // Above the notch (1001) and overlay (1000) so the pet is always visible;
+    // safe because it is click-through, so z-order is purely visual.
+    panel.set_level(1002);
+    panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
+    panel.set_collection_behavior(
+        CollectionBehavior::new()
+            .full_screen_auxiliary()
+            .can_join_all_spaces()
+            .stationary()
+            .into(),
+    );
+    panel.set_has_shadow(false);
+    panel.set_released_when_closed(false);
+    // Permanently click-through: the pet must never catch the user's clicks.
+    window
+        .set_ignore_cursor_events(true)
+        .map_err(|error| format!("Failed to make cursor click-through: {error}"))?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let bounds = main_display_bounds();
+        window
+            .set_position(LogicalPosition::new(bounds.x, bounds.y))
+            .map_err(|error| format!("Failed to position cursor window: {error}"))?;
+        window
+            .set_size(LogicalSize::new(bounds.width, bounds.height))
+            .map_err(|error| format!("Failed to size cursor window: {error}"))?;
+    }
+
+    if !env_flag("KAIRO_SHOW_IN_CAPTURE") {
+        exclude_window_from_screen_capture(&window);
+    }
+
+    *cursor_state
+        .window
+        .lock()
+        .map_err(|_| "Failed to lock cursor window state.".to_string())? = Some(window);
+    *cursor_state
+        .panel
+        .lock()
+        .map_err(|_| "Failed to lock cursor panel state.".to_string())? = Some(panel.clone());
+
+    Ok(panel)
+}
+
+fn cursor_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
+    ensure_cursor_panel(app)?;
+    app.state::<CursorState>()
+        .window
+        .lock()
+        .map_err(|_| "Failed to lock cursor window state.".to_string())?
+        .clone()
+        .ok_or_else(|| "Cursor panel has no backing window".to_string())
+}
+
+// Current mouse position in global, top-left display points (thread-safe; needs
+// no Accessibility permission, unlike NSEvent global key monitors).
+#[cfg(target_os = "macos")]
+fn current_mouse_location() -> Option<(f64, f64)> {
+    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState).ok()?;
+    let event = CGEvent::new(source).ok()?;
+    let point = event.location();
+    Some((point.x, point.y))
+}
+
+// Poll the mouse at ~120 Hz and push moves to the cursor window. Only emits on
+// actual movement, so an idle mouse costs a cheap read + compare and no IPC.
+#[cfg(target_os = "macos")]
+fn spawn_mouse_tracker(app: &tauri::AppHandle) {
+    let window = match app.state::<CursorState>().window.lock() {
+        Ok(guard) => guard.clone(),
+        Err(_) => None,
+    };
+    let Some(window) = window else {
+        eprintln!("Kairo Tutor: cursor window missing; mouse tracker not started");
+        return;
+    };
+
+    std::thread::spawn(move || {
+        let mut last: Option<(f64, f64)> = None;
+        loop {
+            if let Some((x, y)) = current_mouse_location() {
+                let moved = match last {
+                    Some((px, py)) => (x - px).abs() > 0.4 || (y - py).abs() > 0.4,
+                    None => true,
+                };
+                if moved {
+                    last = Some((x, y));
+                    let _ = window.emit("cursor:mouse", MousePoint { x, y });
+                }
+            }
+            std::thread::sleep(Duration::from_millis(8));
+        }
+    });
+}
+
+#[cfg(not(target_os = "macos"))]
+fn spawn_mouse_tracker(_app: &tauri::AppHandle) {}
 
 fn configure_overlay_window(
     window: &tauri::WebviewWindow,
@@ -2212,6 +2367,24 @@ fn hide_overlay(_app: tauri::AppHandle, state: State<'_, OverlayState>) -> Resul
     Ok(())
 }
 
+// Send the companion cursor flying to (and resting near) an AI target.
+#[tauri::command]
+fn cursor_point(app: tauri::AppHandle, payload: CursorPointPayload) -> Result<(), String> {
+    let window = cursor_window(&app)?;
+    window
+        .emit("cursor:point", payload)
+        .map_err(|error| format!("Failed to send cursor point: {error}"))
+}
+
+// Return the companion cursor to shadowing the real mouse.
+#[tauri::command]
+fn cursor_release(app: tauri::AppHandle) -> Result<(), String> {
+    let window = cursor_window(&app)?;
+    window
+        .emit("cursor:release", ())
+        .map_err(|error| format!("Failed to release cursor: {error}"))
+}
+
 // macOS caches Screen Recording (and accessibility) authorization per process,
 // so a grant made while running is only observed after a relaunch. Restarting
 // is the reliable way to re-read permissions during onboarding.
@@ -2314,6 +2487,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(OverlayState::default())
         .manage(NotchState::default())
+        .manage(CursorState::default())
         .plugin(global_shortcut_plugin)
         .plugin(tauri_nspanel::init())
         .setup(|app| {
@@ -2342,6 +2516,17 @@ pub fn run() {
             if let Err(error) = ensure_overlay_panel(app.handle()) {
                 eprintln!("Kairo Tutor: failed to pre-create overlay panel: {error}");
             }
+            // Companion cursor: create it, show it always, and start tracking the
+            // real mouse so it shadows the cursor from launch.
+            match ensure_cursor_panel(app.handle()) {
+                Ok(panel) => {
+                    panel.show();
+                    spawn_mouse_tracker(app.handle());
+                }
+                Err(error) => {
+                    eprintln!("Kairo Tutor: failed to pre-create cursor panel: {error}");
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -2357,6 +2542,8 @@ pub fn run() {
             update_overlay,
             get_current_overlay_payload,
             hide_overlay,
+            cursor_point,
+            cursor_release,
             show_notch,
             get_current_notch_payload,
             hide_notch,
