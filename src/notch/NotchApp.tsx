@@ -112,6 +112,9 @@ function annotationCountText(count: number) {
 
 export function NotchApp() {
   const [payload, setPayload] = useState<NotchPayload>(defaultPayload);
+  // The answer body is held back until TTS playback actually starts, so the notch
+  // never shows the answer text before it is spoken.
+  const [detailHidden, setDetailHidden] = useState(false);
   const [query, setQuery] = useState('');
   const [annotations, setAnnotations] = useState<UserAnnotation[]>([]);
   const [activeAnnotationTool, setActiveAnnotationTool] = useState<NotchAnnotationTool | null>(null);
@@ -300,7 +303,7 @@ export function NotchApp() {
   );
 
   const playAnswerAudio = useCallback(
-    async (text: string) => {
+    async (text: string, onSpeechStart?: () => void) => {
       stopAnswerPlayback();
       // Keep the AI pointer up for the whole answer, then 5s past where speech
       // ends. With no speech, fall back to a fixed window so it still clears.
@@ -308,6 +311,8 @@ export function NotchApp() {
       const POINTER_FALLBACK_MS = 8000;
       const trimmedText = text.trim();
       if (!trimmedText) {
+        // Nothing to speak: reveal the text immediately so it isn't left hidden.
+        onSpeechStart?.();
         scheduleOverlayDismiss(POINTER_FALLBACK_MS);
         return;
       }
@@ -316,16 +321,21 @@ export function NotchApp() {
         const result = await nativeBridge.synthesizeSpeech({ text: trimmedText });
         const audioUrl = buildAudioDataUrl(result);
         if (!audioUrl) {
+          onSpeechStart?.();
           scheduleOverlayDismiss(POINTER_FALLBACK_MS);
           return;
         }
 
         const audio = new Audio(audioUrl);
         answerAudioRef.current = audio;
+        // Reveal the answer text the instant speech actually begins.
+        audio.onplay = () => onSpeechStart?.();
         audio.onended = () => scheduleOverlayDismiss(POINTER_GRACE_AFTER_SPEECH_MS);
         await audio.play();
       } catch {
-        // Speech playback is best-effort; the answer should remain visible if audio fails.
+        // Speech playback is best-effort; reveal the text anyway so a silent
+        // answer is never left invisible.
+        onSpeechStart?.();
         scheduleOverlayDismiss(POINTER_FALLBACK_MS);
       }
     },
@@ -347,6 +357,8 @@ export function NotchApp() {
       setIsSubmitting(true);
       updateVoiceCaptureState('idle');
       setPayload(thinkingPayload);
+      // The thinking state's own detail should show normally.
+      setDetailHidden(false);
       setQuery('');
       void nativeBridge.showNotch(thinkingPayload);
       await waitForNotchPaint();
@@ -362,11 +374,13 @@ export function NotchApp() {
         });
 
         setPayload(answerPayload);
+        // Hold the answer body until speech starts; revealed in playAnswerAudio.
+        setDetailHidden(true);
         setQuery('');
         setAnnotations([]);
         setActiveAnnotationTool(null);
         void nativeBridge.showNotch(answerPayload);
-        void playAnswerAudio(answerPayload.detail);
+        void playAnswerAudio(answerPayload.detail, () => setDetailHidden(false));
       } finally {
         isSubmittingRef.current = false;
         setIsSubmitting(false);
@@ -825,7 +839,7 @@ export function NotchApp() {
           <div className="notch-orb" aria-hidden="true" />
           <div className="notch-copy">
             <strong>{payload.title}</strong>
-            <span>{payload.detail}</span>
+            <span>{detailHidden ? '' : payload.detail}</span>
           </div>
           <button
             aria-label="Hide Kairo"
