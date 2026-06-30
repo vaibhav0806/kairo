@@ -978,30 +978,29 @@ fn spawn_mouse_tracker(app: &tauri::AppHandle) {
     let app = app.clone();
 
     std::thread::spawn(move || {
-        #[cfg(target_os = "macos")]
-        let scale = {
-            let factor = main_display_bounds().scale_factor;
-            if factor > 0.0 {
-                factor
-            } else {
-                1.0
-            }
-        };
-        #[cfg(not(target_os = "macos"))]
-        let scale = 1.0_f64;
-
         let mut last: Option<(f64, f64)> = None;
+        let mut idle_ticks: u32 = 0;
         loop {
+            // cursor_position is in PHYSICAL pixels (global, top-left). We emit it
+            // raw; the cursor webview divides by its own devicePixelRatio to get
+            // CSS px. The CGDisplay-derived scale factor is unreliable in macOS
+            // scaled-HiDPI modes (reports 1 even on a 2x backing scale), so the
+            // webview's devicePixelRatio is the authoritative conversion.
             if let Ok(position) = app.cursor_position() {
-                let x = position.x / scale;
-                let y = position.y / scale;
+                let (x, y) = (position.x, position.y);
                 let moved = match last {
                     Some((px, py)) => (x - px).abs() > 0.4 || (y - py).abs() > 0.4,
                     None => true,
                 };
-                if moved {
+                // Re-emit at least every ~300ms even when still, so a freshly
+                // loaded cursor webview always gets a position (it can't replay
+                // events emitted before its listener attached).
+                if moved || idle_ticks >= 18 {
                     last = Some((x, y));
+                    idle_ticks = 0;
                     let _ = window.emit("cursor:mouse", MousePoint { x, y });
+                } else {
+                    idle_ticks += 1;
                 }
             }
             std::thread::sleep(Duration::from_millis(16));

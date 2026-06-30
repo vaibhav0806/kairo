@@ -19,7 +19,7 @@ import { pointingTip, shadowTip, type PointingTip } from './geometry';
 // translated so that anchor lands on the spring position, and mirrored via scale
 // about that same anchor for edge flips.
 const VIEWBOX = 32;
-const GLYPH_SIZE = 26;
+const GLYPH_SIZE = 20;
 const TIP_AX = (28 / VIEWBOX) * GLYPH_SIZE;
 const TIP_AY = (4 / VIEWBOX) * GLYPH_SIZE;
 
@@ -68,7 +68,13 @@ export function CursorApp() {
         return pointRef.current;
       }
       const bounds = boundsRef.current;
-      const tip = shadowTip(mouseRef.current.x - bounds.x, mouseRef.current.y - bounds.y);
+      // The mouse arrives in physical px; convert to CSS px via the webview's own
+      // backing scale, then subtract the window's logical origin.
+      const dpr = globalThis.devicePixelRatio || 1;
+      const tip = shadowTip(
+        mouseRef.current.x / dpr - bounds.x,
+        mouseRef.current.y / dpr - bounds.y
+      );
       return { x: tip.x, y: tip.y, flipX: false, flipY: false };
     };
 
