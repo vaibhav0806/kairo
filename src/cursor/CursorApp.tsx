@@ -32,7 +32,6 @@ export function CursorApp() {
   const nativeBridge = useMemo(() => createNativeBridge(), []);
 
   const elementRef = useRef<HTMLDivElement | null>(null);
-  const ringRef = useRef<HTMLDivElement | null>(null);
 
   // Display origin/scale for converting global mouse points to window-local px.
   const boundsRef = useRef<DisplayBounds>({ x: 0, y: 0, width: 0, height: 0, scaleFactor: 1 });
@@ -139,20 +138,6 @@ export function CursorApp() {
       writeTransform();
     };
 
-    // Position + show/hide the pulsing target ring (centered on x,y in local px).
-    const setRing = (visible: boolean, x = 0, y = 0) => {
-      const ring = ringRef.current;
-      if (!ring) {
-        return;
-      }
-      if (visible) {
-        ring.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-        ring.classList.add('is-visible');
-      } else {
-        ring.classList.remove('is-visible');
-      }
-    };
-
     void nativeBridge
       .getDisplayBounds()
       .then((bounds) => {
@@ -189,7 +174,6 @@ export function CursorApp() {
         }
         const tip = pointingTip(event.payload.screenRegion, event.payload.displayBounds);
         pointRef.current = tip;
-        setRing(true, tip.ringX, tip.ringY);
         modeRef.current = 'pointing';
         wake();
       }),
@@ -197,7 +181,6 @@ export function CursorApp() {
         if (!isMounted) {
           return;
         }
-        setRing(false);
         modeRef.current = 'shadow';
         wake();
       })
@@ -221,10 +204,6 @@ export function CursorApp() {
 
   return (
     <div className="kairo-cursor-shell" aria-hidden="true">
-      <div className="kairo-cursor-ring" ref={ringRef} aria-hidden="true">
-        <span className="kairo-cursor-ring-core" />
-        <span className="kairo-cursor-ring-ping" />
-      </div>
       <div
         className="kairo-cursor"
         ref={elementRef}
