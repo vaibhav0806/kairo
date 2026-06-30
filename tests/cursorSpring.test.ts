@@ -31,10 +31,11 @@ describe('stepSpring', () => {
     expect(max).toBeLessThanOrEqual(100.5);
   });
 
-  test('pointing spring overshoots slightly then settles', () => {
+  test('pointing spring eases in and settles smoothly without bounce', () => {
     const { spring, max } = simulate(POINTING_SPRING);
-    expect(max).toBeGreaterThan(100); // a little rubber-band
+    expect(max).toBeLessThanOrEqual(100.5); // near-critical: no rubber-band
     expect(spring.value).toBeCloseTo(100, 1);
+    expect(springAtRest(spring, 100)).toBe(true);
   });
 
   test('clamps large frame gaps so it cannot blow up', () => {
