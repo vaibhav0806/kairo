@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
-  POINTING_GAP,
+  POINTING_STANDOFF,
   pointingTip,
   regionToLocalRect,
   shadowTip
@@ -17,40 +17,37 @@ describe('regionToLocalRect', () => {
 });
 
 describe('pointingTip', () => {
-  test('rests below-left of an interior object, no flip', () => {
+  test('rings the element center and rests the arrow below-left, no flip', () => {
     const tip = pointingTip({ x: 600, y: 400, width: 240, height: 80 }, display);
     expect(tip.flipX).toBe(false);
     expect(tip.flipY).toBe(false);
-    // bottom-left corner is (300, 240); tip sits down-left by the gap.
-    expect(tip.x).toBe(300 - POINTING_GAP);
-    expect(tip.y).toBe(240 + POINTING_GAP);
+    // center = (360, 220)
+    expect(tip.ringX).toBe(360);
+    expect(tip.ringY).toBe(220);
+    expect(tip.tipX).toBe(360 - POINTING_STANDOFF);
+    expect(tip.tipY).toBe(220 + POINTING_STANDOFF);
   });
 
-  test('flips horizontally when the object hugs the left edge', () => {
-    // logical left = 10 (px x = 20): no room down-left.
-    const tip = pointingTip({ x: 20, y: 400, width: 240, height: 80 }, display);
+  test('flips horizontally when the element center hugs the left edge', () => {
+    const tip = pointingTip({ x: 0, y: 400, width: 40, height: 80 }, display);
     expect(tip.flipX).toBe(true);
     expect(tip.flipY).toBe(false);
-    // anchors on the bottom-right corner (130, 240); tip sits down-right.
-    expect(tip.x).toBe(130 + POINTING_GAP);
-    expect(tip.y).toBe(240 + POINTING_GAP);
+    expect(tip.ringX).toBe(10);
+    expect(tip.tipX).toBe(10 + POINTING_STANDOFF);
   });
 
-  test('flips vertically when the object hugs the bottom edge', () => {
-    // logical top = 740, bottom = 780: no room below.
+  test('flips vertically when the element center hugs the bottom edge', () => {
     const tip = pointingTip({ x: 600, y: 1480, width: 240, height: 80 }, display);
     expect(tip.flipX).toBe(false);
     expect(tip.flipY).toBe(true);
-    // anchors on the top-left corner (300, 740); tip sits up-left.
-    expect(tip.x).toBe(300 - POINTING_GAP);
-    expect(tip.y).toBe(740 - POINTING_GAP);
+    expect(tip.ringY).toBe(760);
+    expect(tip.tipY).toBe(760 - POINTING_STANDOFF);
   });
 });
 
 describe('shadowTip', () => {
-  test('parks the tip just below-right of the mouse', () => {
+  test('parks the tip just below the mouse', () => {
     const tip = shadowTip(400, 300);
-    expect(tip.x).toBeGreaterThan(400);
     expect(tip.y).toBeGreaterThan(300);
   });
 });

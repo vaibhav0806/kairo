@@ -104,12 +104,24 @@ describe('voiceRecorder helpers', () => {
   test('stops after speech is followed by enough silence', () => {
     expect(
       shouldStopVoiceCapture({
-        elapsedMs: 1800,
+        elapsedMs: 3200,
         heardSpeech: true,
-        silenceMs: 950,
+        silenceMs: 2100,
         rms: 0.001
       })
     ).toBe(true);
+  });
+
+  test('keeps recording through a short mid-thought pause', () => {
+    // A ~1s pause must NOT submit — the user may resume talking.
+    expect(
+      shouldStopVoiceCapture({
+        elapsedMs: 2200,
+        heardSpeech: true,
+        silenceMs: 1000,
+        rms: 0.001
+      })
+    ).toBe(false);
   });
 
   test('does not stop on startup silence before speech is heard', () => {

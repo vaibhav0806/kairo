@@ -473,6 +473,59 @@ input {
   filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.45)) drop-shadow(0 0 8px rgb(124 58 237 / 0.65));
 }
 
+/* Pulsing target ring: shown on the element the arrow points at (centered on the
+   ring container's origin, which is translated to the target point). */
+.kairo-cursor-ring {
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transition: opacity 0.18s ease-out;
+  will-change: transform;
+}
+
+.kairo-cursor-ring.is-visible {
+  opacity: 1;
+}
+
+.kairo-cursor-ring-core,
+.kairo-cursor-ring-ping {
+  border-radius: 999px;
+  left: 0;
+  position: absolute;
+  top: 0;
+}
+
+/* Steady core dot on the exact point. */
+.kairo-cursor-ring-core {
+  border: 2.5px solid #c79bff;
+  box-shadow: 0 0 10px rgb(124 58 237 / 0.7);
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  width: 16px;
+}
+
+/* Expanding ping for attention. */
+.kairo-cursor-ring-ping {
+  animation: kairo-cursor-ping 1.5s ease-out infinite;
+  border: 2px solid rgb(199 155 255 / 0.7);
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  width: 16px;
+}
+
+@keyframes kairo-cursor-ping {
+  0% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.8);
+  }
+}
+
 .overlay-shell {
   background: transparent;
   inset: 0;

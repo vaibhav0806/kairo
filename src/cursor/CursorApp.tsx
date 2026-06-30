@@ -32,6 +32,7 @@ export function CursorApp() {
   const nativeBridge = useMemo(() => createNativeBridge(), []);
 
   const elementRef = useRef<HTMLDivElement | null>(null);
+  const ringRef = useRef<HTMLDivElement | null>(null);
 
   // Display origin/scale for converting global mouse points to window-local px.
   const boundsRef = useRef<DisplayBounds>({ x: 0, y: 0, width: 0, height: 0, scaleFactor: 1 });
@@ -39,8 +40,15 @@ export function CursorApp() {
   // Latest real mouse, in global top-left points (kept fresh even while pointing,
   // so releasing glides back to wherever the mouse is now).
   const mouseRef = useRef<MousePayload>({ x: 0, y: 0 });
-  // Resting tip + orientation while pointing, in window-local px.
-  const pointRef = useRef<PointingTip>({ x: 0, y: 0, flipX: false, flipY: false });
+  // Resting tip + ring center + orientation while pointing, in window-local px.
+  const pointRef = useRef<PointingTip>({
+    tipX: 0,
+    tipY: 0,
+    ringX: 0,
+    ringY: 0,
+    flipX: false,
+    flipY: false
+  });
 
   const springX = useRef(createSpring(0));
   const springY = useRef(createSpring(0));
@@ -65,7 +73,8 @@ export function CursorApp() {
     // Current spring target (local px) + glyph orientation for this mode.
     const resolveTarget = (): { x: number; y: number; flipX: boolean; flipY: boolean } => {
       if (modeRef.current === 'pointing') {
-        return pointRef.current;
+        const point = pointRef.current;
+        return { x: point.tipX, y: point.tipY, flipX: point.flipX, flipY: point.flipY };
       }
       const bounds = boundsRef.current;
       // The mouse arrives in physical px; convert to CSS px via the webview's own
@@ -130,6 +139,20 @@ export function CursorApp() {
       writeTransform();
     };
 
+    // Position + show/hide the pulsing target ring (centered on x,y in local px).
+    const setRing = (visible: boolean, x = 0, y = 0) => {
+      const ring = ringRef.current;
+      if (!ring) {
+        return;
+      }
+      if (visible) {
+        ring.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        ring.classList.add('is-visible');
+      } else {
+        ring.classList.remove('is-visible');
+      }
+    };
+
     void nativeBridge
       .getDisplayBounds()
       .then((bounds) => {
@@ -164,7 +187,9 @@ export function CursorApp() {
         if (!isMounted) {
           return;
         }
-        pointRef.current = pointingTip(event.payload.screenRegion, event.payload.displayBounds);
+        const tip = pointingTip(event.payload.screenRegion, event.payload.displayBounds);
+        pointRef.current = tip;
+        setRing(true, tip.ringX, tip.ringY);
         modeRef.current = 'pointing';
         wake();
       }),
@@ -172,6 +197,7 @@ export function CursorApp() {
         if (!isMounted) {
           return;
         }
+        setRing(false);
         modeRef.current = 'shadow';
         wake();
       })
@@ -195,6 +221,10 @@ export function CursorApp() {
 
   return (
     <div className="kairo-cursor-shell" aria-hidden="true">
+      <div className="kairo-cursor-ring" ref={ringRef} aria-hidden="true">
+        <span className="kairo-cursor-ring-core" />
+        <span className="kairo-cursor-ring-ping" />
+      </div>
       <div
         className="kairo-cursor"
         ref={elementRef}

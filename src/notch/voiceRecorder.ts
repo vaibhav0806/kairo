@@ -1,7 +1,9 @@
 export type VoiceCaptureState = 'idle' | 'recording' | 'transcribing' | 'error';
 
 export const VOICE_SILENCE_THRESHOLD = 0.018;
-export const VOICE_SILENCE_AFTER_SPEECH_MS = 900;
+// Wait this long after speech tails off before auto-submitting, so the user can
+// pause mid-thought and resume without the turn being cut off.
+export const VOICE_SILENCE_AFTER_SPEECH_MS = 2_000;
 export const VOICE_MIN_RECORDING_MS = 650;
 export const VOICE_NO_SPEECH_TIMEOUT_MS = 4_800;
 export const VOICE_MAX_RECORDING_MS = 18_000;
