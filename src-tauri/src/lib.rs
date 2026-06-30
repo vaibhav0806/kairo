@@ -60,11 +60,7 @@ use core_foundation::{
     string::{CFString, CFStringRef},
 };
 #[cfg(target_os = "macos")]
-use core_graphics::{
-    display::CGDisplay,
-    event::CGEvent,
-    event_source::{CGEventSource, CGEventSourceStateID},
-};
+use core_graphics::display::CGDisplay;
 #[cfg(target_os = "macos")]
 use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio};
 
@@ -965,19 +961,11 @@ fn cursor_window(app: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String>
         .ok_or_else(|| "Cursor panel has no backing window".to_string())
 }
 
-// Current mouse position in global, top-left display points (thread-safe; needs
-// no Accessibility permission, unlike NSEvent global key monitors).
-#[cfg(target_os = "macos")]
-fn current_mouse_location() -> Option<(f64, f64)> {
-    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState).ok()?;
-    let event = CGEvent::new(source).ok()?;
-    let point = event.location();
-    Some((point.x, point.y))
-}
-
-// Poll the mouse at ~120 Hz and push moves to the cursor window. Only emits on
-// actual movement, so an idle mouse costs a cheap read + compare and no IPC.
-#[cfg(target_os = "macos")]
+// Poll the global cursor position at ~60 Hz and push moves to the cursor window.
+// Uses Tauri's cross-platform `cursor_position` (physical px, global top-left);
+// we convert to logical points so the webview (which works in CSS px = points)
+// can place the pet. Only emits on actual movement, so an idle mouse costs almost
+// nothing.
 fn spawn_mouse_tracker(app: &tauri::AppHandle) {
     let window = match app.state::<CursorState>().window.lock() {
         Ok(guard) => guard.clone(),
@@ -987,11 +975,26 @@ fn spawn_mouse_tracker(app: &tauri::AppHandle) {
         eprintln!("Kairo Tutor: cursor window missing; mouse tracker not started");
         return;
     };
+    let app = app.clone();
 
     std::thread::spawn(move || {
+        #[cfg(target_os = "macos")]
+        let scale = {
+            let factor = main_display_bounds().scale_factor;
+            if factor > 0.0 {
+                factor
+            } else {
+                1.0
+            }
+        };
+        #[cfg(not(target_os = "macos"))]
+        let scale = 1.0_f64;
+
         let mut last: Option<(f64, f64)> = None;
         loop {
-            if let Some((x, y)) = current_mouse_location() {
+            if let Ok(position) = app.cursor_position() {
+                let x = position.x / scale;
+                let y = position.y / scale;
                 let moved = match last {
                     Some((px, py)) => (x - px).abs() > 0.4 || (y - py).abs() > 0.4,
                     None => true,
@@ -1001,13 +1004,10 @@ fn spawn_mouse_tracker(app: &tauri::AppHandle) {
                     let _ = window.emit("cursor:mouse", MousePoint { x, y });
                 }
             }
-            std::thread::sleep(Duration::from_millis(8));
+            std::thread::sleep(Duration::from_millis(16));
         }
     });
 }
-
-#[cfg(not(target_os = "macos"))]
-fn spawn_mouse_tracker(_app: &tauri::AppHandle) {}
 
 fn configure_overlay_window(
     window: &tauri::WebviewWindow,
