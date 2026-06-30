@@ -1468,7 +1468,7 @@ async fn detect_element_boxes(
     let resized_base64 = base64::engine::general_purpose::STANDARD.encode(out.into_inner());
 
     let prompt = format!(
-        "The user asked this while looking at their screen: \"{user_query}\".\n\nIdentify the on-screen elements the user is asking about or should look at. Return the most relevant element first, at most 4. Each element has a short 1-3 word \"label\" and a \"box\" of [x1, y1, x2, y2] in ABSOLUTE PIXELS of this {rw}x{rh} image (origin top-left, x increases right, y increases down). If nothing on screen is relevant, return an empty list."
+        "The user asked this while looking at their screen: \"{user_query}\".\n\nIdentify the SINGLE most relevant on-screen element the user should look at or click to act on your answer. Return EXACTLY ONE element, or an empty list if nothing on screen is relevant (e.g. a purely conceptual question). The element has a short 1-3 word \"label\" and a \"box\" of [x1, y1, x2, y2] in ABSOLUTE PIXELS of this {rw}x{rh} image (origin top-left, x increases right, y increases down). Box only that one element; do NOT include extra, secondary, or overlapping elements."
     );
 
     let body = json!({
@@ -1587,10 +1587,23 @@ async fn detect_element_boxes(
             norm_y2: ny2,
             label,
         });
-        if boxes.len() >= 4 {
+        // We draw exactly one box (the single most relevant element).
+        if boxes.len() >= 1 {
             break;
         }
     }
+
+    let summary: Vec<String> = boxes
+        .iter()
+        .map(|b| {
+            format!(
+                "\"{}\" [{:.3},{:.3},{:.3},{:.3}]",
+                b.label, b.norm_x1, b.norm_y1, b.norm_x2, b.norm_y2
+            )
+        })
+        .collect();
+    eprintln!("[boxes] {} element(s): {}", boxes.len(), summary.join(", "));
+
     boxes
 }
 
@@ -1626,19 +1639,48 @@ fn apply_box_targets(
         1.0
     };
 
-    let to_px = |nx: f64, ny: f64| -> (f64, f64) {
-        (
-            (bounds.x + nx * bounds.width) * scale_factor,
-            (bounds.y + ny * bounds.height) * scale_factor,
-        )
+    // Display extent in physical px — used to clamp padded boxes to the screen.
+    let min_x = bounds.x * scale_factor;
+    let min_y = bounds.y * scale_factor;
+    let max_x = (bounds.x + bounds.width) * scale_factor;
+    let max_y = (bounds.y + bounds.height) * scale_factor;
+
+    // Padding: grow each side by max(min_px, pct * size) so the box has breathing
+    // room instead of hugging the element exactly. Tunable at runtime (no rebuild).
+    let pad_pct = provider_env_optional("KAIRO_BOX_PAD_PCT")
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .filter(|v| *v >= 0.0)
+        .unwrap_or(0.35);
+    let pad_min_px = provider_env_optional("KAIRO_BOX_PAD_MIN_PX")
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .filter(|v| *v >= 0.0)
+        .unwrap_or(16.0)
+        * scale_factor;
+
+    // A detected box → padded (x, y, width, height) in physical px, clamped to
+    // the display. Both the drawn rectangle and the cursor corner derive from this.
+    let padded_rect = |b: &DetectedBox| -> (f64, f64, f64, f64) {
+        let x1 = (bounds.x + b.norm_x1 * bounds.width) * scale_factor;
+        let y1 = (bounds.y + b.norm_y1 * bounds.height) * scale_factor;
+        let x2 = (bounds.x + b.norm_x2 * bounds.width) * scale_factor;
+        let y2 = (bounds.y + b.norm_y2 * bounds.height) * scale_factor;
+        let pad_x = (pad_pct * (x2 - x1)).max(pad_min_px);
+        let pad_y = (pad_pct * (y2 - y1)).max(pad_min_px);
+        let px1 = (x1 - pad_x).max(min_x);
+        let py1 = (y1 - pad_y).max(min_y);
+        let px2 = (x2 + pad_x).min(max_x);
+        let py2 = (y2 + pad_y).min(max_y);
+        (px1, py1, (px2 - px1).max(0.0), (py2 - py1).max(0.0))
     };
 
     let mut targets: Vec<Value> = Vec::new();
 
-    // Primary box (first = most relevant) → companion cursor at its bottom-left
-    // corner. A small square marker in physical px so the cursor anchors there.
+    // Primary box (first = most relevant) → companion cursor at the bottom-left
+    // corner of its PADDED rectangle, so the cursor lines up with what's drawn.
     if let Some(primary) = boxes.first() {
-        let (corner_x, corner_y) = to_px(primary.norm_x1, primary.norm_y2);
+        let (px, py, _pw, ph) = padded_rect(primary);
+        let corner_x = px;
+        let corner_y = py + ph;
         let marker_px = bounds.width * scale_factor * 0.05;
         targets.push(json!({
             "kind": "pointer",
@@ -1654,10 +1696,9 @@ fn apply_box_targets(
         }));
     }
 
-    // Every box → a labeled highlight rectangle drawn in the overlay window.
+    // Every box → a labeled, padded highlight rectangle drawn in the overlay.
     for (index, b) in boxes.iter().enumerate() {
-        let (x, y) = to_px(b.norm_x1, b.norm_y1);
-        let (x2, y2) = to_px(b.norm_x2, b.norm_y2);
+        let (x, y, w, h) = padded_rect(b);
         targets.push(json!({
             "kind": "highlight_box",
             "targetId": format!("vision-box-{index}"),
@@ -1666,8 +1707,8 @@ fn apply_box_targets(
             "screenRegion": {
                 "x": x,
                 "y": y,
-                "width": (x2 - x).max(0.0),
-                "height": (y2 - y).max(0.0),
+                "width": w,
+                "height": h,
             },
         }));
     }
