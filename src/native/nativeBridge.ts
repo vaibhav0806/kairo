@@ -88,6 +88,7 @@ export type NativeOverlayPayload = {
 export type NativeCursorPointInput = {
   screenRegion: ScreenRegion;
   displayBounds: NativeOverlayDisplayBounds;
+  color?: string;
 };
 
 export type NativeBridge = {

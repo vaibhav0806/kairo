@@ -21,7 +21,11 @@ export async function routeVisualTargets(
   const areaTargets = targets.filter((target) => !POINT_KINDS.has(target.kind));
 
   if (pointTarget) {
-    await nativeBridge.cursorPoint({ screenRegion: pointTarget.screenRegion, displayBounds });
+    await nativeBridge.cursorPoint({
+      screenRegion: pointTarget.screenRegion,
+      displayBounds,
+      color: pointTarget.color
+    });
   }
 
   if (areaTargets.length > 0) {
