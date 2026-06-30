@@ -22,6 +22,9 @@ export type VisualTarget = {
   label: string;
   confidence: number;
   screenRegion: ScreenRegion;
+  // Vibrant accent hex derived from the background behind the target. Optional —
+  // the OCR fallback path and tests omit it, in which case the default theme wins.
+  color?: string;
 };
 
 export type ScreenRegion = {
