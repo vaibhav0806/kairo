@@ -1,6 +1,65 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { deflateSync } from 'node:zlib';
+
+const crcTable = new Uint32Array(256).map((_, index) => {
+  let value = index;
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  }
+  return value >>> 0;
+});
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type, data = Buffer.alloc(0)) {
+  const typeBuffer = Buffer.from(type);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])));
+  return Buffer.concat([length, typeBuffer, data, crc]);
+}
+
+function makeSmokePngBase64(width = 512, height = 320) {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+  header[10] = 0;
+  header[11] = 0;
+  header[12] = 0;
+
+  const rows = [];
+  for (let y = 0; y < height; y += 1) {
+    const row = Buffer.alloc(1 + width * 4);
+    row[0] = 0;
+    for (let x = 0; x < width; x += 1) {
+      const offset = 1 + x * 4;
+      const inBox = x > width * 0.25 && x < width * 0.75 && y > height * 0.25 && y < height * 0.75;
+      row[offset] = inBox ? 23 : 244;
+      row[offset + 1] = inBox ? 126 : 247;
+      row[offset + 2] = inBox ? 116 : 250;
+      row[offset + 3] = 255;
+    }
+    rows.push(row);
+  }
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(Buffer.concat(rows))),
+    pngChunk('IEND')
+  ]).toString('base64');
+}
 
 function parseEnvText(text) {
   const parsed = {};
@@ -40,15 +99,26 @@ async function loadLocalEnv() {
   return env;
 }
 
-async function postJson(url, headers, body) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers
-    },
-    body: JSON.stringify(body)
-  });
+async function postJson(url, headers, body, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 30000);
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+  } catch (error) {
+    const detail = error?.cause?.message ?? error?.message ?? 'request failed';
+    throw new Error(`${options.label ?? 'Provider request'}: ${detail}`);
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const text = await response.text();
   let payload;
@@ -60,7 +130,7 @@ async function postJson(url, headers, body) {
 
   if (!response.ok) {
     const message = payload?.error?.message ?? payload?.message ?? `HTTP ${response.status}`;
-    throw new Error(message);
+    throw new Error(`${options.label ?? 'Provider request'}: ${message}`);
   }
 
   return payload;
@@ -98,7 +168,8 @@ async function testOpenRouter(env) {
       response_format: { type: 'json_object' },
       temperature: 0,
       max_tokens: 80
-    }
+    },
+    { label: `OpenRouter text (${model})`, timeoutMs: 30000 }
   );
 
   const content = payload?.choices?.[0]?.message?.content;
@@ -110,8 +181,7 @@ async function testOpenRouter(env) {
   console.log(`OpenRouter: ok (${model})`);
   console.log(`OpenRouter response: ${content}`);
 
-  const tinyPng =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP8z8BQDwAFgwJ/lzgr4QAAAABJRU5ErkJggg==';
+  const tinyPng = makeSmokePngBase64();
   const visionModel = env.OPENROUTER_VISION_MODEL || model;
 
   try {
@@ -166,6 +236,61 @@ async function testOpenRouter(env) {
   }
 }
 
+async function testAnthropicVision(env) {
+  const apiKey = env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.log('Anthropic vision: skipped, ANTHROPIC_API_KEY is not set.');
+    return;
+  }
+
+  const baseUrl = (env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, '');
+  const model = env.ANTHROPIC_VISION_MODEL || 'claude-opus-4-8';
+  const tinyPng = makeSmokePngBase64();
+
+  const payload = await postJson(
+    `${baseUrl}/v1/messages`,
+    {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    {
+      model,
+      max_tokens: 128,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: 'image/png',
+                data: tinyPng
+              }
+            },
+            {
+              type: 'text',
+              text:
+                'Return JSON only. This is a blank smoke-test image, so return {"elements":[]}.'
+            }
+          ]
+        }
+      ]
+    },
+    { label: `Anthropic vision (${model})`, timeoutMs: 30000 }
+  );
+
+  const content = payload?.content
+    ?.map((block) => (block?.type === 'text' ? block.text : ''))
+    .join('');
+  if (!content) {
+    throw new Error('Anthropic vision response did not include text content.');
+  }
+  JSON.parse(content);
+
+  console.log(`Anthropic vision: ok (${model})`);
+}
+
 async function testSarvamTts(env) {
   const apiKey = env.SARVAM_API_KEY;
   if (!apiKey) {
@@ -209,6 +334,7 @@ const env = await loadLocalEnv();
 
 try {
   await testOpenRouter(env);
+  await testAnthropicVision(env);
   await testSarvamTts(env);
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);

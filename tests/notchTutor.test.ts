@@ -102,7 +102,7 @@ describe('askTutorFromNotch', () => {
     );
   });
 
-  test('keeps user annotations visible instead of replacing them with provider target boxes', async () => {
+  test('routes provider targets after annotated asks so the companion cursor still points', async () => {
     const bridge = createBridge({
       runTutorTurn: vi.fn(async () =>
         JSON.stringify({
@@ -141,19 +141,16 @@ describe('askTutorFromNotch', () => {
       annotations: [annotation]
     });
 
-    expect(bridge.showOverlay).toHaveBeenCalledWith({
-      mode: 'annotation_preview',
-      displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 },
-      targets: [],
-      annotations: [annotation]
-    });
-    expect(bridge.showOverlay).not.toHaveBeenCalledWith(
+    expect(bridge.cursorPoint).toHaveBeenCalledWith(
       expect.objectContaining({
-        targets: expect.arrayContaining([
-          expect.objectContaining({ targetId: 'provider-box' })
-        ])
+        screenRegion: { x: 100, y: 120, width: 220, height: 90 },
+        displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 }
       })
     );
+    expect(bridge.showOverlay).toHaveBeenCalledWith({
+      displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 },
+      targets: [expect.objectContaining({ targetId: 'provider-box' })]
+    });
   });
 
   test('flies the companion cursor to a pointer target instead of the overlay', async () => {
@@ -185,16 +182,18 @@ describe('askTutorFromNotch', () => {
       defaultSkill: 'blender'
     });
 
-    expect(bridge.cursorPoint).toHaveBeenCalledWith({
-      screenRegion: { x: 240, y: 80, width: 120, height: 48 },
-      displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 }
-    });
+    expect(bridge.cursorPoint).toHaveBeenCalledWith(
+      expect.objectContaining({
+        screenRegion: { x: 240, y: 80, width: 120, height: 48 },
+        displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 }
+      })
+    );
     // A lone pointer target must not also render in the overlay.
     expect(bridge.showOverlay).not.toHaveBeenCalled();
     expect(bridge.hideOverlay).toHaveBeenCalled();
   });
 
-  test('keeps area targets in the overlay and does not point at them', async () => {
+  test('keeps area targets in the overlay and points the companion cursor at them', async () => {
     const bridge = createBridge({
       runTutorTurn: vi.fn(async () =>
         JSON.stringify({
@@ -223,7 +222,12 @@ describe('askTutorFromNotch', () => {
       defaultSkill: 'blender'
     });
 
-    expect(bridge.cursorPoint).not.toHaveBeenCalled();
+    expect(bridge.cursorPoint).toHaveBeenCalledWith(
+      expect.objectContaining({
+        screenRegion: { x: 100, y: 120, width: 220, height: 90 },
+        displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 }
+      })
+    );
     expect(bridge.showOverlay).toHaveBeenCalledWith({
       displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 },
       targets: [

@@ -56,17 +56,17 @@ export async function askTutorFromNotch({
     });
 
     const displayBounds = screenCapture.displayBounds;
-    if (annotations.length > 0 && displayBounds) {
+    if (response.visualTargets.length > 0 && displayBounds) {
+      // Companion cursor flies to the primary point target; area targets render in
+      // the overlay. The notch releases the cursor after TTS playback (+grace).
+      await routeVisualTargets(nativeBridge, response.visualTargets, displayBounds);
+    } else if (annotations.length > 0 && displayBounds) {
       await nativeBridge.showOverlay({
         mode: 'annotation_preview',
         displayBounds,
         targets: [],
         annotations
       });
-    } else if (response.visualTargets.length > 0 && displayBounds) {
-      // Companion cursor flies to the primary point target; area targets render in
-      // the overlay. The notch releases the cursor after TTS playback (+grace).
-      await routeVisualTargets(nativeBridge, response.visualTargets, displayBounds);
     } else {
       await nativeBridge.hideOverlay();
     }

@@ -17,7 +17,7 @@ export async function routeVisualTargets(
   targets: VisualTarget[],
   displayBounds: NativeOverlayDisplayBounds
 ): Promise<void> {
-  const pointTarget = targets.find((target) => POINT_KINDS.has(target.kind));
+  const pointTarget = targets.find((target) => POINT_KINDS.has(target.kind)) ?? targets[0];
   const areaTargets = targets.filter((target) => !POINT_KINDS.has(target.kind));
 
   if (pointTarget) {

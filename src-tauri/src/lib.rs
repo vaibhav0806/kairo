@@ -1305,10 +1305,8 @@ fn ocr_screenshot(image_bytes: &[u8], bounds: &OverlayDisplayBounds) -> Vec<OcrE
 
     let data = NSData::with_bytes(image_bytes);
     let request = VNRecognizeTextRequest::new();
-    unsafe {
-        request.setRecognitionLevel(VNRequestTextRecognitionLevel::Accurate);
-        request.setUsesLanguageCorrection(true);
-    }
+    request.setRecognitionLevel(VNRequestTextRecognitionLevel::Accurate);
+    request.setUsesLanguageCorrection(true);
 
     let options: objc2::rc::Retained<NSDictionary<NSString, AnyObject>> = NSDictionary::new();
     let handler =
@@ -1588,30 +1586,6 @@ async fn detect_element_boxes(
     let body = json!({
         "model": model,
         "max_tokens": 1024,
-        "output_config": {
-            "format": {
-                "type": "json_schema",
-                "schema": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["elements"],
-                    "properties": {
-                        "elements": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "additionalProperties": false,
-                                "required": ["label", "box"],
-                                "properties": {
-                                    "label": { "type": "string" },
-                                    "box": { "type": "array", "items": { "type": "number" } }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "messages": [{
             "role": "user",
             "content": [
@@ -2876,7 +2850,7 @@ mod tests {
     fn openrouter_messages_use_openrouter_image_url_shape() {
         let input = sample_tutor_turn_input();
 
-        let messages = build_openrouter_messages(&input, true).expect("messages should build");
+        let messages = build_openrouter_messages(&input, true, &[]).expect("messages should build");
         let image_part = &messages[1]["content"][1];
 
         assert_eq!(image_part["type"], "image_url");
@@ -2890,7 +2864,7 @@ mod tests {
     #[test]
     fn openrouter_request_body_requests_json_object_output() {
         let input = sample_tutor_turn_input();
-        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", true)
+        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", true, &[])
             .expect("body should build");
 
         assert_eq!(body["model"], "qwen/qwen3.6-flash");
@@ -2900,7 +2874,7 @@ mod tests {
     #[test]
     fn openrouter_request_body_can_omit_screenshot_for_text_fallback() {
         let input = sample_tutor_turn_input();
-        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", false)
+        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", false, &[])
             .expect("body should build");
         let user_message = &body["messages"][1];
 
@@ -2954,7 +2928,7 @@ mod tests {
     #[test]
     fn openrouter_prompt_allows_general_questions() {
         let input = sample_tutor_turn_input();
-        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", false)
+        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", false, &[])
             .expect("body should build");
         let system_prompt = body["messages"][0]["content"]
             .as_str()
@@ -2982,7 +2956,7 @@ mod tests {
             },
             points: None,
         }];
-        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", false)
+        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", false, &[])
             .expect("body should build");
         let user_prompt = body["messages"][1]["content"]
             .as_str()
