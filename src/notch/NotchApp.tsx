@@ -141,6 +141,9 @@ export function NotchApp() {
   const answerAudioRef = useRef<HTMLAudioElement | null>(null);
   // The status capsule element, for writing the live mic level (--mic-level).
   const capsuleRef = useRef<HTMLDivElement | null>(null);
+  // Set true when the real answer supersedes the gate's "let me look" filler, so a
+  // slow filler synth doesn't play over the answer.
+  const fillerCancelRef = useRef(false);
   // The teaching visuals for the current answer, revealed on TTS start (not when
   // the LLM answer arrives), plus the app they point at for the context watcher.
   const revealVisualsRef = useRef<() => Promise<void>>(async () => {});
@@ -181,6 +184,9 @@ export function NotchApp() {
   // Screenshot taken at voice-start, reused by the tutor turn so the ask doesn't
   // wait on a fresh capture.
   const capturedScreenRef = useRef<NativeScreenCapture | null>(null);
+  // Mirrors `annotations` so the (dep-stable) annotation-watch arming can read the
+  // current count without churning callback identities.
+  const annotationsRef = useRef<UserAnnotation[]>([]);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
   const interaction = getNotchInteractionState({
@@ -215,6 +221,8 @@ export function NotchApp() {
 
   const stopAnswerPlayback = useCallback(() => {
     setIsSpeaking(false);
+    // Any new playback supersedes a pending gate filler.
+    fillerCancelRef.current = true;
     if (settleFallbackRef.current) {
       clearTimeout(settleFallbackRef.current);
       settleFallbackRef.current = null;
@@ -398,6 +406,65 @@ export function NotchApp() {
     [nativeBridge, stopAnswerPlayback]
   );
 
+  // Phase 1 gate: text-only "do I need to look at the screen?". Returns the parsed
+  // { needsScreen, voiceText }; defaults to looking on any failure.
+  const runGate = useCallback(
+    async (query: string): Promise<{ needsScreen: boolean; voiceText: string }> => {
+      const fallback = { needsScreen: true, voiceText: '' };
+      try {
+        const active =
+          capturedScreenRef.current?.activeApp ??
+          (await nativeBridge.getActiveApp().catch(() => null));
+        const raw = await nativeBridge.runGateTurn({
+          userQuery: query,
+          activeApp: active?.activeApp,
+          windowTitle: active?.windowTitle ?? undefined
+        });
+        const start = raw.indexOf('{');
+        const end = raw.lastIndexOf('}');
+        if (start < 0 || end <= start) {
+          return fallback;
+        }
+        const parsed = JSON.parse(raw.slice(start, end + 1));
+        return {
+          needsScreen: Boolean(parsed.needsScreen),
+          voiceText: typeof parsed.voiceText === 'string' ? parsed.voiceText : ''
+        };
+      } catch {
+        return fallback;
+      }
+    },
+    [nativeBridge]
+  );
+
+  // Speak the gate's "let me look" filler while the vision turn runs. Guarded so a
+  // slow synth never plays over the real answer.
+  const speakFiller = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        return;
+      }
+      fillerCancelRef.current = false;
+      try {
+        const result = await nativeBridge.synthesizeSpeech({ text: trimmed });
+        if (fillerCancelRef.current) {
+          return;
+        }
+        const audioUrl = buildAudioDataUrl(result);
+        if (!audioUrl) {
+          return;
+        }
+        const audio = new Audio(audioUrl);
+        answerAudioRef.current = audio;
+        await audio.play();
+      } catch {
+        // Filler is best-effort.
+      }
+    },
+    [nativeBridge]
+  );
+
   const submitQuery = useCallback(
     async (nextQuery: string) => {
       const trimmedQuery = nextQuery.trim();
@@ -425,6 +492,47 @@ export function NotchApp() {
       await waitForNotchPaint();
 
       try {
+        // Phase 1: the gate (text-only). A pen drawing always implies a screen
+        // question, so skip the gate and look in that case.
+        const gate =
+          annotations.length > 0
+            ? { needsScreen: true, voiceText: '' }
+            : await runGate(trimmedQuery);
+
+        if (!gate.needsScreen && gate.voiceText.trim().length > 0) {
+          // Direct answer — no screenshot, no grounding, no vision cost.
+          const directPayload: NotchPayload = {
+            state: 'showing_step',
+            layout: 'answer',
+            title: 'Kairo answered',
+            detail: gate.voiceText
+          };
+          revealVisualsRef.current = async () => {
+            await nativeBridge.hideOverlay();
+          };
+          contextBaselineRef.current = null;
+          setPayload(directPayload);
+          setDetailHidden(true);
+          setAnnotations([]);
+          setActiveAnnotationTool(null);
+          void nativeBridge.showNotch(directPayload);
+          void playAnswerAudio(
+            directPayload.detail,
+            () => {
+              setDetailHidden(false);
+              void nativeBridge.hideOverlay();
+            },
+            () => markAnswerSettled()
+          );
+          return;
+        }
+
+        // Phase 2: needs the screen. Speak the filler while the vision turn runs, so
+        // the "let me look" plays over the (now slower) grounding latency.
+        if (gate.voiceText.trim().length > 0) {
+          void speakFiller(gate.voiceText);
+        }
+
         const { payload: answerPayload, revealVisuals, context } = await askTutorFromNotch({
           query: trimmedQuery,
           nativeBridge,
@@ -440,7 +548,6 @@ export function NotchApp() {
         contextBaselineRef.current = context;
 
         setPayload(answerPayload);
-        // Body shows "Preparing the next step" (detailHidden) until speech begins.
         setDetailHidden(true);
         setQuery('');
         setAnnotations([]);
@@ -449,10 +556,9 @@ export function NotchApp() {
         void playAnswerAudio(
           answerPayload.detail,
           () => {
-            // Speech is starting: reveal text + visuals, then watch for the user
-            // moving on (app/tab switch, scroll, click) so the box doesn't go stale.
+            // Speech is starting (this stops the filler): reveal text + visuals, then
+            // watch for the user moving on so the box doesn't go stale.
             setDetailHidden(false);
-            // Clear the thinking swirl; revealVisuals may then send the cursor pointing.
             void emit('cursor:idle', {});
             void revealVisualsRef.current().then(() => {
               if (contextBaselineRef.current) {
@@ -461,7 +567,6 @@ export function NotchApp() {
             });
           },
           () => {
-            // Playback finished (or there was none): allow the idle-close to begin.
             markAnswerSettled();
           }
         );
@@ -477,10 +582,28 @@ export function NotchApp() {
       env.defaultSkill,
       nativeBridge,
       playAnswerAudio,
+      runGate,
+      speakFiller,
       stopAnswerPlayback,
       updateVoiceCaptureState
     ]
   );
+
+  // Arm the context watcher for a FINALIZED user drawing, so tab/window switch,
+  // scroll, or click clears it (same reset as Kairo's own box). Only called once the
+  // pen is off — never mid-stroke, or the drawing gestures would clear themselves.
+  const armAnnotationWatch = useCallback(async () => {
+    if (annotationsRef.current.length === 0) {
+      return;
+    }
+    const active =
+      capturedScreenRef.current?.activeApp ??
+      (await nativeBridge.getActiveApp().catch(() => null));
+    await nativeBridge.armContextWatch({
+      bundleId: active?.bundleId,
+      windowTitle: active?.windowTitle ?? undefined
+    });
+  }, [nativeBridge]);
 
   const startAnnotation = useCallback(
     async (tool: NotchAnnotationTool) => {
@@ -489,6 +612,7 @@ export function NotchApp() {
       if (activeAnnotationTool === tool) {
         setActiveAnnotationTool(null);
         void emit('annotation:finish', {});
+        void armAnnotationWatch();
         return;
       }
       setActiveAnnotationTool(tool);
@@ -499,13 +623,14 @@ export function NotchApp() {
         capturedScreenRef.current?.displayBounds ?? (await nativeBridge.getDisplayBounds());
       await nativeBridge.showAnnotationOverlay(bounds, tool);
     },
-    [activeAnnotationTool, nativeBridge]
+    [activeAnnotationTool, armAnnotationWatch, nativeBridge]
   );
 
   const finishAnnotation = useCallback(() => {
     setActiveAnnotationTool(null);
     void emit('annotation:finish', {});
-  }, []);
+    void armAnnotationWatch();
+  }, [armAnnotationWatch]);
 
   const undoAnnotation = useCallback(() => {
     void emit('annotation:undo', {});
@@ -592,10 +717,17 @@ export function NotchApp() {
   // detected natively). Clear the stale box + companion cursor; keep the notch (its
   // own idle timer governs closing) so a follow-up is still one tap away.
   useEffect(() => {
+    annotationsRef.current = annotations;
+  }, [annotations]);
+
+  useEffect(() => {
     const pending = listen('context:changed', () => {
       void nativeBridge.hideOverlay();
       void nativeBridge.cursorRelease();
       void nativeBridge.disarmContextWatch();
+      // Also clear the user's own pen drawing (marks + state) — they moved on.
+      setAnnotations([]);
+      void emit('annotation:clear', {});
     });
     return () => {
       void pending.then((unlisten) => unlisten());
