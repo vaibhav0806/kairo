@@ -170,6 +170,9 @@ export function NotchApp() {
   // Call the latest startVoiceCapture without making it an effect dependency
   // (otherwise the payload subscription re-subscribes on every render and loops).
   const startVoiceCaptureRef = useRef<() => void>(() => {});
+  // True while a push-to-talk (⌥⌃ hold) capture is in flight, so the monitor keeps
+  // recording until release instead of auto-stopping on silence.
+  const pttModeRef = useRef(false);
   // Screenshot taken at voice-start, reused by the tutor turn so the ask doesn't
   // wait on a fresh capture.
   const capturedScreenRef = useRef<NativeScreenCapture | null>(null);
@@ -247,7 +250,9 @@ export function NotchApp() {
   );
 
   const startVoiceMonitor = useCallback(
-    (stream: MediaStream, recorder: MediaRecorder) => {
+    // autoStop=false for push-to-talk: keep recording (and feeding the cursor halo)
+    // until the user releases the keys, instead of stopping on detected silence.
+    (stream: MediaStream, recorder: MediaRecorder, autoStop = true) => {
       stopVoiceMonitor();
 
       const AudioContextConstructor = globalThis.AudioContext;
@@ -274,6 +279,7 @@ export function NotchApp() {
       let silenceStartedAt: number | null = null;
       const startedAt = performance.now();
       let frame = 0;
+      let lastLevelEmit = 0;
       const maxTimeout = window.setTimeout(() => {
         if (recorder.state !== 'inactive') {
           recorder.stop();
@@ -287,6 +293,11 @@ export function NotchApp() {
 
         analyser.getByteTimeDomainData(data);
         const rms = rmsFromTimeDomainData(data);
+        // Feed the cursor's listening halo with the live mic level (throttled ~15fps).
+        if (now - lastLevelEmit >= 66) {
+          lastLevelEmit = now;
+          void emit('cursor:level', { level: Math.min(1, rms / 0.15) });
+        }
         if (rms >= VOICE_SILENCE_THRESHOLD) {
           heardSpeech = true;
           voiceHeardSpeechRef.current = true;
@@ -297,6 +308,7 @@ export function NotchApp() {
 
         const silenceMs = silenceStartedAt === null ? 0 : now - silenceStartedAt;
         if (
+          autoStop &&
           shouldStopVoiceCapture({
             elapsedMs: now - startedAt,
             heardSpeech,
@@ -429,6 +441,8 @@ export function NotchApp() {
             // Speech is starting: reveal text + visuals, then watch for the user
             // moving on (app/tab switch, scroll, click) so the box doesn't go stale.
             setDetailHidden(false);
+            // Clear the thinking swirl; revealVisuals may then send the cursor pointing.
+            void emit('cursor:idle', {});
             void revealVisualsRef.current().then(() => {
               if (contextBaselineRef.current) {
                 void nativeBridge.armContextWatch(contextBaselineRef.current);
@@ -603,6 +617,7 @@ export function NotchApp() {
       updateVoiceCaptureState('error');
       setPayload(nextPayload);
       void nativeBridge.showNotch(nextPayload);
+      void emit('cursor:idle', {});
     },
     [nativeBridge, updateVoiceCaptureState]
   );
@@ -687,6 +702,7 @@ export function NotchApp() {
 
         if (wasCancelled) {
           updateVoiceCaptureState('idle');
+          void emit('cursor:idle', {});
           return;
         }
 
@@ -703,6 +719,8 @@ export function NotchApp() {
           // Always transcribe; an empty transcript below is the real "no speech".
           updateVoiceCaptureState('transcribing');
           setVoicePayload('transcribing');
+          // Cursor switches from listening halo to a thinking swirl while we work.
+          void emit('cursor:thinking', {});
           try {
             const uploadBlob =
               pcmChunks.length > 0
@@ -734,9 +752,11 @@ export function NotchApp() {
       };
 
       recorder.start(250);
-      startVoiceMonitor(stream, recorder);
+      startVoiceMonitor(stream, recorder, !pttModeRef.current);
       updateVoiceCaptureState('recording');
       setVoicePayload('recording');
+      // Cursor shows the listening state (voice-reactive halo + live core color).
+      void emit('cursor:listening', {});
     } catch (error) {
       stopVoiceTracks();
       const detail =
@@ -937,6 +957,33 @@ export function NotchApp() {
 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [hideNotch]);
+
+  // Push-to-talk (⌥⌃ held → record, released → send) and the pen shortcut (⌥⇧P),
+  // both driven natively. PTT records until release (no silence auto-stop); the
+  // cursor carries the listening/thinking state.
+  useEffect(() => {
+    const pending = Promise.all([
+      listen('ptt:start', () => {
+        if (voiceCaptureStateRef.current === 'recording' || isSubmittingRef.current) {
+          return;
+        }
+        pttModeRef.current = true;
+        startVoiceCaptureRef.current();
+      }),
+      listen('ptt:stop', () => {
+        if (voiceCaptureStateRef.current === 'recording') {
+          stopActiveRecording(false);
+        }
+        pttModeRef.current = false;
+      }),
+      listen('pen:toggle', () => {
+        void startAnnotation('pen');
+      })
+    ]);
+    return () => {
+      void pending.then((unlisteners) => unlisteners.forEach((unlisten) => unlisten()));
+    };
+  }, [startAnnotation, stopActiveRecording]);
 
   return (
     <main className="notch-shell" aria-label="Kairo assistant status">

@@ -565,6 +565,95 @@ input {
   will-change: transform, opacity;
 }
 
+/* Listening halo + thinking swirl layer. The wrapper is translated onto the cursor
+   tip each frame; children are centered on its origin. Sits behind the arrow glyph. */
+.kairo-cursor-fx {
+  height: 0;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 0;
+  will-change: transform;
+}
+
+/* Voice-reactive listening halo: a soft purple pool that grows/brightens with the
+   live mic level (--mic-level, 0..1). Distinct from Clicky's flat red bars. */
+.kairo-cursor-halo {
+  background: radial-gradient(
+    circle,
+    rgb(167 139 250 / 0.5) 0%,
+    rgb(124 58 237 / 0.32) 45%,
+    rgb(124 58 237 / 0) 72%
+  );
+  border: 2px solid rgb(196 161 255 / calc(0.45 + var(--mic-level, 0) * 0.55));
+  border-radius: 999px;
+  height: 48px;
+  left: 0;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  transform: translate(-2px, 2px) translate(-50%, -50%)
+    scale(calc(0.68 + var(--mic-level, 0) * 0.95));
+  transition: transform 90ms ease-out, opacity 160ms ease-out;
+  width: 48px;
+}
+
+.kairo-cursor-shell[data-fx="listening"] .kairo-cursor-halo {
+  opacity: 1;
+}
+
+/* Thinking swirl: three purple dots orbiting the tip while Kairo works. */
+.kairo-cursor-think {
+  height: 30px;
+  left: 0;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  transform: translate(-2px, 2px) translate(-50%, -50%);
+  width: 30px;
+}
+
+.kairo-cursor-shell[data-fx="thinking"] .kairo-cursor-think {
+  opacity: 1;
+  animation: kairo-think-spin 0.85s linear infinite;
+}
+
+.kairo-cursor-think i {
+  background: #7c3aed;
+  border-radius: 999px;
+  height: 5px;
+  left: 50%;
+  margin: -2.5px;
+  position: absolute;
+  top: 50%;
+  width: 5px;
+}
+
+.kairo-cursor-think i:nth-child(1) {
+  opacity: 1;
+  transform: rotate(0deg) translateY(-12px);
+}
+
+.kairo-cursor-think i:nth-child(2) {
+  opacity: 0.62;
+  transform: rotate(120deg) translateY(-12px);
+}
+
+.kairo-cursor-think i:nth-child(3) {
+  opacity: 0.38;
+  transform: rotate(240deg) translateY(-12px);
+}
+
+@keyframes kairo-think-spin {
+  from {
+    transform: translate(-2px, 2px) translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-2px, 2px) translate(-50%, -50%) rotate(360deg);
+  }
+}
+
 /* Pulsing target ring: shown on the element the arrow points at (centered on the
    ring container's origin, which is translated to the target point). */
 .kairo-cursor-ring {

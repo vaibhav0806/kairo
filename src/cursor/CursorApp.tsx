@@ -30,6 +30,11 @@ const TRAIL_BASE = 44;
 const TRAIL_H = 8;
 const DEFAULT_ARROW_FILL = 'url(#kairo-cursor-grad)';
 const DEFAULT_TRAIL = `linear-gradient(to left, #7c3aed, #7c3aed00)`;
+// While recording, the arrow core turns a live "mic on" red so listening is
+// unmistakable even apart from the halo.
+const RECORDING_FILL = '#ff4d6d';
+
+type CursorFx = 'none' | 'listening' | 'thinking';
 
 type CursorMode = 'shadow' | 'pointing';
 
@@ -42,6 +47,10 @@ export function CursorApp() {
   const elementRef = useRef<HTMLDivElement | null>(null);
   const trailRef = useRef<HTMLDivElement | null>(null);
   const arrowPathRef = useRef<SVGPathElement | null>(null);
+  // Listening halo + thinking swirl layer, centred on the cursor tip each frame.
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const fxRef = useRef<HTMLDivElement | null>(null);
+  const fxModeRef = useRef<CursorFx>('none');
 
   // Display origin/scale for converting global mouse points to window-local px.
   const boundsRef = useRef<DisplayBounds>({ x: 0, y: 0, width: 0, height: 0, scaleFactor: 1 });
@@ -107,6 +116,10 @@ export function CursorApp() {
       element.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${flipX ? -1 : 1}, ${
         flipY ? -1 : 1
       })`;
+      if (fxRef.current) {
+        // Centre the listening/thinking FX on the cursor tip.
+        fxRef.current.style.transform = `translate(${springX.current.value}px, ${springY.current.value}px)`;
+      }
     };
 
     // Comet trail behind the tip: length + opacity scale with spring speed, angle
@@ -177,6 +190,15 @@ export function CursorApp() {
       writeTransform();
     };
 
+    const setFx = (mode: CursorFx) => {
+      fxModeRef.current = mode;
+      if (shellRef.current) {
+        shellRef.current.dataset.fx = mode;
+      }
+      // Run a frame so the FX layer is repositioned onto the (possibly idle) tip.
+      wake();
+    };
+
     void nativeBridge
       .getDisplayBounds()
       .then((bounds) => {
@@ -223,6 +245,7 @@ export function CursorApp() {
             : DEFAULT_TRAIL;
         }
         modeRef.current = 'pointing';
+        setFx('none');
         wake();
       }),
       listen('cursor:release', () => {
@@ -236,7 +259,44 @@ export function CursorApp() {
           trailRef.current.style.opacity = '0';
         }
         modeRef.current = 'shadow';
+        setFx('none');
         wake();
+      }),
+      // Push-to-talk listening: halo pulses with the live mic level + red "live" core.
+      listen('cursor:listening', () => {
+        if (!isMounted) {
+          return;
+        }
+        if (arrowPathRef.current) {
+          arrowPathRef.current.style.fill = RECORDING_FILL;
+        }
+        setFx('listening');
+      }),
+      listen<{ level: number }>('cursor:level', (event) => {
+        if (!isMounted || !shellRef.current) {
+          return;
+        }
+        const level = Math.max(0, Math.min(1, event.payload.level ?? 0));
+        shellRef.current.style.setProperty('--mic-level', String(level));
+      }),
+      // After release: a thinking swirl while transcription + the answer are computed.
+      listen('cursor:thinking', () => {
+        if (!isMounted) {
+          return;
+        }
+        if (arrowPathRef.current) {
+          arrowPathRef.current.style.fill = DEFAULT_ARROW_FILL;
+        }
+        setFx('thinking');
+      }),
+      listen('cursor:idle', () => {
+        if (!isMounted) {
+          return;
+        }
+        if (arrowPathRef.current) {
+          arrowPathRef.current.style.fill = DEFAULT_ARROW_FILL;
+        }
+        setFx('none');
       })
     ])
       .then((next) => {
@@ -257,7 +317,15 @@ export function CursorApp() {
   }, [nativeBridge]);
 
   return (
-    <div className="kairo-cursor-shell" aria-hidden="true">
+    <div className="kairo-cursor-shell" ref={shellRef} data-fx="none" aria-hidden="true">
+      <div className="kairo-cursor-fx" ref={fxRef} aria-hidden="true">
+        <span className="kairo-cursor-halo" />
+        <span className="kairo-cursor-think">
+          <i />
+          <i />
+          <i />
+        </span>
+      </div>
       <div className="kairo-cursor-trail" ref={trailRef} aria-hidden="true" />
       <div
         className="kairo-cursor"
