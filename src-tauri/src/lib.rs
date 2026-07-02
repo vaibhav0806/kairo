@@ -1436,61 +1436,47 @@ fn spawn_audio_capture(
         use cpal::traits::StreamTrait;
         let host = cpal::default_host();
         let samples: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
-        // Built once in an ARMED (paused) state and reused: play() on Start, pause()
-        // on Stop. So the mic indicator is on ONLY while recording, and start is a few
-        // ms (no per-press device open → near-instant push-to-talk).
-        let mut stream: Option<cpal::Stream> = None;
+        // Build-per-press: build + play the stream on Start, DROP it on Stop. Dropping
+        // closes the input device, so the mic (and its indicator) is on ONLY while
+        // recording. Trade-off: the first press pays the ~200ms cold build.
+        let mut current: Option<cpal::Stream> = None;
         let mut current_rate: u32 = 16_000;
 
         while let Ok(cmd) = rx.recv() {
             match cmd {
-                AudioCommand::Warm => {
-                    if stream.is_none() {
-                        if let Some((built, rate)) =
-                            build_armed_input(&host, &samples, &level_worker)
-                        {
-                            stream = Some(built);
-                            current_rate = rate;
-                        }
-                    }
-                }
+                // Nothing to warm — build-per-press keeps the mic closed when idle.
+                AudioCommand::Warm => {}
                 AudioCommand::Start(chord_down) => {
                     if let Ok(mut buf) = samples.lock() {
                         buf.clear();
                     }
-                    if stream.is_none() {
-                        if let Some((built, rate)) =
-                            build_armed_input(&host, &samples, &level_worker)
-                        {
-                            stream = Some(built);
+                    match build_armed_input(&host, &samples, &level_worker) {
+                        Some((stream, rate)) => {
                             current_rate = rate;
-                        }
-                    }
-                    if let Some(active) = &stream {
-                        match active.play() {
-                            Ok(()) => {
-                                eprintln!(
-                                    "[ptt-timing] recording started {} ms after ⌥⌃ down @ {} Hz",
-                                    chord_down.elapsed().as_millis(),
-                                    current_rate
-                                );
-                                capturing_worker.store(true, Ordering::SeqCst);
-                            }
-                            Err(err) => {
-                                eprintln!("Kairo Tutor: failed to start mic stream: {err}");
-                                stream = None; // rebuild on the next press
+                            match stream.play() {
+                                Ok(()) => {
+                                    eprintln!(
+                                        "[ptt-timing] recording started {} ms after ⌥⌃ down @ {} Hz",
+                                        chord_down.elapsed().as_millis(),
+                                        current_rate
+                                    );
+                                    current = Some(stream);
+                                    capturing_worker.store(true, Ordering::SeqCst);
+                                }
+                                Err(err) => {
+                                    eprintln!("Kairo Tutor: failed to start mic stream: {err}");
+                                }
                             }
                         }
+                        None => {}
                     }
                 }
                 AudioCommand::Stop => {
                     capturing_worker.store(false, Ordering::SeqCst);
                     level_worker.store(0, Ordering::SeqCst);
-                    if let Some(active) = &stream {
-                        // Pause (not drop) → I/O stops (indicator off) but the stream
-                        // stays armed so the next press starts instantly.
-                        let _ = active.pause();
-                    }
+                    // Drop the stream → I/O stops AND the device closes, so the mic
+                    // indicator turns off between presses.
+                    current.take();
                     let captured: Vec<f32> =
                         samples.lock().map(|buf| buf.clone()).unwrap_or_default();
                     eprintln!(
