@@ -135,10 +135,6 @@ export function NotchApp() {
   const voiceCaptureStateRef = useRef<VoiceCaptureState>('idle');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  // A microphone stream kept open from launch so push-to-talk records instantly
-  // (no getUserMedia at press time). Owned separately from mediaStreamRef so the
-  // per-capture cleanup never stops it.
-  const warmStreamRef = useRef<MediaStream | null>(null);
   const answerAudioRef = useRef<HTMLAudioElement | null>(null);
   // The teaching visuals for the current answer, revealed on TTS start (not when
   // the LLM answer arrives), plus the app they point at for the context watcher.
@@ -195,18 +191,6 @@ export function NotchApp() {
   const stopVoiceTracks = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
-  }, []);
-
-  // Return a live, pre-warmed mic stream — reused across captures so listening
-  // starts with zero getUserMedia latency. Re-acquires if the device dropped.
-  const ensureWarmStream = useCallback(async () => {
-    const existing = warmStreamRef.current;
-    if (existing && existing.getAudioTracks().some((track) => track.readyState === 'live')) {
-      return existing;
-    }
-    const stream = await acquireMicrophoneStream();
-    warmStreamRef.current = stream;
-    return stream;
   }, []);
 
   const updateVoiceCaptureState = useCallback((state: VoiceCaptureState) => {
@@ -638,6 +622,37 @@ export function NotchApp() {
     [nativeBridge, updateVoiceCaptureState]
   );
 
+  // Transcribe captured audio and run the tutor turn. Shared by the WebView
+  // recorder.onstop path and the native push-to-talk `ptt:audio` event.
+  const processCapturedAudio = useCallback(
+    async (audioBase64: string, mimeType: string) => {
+      updateVoiceCaptureState('transcribing');
+      setVoicePayload('transcribing');
+      void emit('cursor:thinking', {});
+      try {
+        const result = await nativeBridge.transcribeAudio({
+          audioBase64,
+          mimeType,
+          filename: voiceFilenameForMimeType(mimeType)
+        });
+        const transcript = result.text.trim();
+        if (!transcript) {
+          showVoiceError('No speech was detected. Try again and speak a little louder.');
+          return;
+        }
+        setQuery(transcript);
+        await submitQuery(transcript);
+      } catch (error) {
+        const detail =
+          error instanceof Error && error.message.trim()
+            ? error.message.trim()
+            : 'Voice transcription failed. Try again.';
+        showVoiceError(detail);
+      }
+    },
+    [nativeBridge, setVoicePayload, showVoiceError, submitQuery, updateVoiceCaptureState]
+  );
+
   const startVoiceCapture = useCallback(async () => {
     stopAnswerPlayback();
     if (!globalThis.navigator?.mediaDevices?.getUserMedia || !globalThis.MediaRecorder) {
@@ -656,14 +671,12 @@ export function NotchApp() {
       .catch(() => {});
 
     try {
-      const stream = await ensureWarmStream();
+      const stream = await acquireMicrophoneStream();
       const { recorder, mimeType } = createVoiceRecorder(stream);
       const AudioContextConstructor = globalThis.AudioContext;
       voiceCancelledRef.current = false;
       voiceHeardSpeechRef.current = false;
-      // Leave mediaStreamRef null: the warm stream is persistent, so the per-capture
-      // cleanup (stopVoiceTracks) must NOT stop it.
-      mediaStreamRef.current = null;
+      mediaStreamRef.current = stream;
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
       pcmChunksRef.current = [];
@@ -784,7 +797,6 @@ export function NotchApp() {
       showVoiceError(detail);
     }
   }, [
-    ensureWarmStream,
     nativeBridge,
     setVoicePayload,
     showVoiceError,
@@ -820,21 +832,22 @@ export function NotchApp() {
     };
   }, []);
 
-  // Pre-warm the microphone at launch AND keep it open, so the first (and every)
-  // push-to-talk records instantly with no getUserMedia delay. Released on unmount.
-  // Cost: the mic stays active (OS indicator on) while Kairo is running.
+  // Warm the mic device once on mount (acquire + immediately release) so the first
+  // WebView capture isn't cold. Push-to-talk uses NATIVE capture, so this no longer
+  // needs to stay open — the mic (and its indicator) is only active during a capture.
   useEffect(() => {
     if (!globalThis.navigator?.mediaDevices?.getUserMedia) {
       return;
     }
-    void ensureWarmStream().catch(() => {
-      // Permission denied / unavailable — real capture will surface errors.
-    });
-    return () => {
-      warmStreamRef.current?.getTracks().forEach((track) => track.stop());
-      warmStreamRef.current = null;
-    };
-  }, [ensureWarmStream]);
+    void (async () => {
+      try {
+        const stream = await acquireMicrophoneStream();
+        stream.getTracks().forEach((track) => track.stop());
+      } catch {
+        // Permission denied / unavailable — real capture will surface errors.
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -869,26 +882,9 @@ export function NotchApp() {
         }
         setPayload(nextPayload);
 
-        // Start listening automatically on activation, so the shortcut opens the
-        // mic without a second click. Driven by the native listening/captured
-        // payload (not the hidden main window, whose webview macOS may suspend).
-        // Deduped per activation via autoListenStartedRef.
-        if (
-          (nextPayload.state === 'listening' || nextPayload.state === 'captured') &&
-          !mediaRecorderRef.current &&
-          !isSubmittingRef.current &&
-          !autoListenStartedRef.current &&
-          !autoListenSuppressedRef.current &&
-          Boolean(globalThis.navigator?.mediaDevices?.getUserMedia) &&
-          Boolean(globalThis.MediaRecorder)
-        ) {
-          autoListenStartedRef.current = true;
-          // A listening payload raised by push-to-talk records until key-release
-          // (no silence auto-stop); ⌘⇧Space keeps the silence-based behavior.
-          pttModeRef.current = Boolean(nextPayload.ptt);
-          startVoiceCaptureRef.current();
-        }
-        autoListenSuppressedRef.current = false;
+        // No auto-listen: voice is native push-to-talk (⌥⌃), and ⌘⇧Space just opens
+        // the notch for typing. The notch no longer starts a WebView mic capture on
+        // a listening/captured payload.
       }
     })
       .then((nextUnlisten) => {
@@ -978,17 +974,13 @@ export function NotchApp() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [hideNotch]);
 
-  // Push-to-talk stop (⌥⌃ released) + the pen shortcut (⌥⇧P). PTT START is driven by
-  // the native side showing a ptt-flagged "listening" payload (which wakes the notch
-  // webview and starts recording via the auto-listen path); here we only handle the
-  // release (finalize + send) and the pen toggle.
+  // Native push-to-talk delivers the recorded WAV here on key-release; we transcribe
+  // + run the turn. (Capture itself is native — instant, mic on only while held.)
+  // Plus the pen shortcut (⌥⇧P).
   useEffect(() => {
     const pending = Promise.all([
-      listen('ptt:stop', () => {
-        if (voiceCaptureStateRef.current === 'recording') {
-          stopActiveRecording(false);
-        }
-        pttModeRef.current = false;
+      listen<{ audioBase64: string; mimeType: string }>('ptt:audio', (event) => {
+        void processCapturedAudio(event.payload.audioBase64, event.payload.mimeType);
       }),
       listen('pen:toggle', () => {
         void startAnnotation('pen');
@@ -997,7 +989,7 @@ export function NotchApp() {
     return () => {
       void pending.then((unlisteners) => unlisteners.forEach((unlisten) => unlisten()));
     };
-  }, [startAnnotation, stopActiveRecording]);
+  }, [processCapturedAudio, startAnnotation]);
 
   return (
     <main className="notch-shell" aria-label="Kairo assistant status">
