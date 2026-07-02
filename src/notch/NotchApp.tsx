@@ -544,11 +544,10 @@ export function NotchApp() {
           return;
         }
 
-        // Phase 2: needs the screen. Speak the filler while the vision turn runs, so
-        // the "let me look" plays over the (now slower) grounding latency.
-        if (gate.voiceText.trim().length > 0) {
-          void speakFiller(gate.voiceText);
-        }
+        // Phase 2: needs the screen. ALWAYS play a "let me look" filler while the
+        // vision turn runs (cached → instant), including annotation asks where the
+        // gate is skipped and there's no gate voiceText.
+        void speakFiller(gate.voiceText || 'Let me take a look.');
 
         const { payload: answerPayload, revealVisuals, context } = await askTutorFromNotch({
           query: trimmedQuery,
