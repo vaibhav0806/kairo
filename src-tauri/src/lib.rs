@@ -1205,6 +1205,8 @@ fn ensure_input_monitoring_access() {
 // ---------------------------------------------------------------------------
 
 enum AudioCommand {
+    // Build the armed input stream at launch so the first press is warm.
+    Warm,
     // Carries the chord-down instant so we can log time-to-record-start.
     Start(Instant),
     Stop,
@@ -1327,6 +1329,63 @@ fn encode_wav_mono(samples: &[f32], sample_rate: u32) -> Vec<u8> {
     out
 }
 
+// Build the input stream in an ARMED (not playing) state. The device is opened /
+// AudioUnit initialized here, but no I/O runs until play(), so the mic indicator
+// stays OFF until recording actually starts. Returns the stream + its sample rate.
+fn build_armed_input(
+    host: &cpal::Host,
+    samples: &Arc<Mutex<Vec<f32>>>,
+    level: &Arc<AtomicU32>,
+) -> Option<(cpal::Stream, u32)> {
+    use cpal::traits::DeviceTrait;
+    let device = pick_input_device(host)?;
+    let config = device.default_input_config().ok()?;
+    let sample_format = config.sample_format();
+    let rate = config.sample_rate().0;
+    let channels = config.channels() as usize;
+    let stream_config: cpal::StreamConfig = config.into();
+    let (s1, l1) = (samples.clone(), level.clone());
+    let (s2, l2) = (samples.clone(), level.clone());
+    let (s3, l3) = (samples.clone(), level.clone());
+    let built = match sample_format {
+        cpal::SampleFormat::F32 => device.build_input_stream(
+            &stream_config,
+            move |d: &[f32], _: &_| append_mono(&s1, &l1, d, channels),
+            audio_stream_error,
+            None,
+        ),
+        cpal::SampleFormat::I16 => device.build_input_stream(
+            &stream_config,
+            move |d: &[i16], _: &_| {
+                let f: Vec<f32> = d.iter().map(|s| *s as f32 / 32768.0).collect();
+                append_mono(&s2, &l2, &f, channels);
+            },
+            audio_stream_error,
+            None,
+        ),
+        cpal::SampleFormat::U16 => device.build_input_stream(
+            &stream_config,
+            move |d: &[u16], _: &_| {
+                let f: Vec<f32> = d.iter().map(|s| (*s as f32 - 32768.0) / 32768.0).collect();
+                append_mono(&s3, &l3, &f, channels);
+            },
+            audio_stream_error,
+            None,
+        ),
+        other => {
+            eprintln!("Kairo Tutor: unsupported input sample format {other:?}");
+            return None;
+        }
+    };
+    match built {
+        Ok(stream) => Some((stream, rate)),
+        Err(err) => {
+            eprintln!("Kairo Tutor: failed to build mic stream: {err}");
+            None
+        }
+    }
+}
+
 // Owns the cpal stream (which is !Send) on a dedicated thread and reacts to
 // Start/Stop. On Stop it encodes the buffer to WAV and emits `ptt:audio` to the
 // notch, which transcribes + runs the tutor turn. Also spawns a level emitter that
@@ -1355,88 +1414,71 @@ fn spawn_audio_capture(
     let capturing_worker = capturing;
     let level_worker = level;
     std::thread::spawn(move || {
-        use cpal::traits::{DeviceTrait, StreamTrait};
+        use cpal::traits::StreamTrait;
         let host = cpal::default_host();
         let samples: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
-        // Held across iterations so the mic stays open only between Start and Stop.
-        let mut current: Option<cpal::Stream> = None;
+        // Built once in an ARMED (paused) state and reused: play() on Start, pause()
+        // on Stop. So the mic indicator is on ONLY while recording, and start is a few
+        // ms (no per-press device open → near-instant push-to-talk).
+        let mut stream: Option<cpal::Stream> = None;
         let mut current_rate: u32 = 16_000;
 
         while let Ok(cmd) = rx.recv() {
             match cmd {
+                AudioCommand::Warm => {
+                    if stream.is_none() {
+                        if let Some((built, rate)) =
+                            build_armed_input(&host, &samples, &level_worker)
+                        {
+                            stream = Some(built);
+                            current_rate = rate;
+                        }
+                    }
+                }
                 AudioCommand::Start(chord_down) => {
                     if let Ok(mut buf) = samples.lock() {
                         buf.clear();
                     }
-                    let Some(device) = pick_input_device(&host) else {
-                        eprintln!("Kairo Tutor: no usable input device for push-to-talk");
-                        continue;
-                    };
-                    let Ok(config) = device.default_input_config() else {
-                        eprintln!("Kairo Tutor: no default input config");
-                        continue;
-                    };
-                    let sample_format = config.sample_format();
-                    current_rate = config.sample_rate().0;
-                    let channels = config.channels() as usize;
-                    let stream_config: cpal::StreamConfig = config.into();
-                    let samples_cb = samples.clone();
-                    let level_cb = level_worker.clone();
-                    let built = match sample_format {
-                        cpal::SampleFormat::F32 => device.build_input_stream(
-                            &stream_config,
-                            move |data: &[f32], _: &_| append_mono(&samples_cb, &level_cb, data, channels),
-                            audio_stream_error,
-                            None,
-                        ),
-                        cpal::SampleFormat::I16 => device.build_input_stream(
-                            &stream_config,
-                            move |data: &[i16], _: &_| {
-                                let f: Vec<f32> = data.iter().map(|s| *s as f32 / 32768.0).collect();
-                                append_mono(&samples_cb, &level_cb, &f, channels);
-                            },
-                            audio_stream_error,
-                            None,
-                        ),
-                        cpal::SampleFormat::U16 => device.build_input_stream(
-                            &stream_config,
-                            move |data: &[u16], _: &_| {
-                                let f: Vec<f32> =
-                                    data.iter().map(|s| (*s as f32 - 32768.0) / 32768.0).collect();
-                                append_mono(&samples_cb, &level_cb, &f, channels);
-                            },
-                            audio_stream_error,
-                            None,
-                        ),
-                        other => {
-                            eprintln!("Kairo Tutor: unsupported input sample format {other:?}");
-                            continue;
+                    if stream.is_none() {
+                        if let Some((built, rate)) =
+                            build_armed_input(&host, &samples, &level_worker)
+                        {
+                            stream = Some(built);
+                            current_rate = rate;
                         }
-                    };
-                    match built {
-                        Ok(stream) => match stream.play() {
+                    }
+                    if let Some(active) = &stream {
+                        match active.play() {
                             Ok(()) => {
                                 eprintln!(
-                                    "[ptt-timing] recording started {} ms after ⌥⌃ down (device: {})",
+                                    "[ptt-timing] recording started {} ms after ⌥⌃ down @ {} Hz",
                                     chord_down.elapsed().as_millis(),
-                                    device.name().unwrap_or_else(|_| "?".into())
+                                    current_rate
                                 );
-                                current = Some(stream);
                                 capturing_worker.store(true, Ordering::SeqCst);
                             }
-                            Err(err) => eprintln!("Kairo Tutor: failed to start mic stream: {err}"),
-                        },
-                        Err(err) => eprintln!("Kairo Tutor: failed to build mic stream: {err}"),
+                            Err(err) => {
+                                eprintln!("Kairo Tutor: failed to start mic stream: {err}");
+                                stream = None; // rebuild on the next press
+                            }
+                        }
                     }
                 }
                 AudioCommand::Stop => {
                     capturing_worker.store(false, Ordering::SeqCst);
                     level_worker.store(0, Ordering::SeqCst);
-                    // Dropping the stream stops capture → mic indicator turns off.
-                    current.take();
+                    if let Some(active) = &stream {
+                        // Pause (not drop) → I/O stops (indicator off) but the stream
+                        // stays armed so the next press starts instantly.
+                        let _ = active.pause();
+                    }
                     let captured: Vec<f32> =
                         samples.lock().map(|buf| buf.clone()).unwrap_or_default();
-                    eprintln!("[ptt-timing] captured {} samples @ {} Hz", captured.len(), current_rate);
+                    eprintln!(
+                        "[ptt-timing] captured {} samples @ {} Hz",
+                        captured.len(),
+                        current_rate
+                    );
                     if captured.is_empty() {
                         continue;
                     }
@@ -3650,6 +3692,9 @@ pub fn run() {
                     level = audio.level.clone();
                 }
                 let tx = spawn_audio_capture(app.handle(), capturing, level);
+                // Warm the mic path at launch (build the armed stream) so the first
+                // push-to-talk press is instant, not cold.
+                let _ = tx.send(AudioCommand::Warm);
                 if let Ok(mut guard) = app.state::<AudioCapture>().tx.lock() {
                     *guard = Some(tx);
                 }
