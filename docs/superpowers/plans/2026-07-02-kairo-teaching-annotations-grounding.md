@@ -10,6 +10,50 @@
 
 ---
 
+## Implementation Status — updated 2026-07-02
+
+This plan was written before a follow-up UX session; parts are done, parts were
+deliberately dropped, and several new features (reveal timing, notch auto-close,
+context-change reset) were built that are not in the original tasks. Live testing
+found **no wrong targets**, so remaining grounding-accuracy work is now low
+priority. Per-task status with proof:
+
+- **Task 1 — Generic Target Geometry (`targetGeometry.ts`): ❌ DROPPED.**
+  Decision (user, 2026-07-02): padding stays in Rust; a parallel TS geometry layer
+  would double-pad and duplicate `padded_screen_region`. Also, the plan's own TDD
+  test values were internally inconsistent (physical-vs-logical coord mix). Not built.
+
+- **Task 2 — Native Vision Grounding: 🟡 PARTIAL.**
+  ✅ Padding reduced 0.45→0.30 pct, min 20→14 px in `apply_box_targets` +
+  `ground_visual_targets` (commit `badf4e9`; test `ground_visual_targets_pads_ocr_highlights`
+  updated to 8/472/384/88). ⏳ "Raw tight bounds" is effectively already satisfied —
+  `box_locator_prompt` already asks for "the final tight pixel box." ⏳ Helper-unify
+  (fold `apply_box_targets`' inline `padded_rect` into the shared helper): NOT done, low value.
+
+- **Task 3 — Tighten Planner Prompt: ⏳ NOT DONE.**
+  The app-specific Blender line still exists (`lib.rs:2258`, `tutorPlanner.ts:182`).
+  Small, still worthwhile. See explanation in the session notes.
+
+- **Task 4 — Polished Teaching System: 🟡 PARTIAL + EXTENDED.**
+  ✅ Padding polish (above). ✅ NEW beyond plan: visuals now reveal on TTS start,
+  "Preparing the next step" placeholder, notch auto-close after 3s idle, and native
+  context-change reset (app/tab switch + scroll/click clears stale box) — commits
+  `0801cb8`, `fdbc2bf`, `68efd0f`, `badf4e9`. ⏳ Label-placement polish (`labelPlacementFor`
+  is edge-aware but labels can still crowd small controls): NOT done.
+
+- **Task 5 — Manual Evaluation Matrix: ⏳ NOT DONE.** No QA doc yet.
+
+- **Task 6 — Full Verification + Packaged Build: ✅ ONGOING.**
+  125 JS + 18 Rust tests green, typecheck clean, packaged `.app` rebuilt & signed
+  each round.
+
+**Cost note:** grounding calls the Anthropic Messages API (vision) with model
+default `claude-opus-4-8` ($5/$25 per 1M as of 2026-07). ~2–3¢/ask. Cheaper path
+under evaluation: swap to `qwen3.7-plus` (~12× cheaper, 79.0 vs 87.9 ScreenSpot-Pro).
+We do NOT use the "tool/zoom" grounding mode — single-shot image→boxes only.
+
+---
+
 ## Product Principles
 
 - Kairo annotations are not user drawing tools. They are the assistant's teaching output: focus box, label, cursor, arrow/path, underline, and spotlight.
@@ -93,6 +137,9 @@ Current quality gaps:
 ---
 
 ## Task 1: Define Generic Target Geometry
+
+> **STATUS: ❌ DROPPED (2026-07-02).** Padding stays in Rust by decision; a TS
+> geometry layer would double-pad. Not built. Steps below kept for history only.
 
 **Files:**
 - Create: `src/overlay/targetGeometry.ts`
@@ -262,6 +309,10 @@ git commit -m "Add teaching target geometry helpers"
 
 ## Task 2: Improve Native Vision Grounding Output
 
+> **STATUS: 🟡 PARTIAL (2026-07-02).** ✅ Padding reduced (commit `badf4e9`). ✅
+> Tight-bounds prompt already present in `box_locator_prompt`. ⏳ Helper-unify not
+> done (low value). No wrong targets in live testing → low priority.
+
 **Files:**
 - Modify: `src-tauri/src/lib.rs`
 
@@ -372,6 +423,10 @@ git commit -m "Improve native teaching target grounding"
 
 ## Task 3: Tighten Planner Prompt For Teaching Intent
 
+> **STATUS: ⏳ NOT DONE (2026-07-02).** Most teaching-intent wording already exists;
+> the remaining work is dropping the app-specific Blender line (`lib.rs:2258`,
+> `tutorPlanner.ts:182`) for a generic rule. Small, still worthwhile.
+
 **Files:**
 - Modify: `src/server/providers/tutorPlanner.ts`
 - Modify: `tests/providerPlanner.test.ts`
@@ -481,6 +536,11 @@ git commit -m "Tighten teaching annotation planner prompt"
 ---
 
 ## Task 4: Render Teaching Targets As A Polished System
+
+> **STATUS: 🟡 PARTIAL + EXTENDED (2026-07-02).** ✅ Padding polish. ✅ NEW: reveal
+> on TTS start, "Preparing the next step", notch auto-close (3s idle), context-change
+> reset (commits `0801cb8`, `fdbc2bf`, `68efd0f`, `badf4e9`). ⏳ Label-placement
+> polish for small controls: NOT done.
 
 **Files:**
 - Modify: `src/overlay/VisualOverlay.tsx`
@@ -625,6 +685,9 @@ git commit -m "Polish Kairo teaching annotation rendering"
 
 ## Task 5: Add Manual Evaluation Matrix
 
+> **STATUS: ⏳ NOT DONE (2026-07-02).** No QA matrix doc yet. Useful once we tune
+> accuracy or switch grounding models (e.g. Opus → qwen3.7-plus A/B).
+
 **Files:**
 - Create: `docs/superpowers/specs/2026-07-02-teaching-annotation-evaluation.md`
 
@@ -688,6 +751,9 @@ git commit -m "Add teaching annotation QA matrix"
 ---
 
 ## Task 6: Full Verification And Packaged App Test
+
+> **STATUS: ✅ ONGOING (2026-07-02).** 125 JS + 18 Rust tests green, typecheck clean,
+> packaged `.app` rebuilt & signed each round.
 
 **Files:**
 - Modify only files changed by Tasks 1-5.
