@@ -140,18 +140,21 @@ export function NotchApp() {
   // the LLM answer arrives), plus the app they point at for the context watcher.
   const revealVisualsRef = useRef<() => Promise<void>>(async () => {});
   const contextBaselineRef = useRef<NativeContextBaseline | null>(null);
-  // Notch auto-close: once the answer has finished speaking, close the notch after
-  // a short idle delay — unless the user is interacting (hovering, or the prompt is
-  // focused). `settled` flips true when playback ends (or there was no speech).
-  const notchIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Robust notch auto-close. Rather than fragile enter/leave booleans, we track the
+  // last time the user interacted WITH THE NOTCH (pointer over it, or typing) and a
+  // periodic check closes once the answer has finished speaking and the notch has sat
+  // idle for NOTCH_IDLE_CLOSE_MS. Self-healing if a leave event is missed, and
+  // unaffected by activity in OTHER apps (scroll/click/tab-switch fire no notch DOM
+  // events), so external activity never keeps it open nor forces it closed.
   const answerSettledRef = useRef(false);
-  const notchHoverRef = useRef(false);
-  // Mirrors the prompt text so the idle-close check can tell "typing a follow-up"
-  // (block close) from a merely focused-but-empty prompt (the autoFocus default).
+  const lastNotchActivityAt = useRef(0);
+  const pointerInsideNotchRef = useRef(false);
+  const lastNotchPointerAt = useRef(0);
+  // Backstop so the answer always "settles" even if the audio 'ended' event misfires.
+  const settleFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mirrors the prompt text so the idle check can tell "typing a follow-up" (block
+  // close) from a merely focused-but-empty prompt (the autoFocus default).
   const queryRef = useRef('');
-  // Points at the latest evaluateNotchIdleClose so callbacks defined before it
-  // (submitQuery, playAnswerAudio) can trigger a re-evaluation without a dep cycle.
-  const evaluateNotchIdleCloseRef = useRef<() => void>(() => {});
   const voiceMonitorCleanupRef = useRef<(() => void) | null>(null);
   const pcmCaptureCleanupRef = useRef<(() => void) | null>(null);
   const pcmChunksRef = useRef<Float32Array[]>([]);
@@ -203,6 +206,10 @@ export function NotchApp() {
   }, []);
 
   const stopAnswerPlayback = useCallback(() => {
+    if (settleFallbackRef.current) {
+      clearTimeout(settleFallbackRef.current);
+      settleFallbackRef.current = null;
+    }
     if (!answerAudioRef.current) {
       return;
     }
@@ -212,11 +219,13 @@ export function NotchApp() {
     answerAudioRef.current = null;
   }, []);
 
-  const cancelNotchIdleClose = useCallback(() => {
-    if (notchIdleTimerRef.current) {
-      clearTimeout(notchIdleTimerRef.current);
-      notchIdleTimerRef.current = null;
-    }
+  const noteNotchActivity = useCallback(() => {
+    lastNotchActivityAt.current = performance.now();
+  }, []);
+
+  const markAnswerSettled = useCallback(() => {
+    answerSettledRef.current = true;
+    lastNotchActivityAt.current = performance.now();
   }, []);
 
   const stopActiveRecording = useCallback(
@@ -339,8 +348,22 @@ export function NotchApp() {
         const audio = new Audio(audioUrl);
         answerAudioRef.current = audio;
         // Reveal the answer text + teaching visuals the instant speech begins.
-        audio.onplay = () => onSpeechStart?.();
-        audio.onended = () => onSettled?.();
+        audio.onplay = () => {
+          onSpeechStart?.();
+          // Backstop: guarantee the answer settles (so auto-close can run) even if
+          // 'ended' never fires. Cleared by 'ended' or a new turn (stopAnswerPlayback).
+          if (settleFallbackRef.current) {
+            clearTimeout(settleFallbackRef.current);
+          }
+          settleFallbackRef.current = setTimeout(() => onSettled?.(), 60000);
+        };
+        audio.onended = () => {
+          if (settleFallbackRef.current) {
+            clearTimeout(settleFallbackRef.current);
+            settleFallbackRef.current = null;
+          }
+          onSettled?.();
+        };
         await audio.play();
       } catch {
         // Speech playback is best-effort; reveal the text anyway so a silent
@@ -361,9 +384,8 @@ export function NotchApp() {
 
       const thinkingPayload = activationStateToNotchPayload('thinking');
       stopAnswerPlayback();
-      // A new turn supersedes the last answer: cancel its pending auto-close, stop
-      // watching the old target, and mark the turn unsettled.
-      cancelNotchIdleClose();
+      // A new turn supersedes the last answer: mark it unsettled (blocks auto-close)
+      // and stop watching the old target.
       answerSettledRef.current = false;
       void nativeBridge.disarmContextWatch();
       // Release any lingering pointing so the cursor shadows the mouse while the
@@ -414,9 +436,8 @@ export function NotchApp() {
             });
           },
           () => {
-            // Playback finished (or there was none): start the auto-close countdown.
-            answerSettledRef.current = true;
-            evaluateNotchIdleCloseRef.current();
+            // Playback finished (or there was none): allow the idle-close to begin.
+            markAnswerSettled();
           }
         );
       } finally {
@@ -426,7 +447,7 @@ export function NotchApp() {
     },
     [
       annotations,
-      cancelNotchIdleClose,
+      markAnswerSettled,
       env.aiProvider,
       env.defaultSkill,
       nativeBridge,
@@ -473,9 +494,8 @@ export function NotchApp() {
 
   const hideNotch = useCallback(() => {
     stopAnswerPlayback();
-    cancelNotchIdleClose();
     answerSettledRef.current = false;
-    notchHoverRef.current = false;
+    pointerInsideNotchRef.current = false;
     void nativeBridge.disarmContextWatch();
     voiceCancelledRef.current = true;
     stopActiveRecording(true);
@@ -498,7 +518,6 @@ export function NotchApp() {
     void nativeBridge.cursorRelease();
     void nativeBridge.hideNotch();
   }, [
-    cancelNotchIdleClose,
     nativeBridge,
     stopActiveRecording,
     stopAnswerPlayback,
@@ -508,35 +527,41 @@ export function NotchApp() {
     updateVoiceCaptureState
   ]);
 
-  // Close the notch once the answer has finished speaking AND the user isn't
-  // interacting with it (not hovering, prompt not focused, not mid turn/recording).
-  // Any of those flipping true cancels the countdown; this re-runs when they clear.
-  const evaluateNotchIdleClose = useCallback(() => {
-    cancelNotchIdleClose();
-    const canClose =
-      answerSettledRef.current &&
-      !notchHoverRef.current &&
-      queryRef.current.trim().length === 0 &&
-      !isSubmittingRef.current &&
-      voiceCaptureStateRef.current === 'idle';
-    if (!canClose) {
-      return;
-    }
-    notchIdleTimerRef.current = setTimeout(() => {
-      notchIdleTimerRef.current = null;
-      hideNotch();
-    }, NOTCH_IDLE_CLOSE_MS);
-  }, [cancelNotchIdleClose, hideNotch]);
-
+  // Periodic idle-close: closes only after the answer has finished speaking AND the
+  // notch has sat untouched for NOTCH_IDLE_CLOSE_MS. Hovering (pointer inside, with a
+  // missed-leave recovery after 4s of no pointer events) or typing keeps it open.
+  // Nothing here reacts to other apps, so scrolling/clicking/switching elsewhere
+  // never keeps it open or forces it closed.
   useEffect(() => {
-    evaluateNotchIdleCloseRef.current = evaluateNotchIdleClose;
-  }, [evaluateNotchIdleClose]);
+    const id = setInterval(() => {
+      if (
+        !answerSettledRef.current ||
+        isSubmittingRef.current ||
+        voiceCaptureStateRef.current !== 'idle' ||
+        queryRef.current.trim().length > 0
+      ) {
+        return;
+      }
+      const now = performance.now();
+      const pointerHolding =
+        pointerInsideNotchRef.current && now - lastNotchPointerAt.current < 4000;
+      if (pointerHolding) {
+        return;
+      }
+      if (now - lastNotchActivityAt.current >= NOTCH_IDLE_CLOSE_MS) {
+        hideNotch();
+      }
+    }, 350);
+    return () => clearInterval(id);
+  }, [hideNotch]);
 
-  // Typing a follow-up blocks the auto-close; clearing the field lets it resume.
+  // Typing a follow-up counts as notch activity (keeps it open).
   useEffect(() => {
     queryRef.current = query;
-    evaluateNotchIdleCloseRef.current();
-  }, [query]);
+    if (query.trim().length > 0) {
+      noteNotchActivity();
+    }
+  }, [query, noteNotchActivity]);
 
   // The user moved on from what Kairo pointed at (app/tab switch, scroll, or click,
   // detected natively). Clear the stale box + companion cursor; keep the notch (its
@@ -922,13 +947,22 @@ export function NotchApp() {
         data-layout={payload.layout}
         data-state={payload.state}
         data-voice-state={voiceCaptureState}
-        onMouseEnter={() => {
-          notchHoverRef.current = true;
-          cancelNotchIdleClose();
+        onPointerEnter={() => {
+          pointerInsideNotchRef.current = true;
+          lastNotchPointerAt.current = performance.now();
+          noteNotchActivity();
         }}
-        onMouseLeave={() => {
-          notchHoverRef.current = false;
-          evaluateNotchIdleClose();
+        onPointerMove={() => {
+          pointerInsideNotchRef.current = true;
+          lastNotchPointerAt.current = performance.now();
+          noteNotchActivity();
+        }}
+        onPointerLeave={() => {
+          pointerInsideNotchRef.current = false;
+        }}
+        onPointerDown={() => {
+          lastNotchPointerAt.current = performance.now();
+          noteNotchActivity();
         }}
       >
         <header className="notch-header">
