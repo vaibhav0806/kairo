@@ -23,6 +23,13 @@ const blenderLandmarks: Record<string, UiLandmark> = {
   }
 };
 
+const generalSkillPack: SkillPack = {
+  slug: 'general',
+  displayName: 'General screen',
+  appIdentifiers: [],
+  landmarks: {}
+};
+
 const skillPacks: SkillPack[] = [
   {
     slug: 'blender',
@@ -34,7 +41,14 @@ const skillPacks: SkillPack[] = [
 
 export function createSkillPackRegistry(packs: SkillPack[] = skillPacks) {
   return {
+    getGeneral(): SkillPack {
+      return generalSkillPack;
+    },
+
     getBySlug(slug: string): SkillPack {
+      if (slug === generalSkillPack.slug) {
+        return generalSkillPack;
+      }
       const pack = packs.find((candidate) => candidate.slug === slug);
       if (!pack) {
         throw new Error(`Unknown skill pack: ${slug}`);
@@ -64,7 +78,7 @@ export function createSkillPackRegistry(packs: SkillPack[] = skillPacks) {
     },
 
     list(): SkillPack[] {
-      return [...packs];
+      return [generalSkillPack, ...packs];
     }
   };
 }

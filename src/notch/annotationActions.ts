@@ -1,6 +1,7 @@
 import type { AnnotationTool } from '../annotations/annotationTools';
 
-// Only two tools are exposed in the notch: free-draw pen and erase.
+// Keep the user marking surface intentionally small: users mark context, Kairo
+// generates the richer instructional overlays in its answer.
 export type NotchAnnotationTool = Extract<AnnotationTool, 'pen' | 'erase'>;
 
 export type NotchAnnotationStartPayload = {

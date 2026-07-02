@@ -9,9 +9,7 @@ use std::{
     time::Duration,
 };
 use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, State};
-use tauri_nspanel::{
-    tauri_panel, CollectionBehavior, PanelHandle, StyleMask, WebviewWindowExt,
-};
+use tauri_nspanel::{tauri_panel, CollectionBehavior, PanelHandle, StyleMask, WebviewWindowExt};
 use tauri_plugin_global_shortcut::ShortcutState;
 
 const KAIRO_ACTIVATION_SHORTCUT: &str = "CommandOrControl+Shift+Space";
@@ -747,7 +745,6 @@ fn ensure_configured_window(
         .map_err(|error| format!("Failed to create {label} window: {error}"))
 }
 
-
 // Hide a Kairo window from screen capture/recording — including our own
 // screenshot of the user's screen — so the tutor never sees Kairo's own UI
 // (the notch/overlay). This is the same NSWindowSharingNone trick Loom/CleanShot
@@ -1309,8 +1306,11 @@ fn ocr_screenshot(image_bytes: &[u8], bounds: &OverlayDisplayBounds) -> Vec<OcrE
     request.setUsesLanguageCorrection(true);
 
     let options: objc2::rc::Retained<NSDictionary<NSString, AnyObject>> = NSDictionary::new();
-    let handler =
-        VNImageRequestHandler::initWithData_options(VNImageRequestHandler::alloc(), &data, &options);
+    let handler = VNImageRequestHandler::initWithData_options(
+        VNImageRequestHandler::alloc(),
+        &data,
+        &options,
+    );
 
     let request_ref: &VNRequest = &request;
     let requests = NSArray::from_slice(&[request_ref]);
@@ -1418,7 +1418,11 @@ fn rgb_to_hsl(r: f64, g: f64, b: f64) -> (f64, f64, f64) {
     if d < 1e-9 {
         return (0.0, 0.0, l);
     }
-    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+    let s = if l > 0.5 {
+        d / (2.0 - max - min)
+    } else {
+        d / (max + min)
+    };
     let mut h = if (max - r).abs() < 1e-9 {
         ((g - b) / d).rem_euclid(6.0)
     } else if (max - g).abs() < 1e-9 {
@@ -1515,14 +1519,48 @@ fn sample_background(rgb: &image::RgbImage, x1: u32, y1: u32, x2: u32, y2: u32) 
     if n == 0 {
         return (30.0, 30.0, 30.0);
     }
-    (sr as f64 / n as f64, sg as f64 / n as f64, sb as f64 / n as f64)
+    (
+        sr as f64 / n as f64,
+        sg as f64 / n as f64,
+        sb as f64 / n as f64,
+    )
 }
 
 // Longest edge (px) we downscale the screenshot to before sending it to Claude
 // vision. Aspect ratio is preserved so returned pixel boxes map back cleanly.
 // Tunable at runtime via KAIRO_VISION_MAX_EDGE (no rebuild) — raise toward 2576
-// for tiny pro-app icons (Blender/Photoshop).
-const DEFAULT_VISION_MAX_EDGE: u32 = 1568;
+// for tiny pro-app icons, browser chrome, and dense professional toolbars.
+const DEFAULT_VISION_MAX_EDGE: u32 = 2048;
+
+fn build_box_locator_context(elements: &[OcrElement]) -> String {
+    if elements.is_empty() {
+        return "OCR/TEXT HINTS: none available.".to_string();
+    }
+
+    let mut lines = Vec::with_capacity(elements.len().min(80) + 1);
+    lines.push(
+        "OCR/TEXT HINTS: visible text boxes from the same screenshot. Use these as anchors, but still return the final tight pixel box from the image."
+            .to_string(),
+    );
+    for element in elements.iter().take(80) {
+        lines.push(format!(
+            "{}: \"{}\" @ {:.0}%,{:.0}% size {:.0}x{:.0}px",
+            element.id,
+            element.text.replace('"', "'").replace('\n', " "),
+            element.center_x_pct,
+            element.center_y_pct,
+            element.region.width,
+            element.region.height
+        ));
+    }
+    lines.join("\n")
+}
+
+fn box_locator_prompt(user_query: &str, rw: u32, rh: u32, screen_context: &str) -> String {
+    format!(
+        "You are Kairo's pixel grounding model. Your only job is to find the exact click/look target in the screenshot, in pixels.\n\nThe user asked this while looking at their screen: \"{user_query}\".\n\n{screen_context}\n\nAll visible UI layers count: browser or app chrome, address bars, tabs, OS/toolbars, sidebars, dialogs, canvas content, web pages, and floating overlays. Do not ignore a control because it is outside the page content.\n\nIgnore Kairo's own assistant/notch/answer card, purple labels, cursor, and overlay chrome if visible; those are feedback overlays, not the user's target app, unless the user explicitly asks about Kairo itself.\n\nIdentify the SINGLE exact on-screen element the user should look at or click. For \"where is/show me/which tool\" questions, box the requested control itself, not a related heading, text paragraph, tooltip, or large page region. For requests to change/edit a URL, address, path, or link, choose the visible editable field that currently contains that value if present. If an OCR hint contains the current URL/domain/path text, the target is usually the enclosing editable address/input field around that text, not the web page search box. Do not choose a search field unless the user asks to search. Icon-only controls count: infer common icons from shape and toolbar context, such as rectangle/box = square outline icon, pen = pencil, arrow = arrow, text = T, hand = pan.\n\nReturn JSON only: {{\"elements\":[{{\"label\":\"1-3 word label\",\"box\":[x1,y1,x2,y2]}}]}}. Use ABSOLUTE PIXELS of this {rw}x{rh} image (origin top-left, x increases right, y increases down). Return exactly one element, or {{\"elements\":[]}} if nothing on screen is relevant. Box only that one element; do not include extra, secondary, or overlapping elements."
+    )
+}
 
 // Locate the on-screen elements the user is asking about by asking Claude vision
 // for bounding boxes. This is a normal messages request (NOT the computer tool):
@@ -1534,6 +1572,7 @@ async fn detect_element_boxes(
     image_base64: &str,
     bounds: &OverlayDisplayBounds,
     user_query: &str,
+    ocr_elements: &[OcrElement],
 ) -> Vec<DetectedBox> {
     let Some(api_key) = provider_env_optional("ANTHROPIC_API_KEY") else {
         return Vec::new();
@@ -1579,9 +1618,7 @@ async fn detect_element_boxes(
     }
     let resized_base64 = base64::engine::general_purpose::STANDARD.encode(out.into_inner());
 
-    let prompt = format!(
-        "The user asked this while looking at their screen: \"{user_query}\".\n\nIdentify the SINGLE most relevant on-screen element the user should look at or click to act on your answer. Return EXACTLY ONE element, or an empty list if nothing on screen is relevant (e.g. a purely conceptual question). The element has a short 1-3 word \"label\" and a \"box\" of [x1, y1, x2, y2] in ABSOLUTE PIXELS of this {rw}x{rh} image (origin top-left, x increases right, y increases down). Box only that one element; do NOT include extra, secondary, or overlapping elements."
-    );
+    let prompt = box_locator_prompt(user_query, rw, rh, &build_box_locator_context(ocr_elements));
 
     let body = json!({
         "model": model,
@@ -1717,11 +1754,69 @@ fn json_body(content: &str) -> &str {
     inner.trim_matches(|c: char| c == '`' || c.is_whitespace())
 }
 
+fn display_physical_bounds(bounds: &OverlayDisplayBounds) -> (f64, f64, f64, f64, f64) {
+    let scale_factor = if bounds.scale_factor > 0.0 {
+        bounds.scale_factor
+    } else {
+        1.0
+    };
+    (
+        bounds.x * scale_factor,
+        bounds.y * scale_factor,
+        (bounds.x + bounds.width) * scale_factor,
+        (bounds.y + bounds.height) * scale_factor,
+        scale_factor,
+    )
+}
+
+fn padded_screen_region(
+    region: &ScreenRegion,
+    bounds: Option<&OverlayDisplayBounds>,
+    pad_pct: f64,
+    pad_min_px: f64,
+) -> ScreenRegion {
+    let x1 = region.x;
+    let y1 = region.y;
+    let x2 = region.x + region.width.max(0.0);
+    let y2 = region.y + region.height.max(0.0);
+    let scale_factor = bounds
+        .map(|b| {
+            if b.scale_factor > 0.0 {
+                b.scale_factor
+            } else {
+                1.0
+            }
+        })
+        .unwrap_or(1.0);
+    let pad_min_px = pad_min_px * scale_factor;
+    let pad_x = (pad_pct * (x2 - x1)).max(pad_min_px);
+    let pad_y = (pad_pct * (y2 - y1)).max(pad_min_px);
+
+    let (min_x, min_y, max_x, max_y) = bounds
+        .map(|b| {
+            let (min_x, min_y, max_x, max_y, _) = display_physical_bounds(b);
+            (min_x, min_y, max_x, max_y)
+        })
+        .unwrap_or((0.0, 0.0, f64::INFINITY, f64::INFINITY));
+
+    let px1 = (x1 - pad_x).max(min_x);
+    let py1 = (y1 - pad_y).max(min_y);
+    let px2 = (x2 + pad_x).min(max_x);
+    let py2 = (y2 + pad_y).min(max_y);
+
+    ScreenRegion {
+        x: px1,
+        y: py1,
+        width: (px2 - px1).max(0.0),
+        height: (py2 - py1).max(0.0),
+    }
+}
+
 // Replace the model's visualTargets with the grounded boxes: one labeled
 // `highlight_box` rectangle per detected element, plus a single `pointer` placed
-// at the bottom-left corner of the primary (first) box so the companion cursor
-// flies there. The boxes are the ground truth; the model's own targets (OCR
-// elementIds) are discarded.
+// at the center of the primary (first) detected element so the companion cursor
+// flies to Claude's actual pixel target. The boxes are the ground truth; the
+// model's own targets (OCR elementIds) are discarded.
 fn apply_box_targets(
     content: String,
     boxes: &[DetectedBox],
@@ -1730,37 +1825,39 @@ fn apply_box_targets(
     let Ok(mut parsed) = serde_json::from_str::<Value>(json_body(&content)) else {
         return content;
     };
-    let scale_factor = if bounds.scale_factor > 0.0 {
-        bounds.scale_factor
-    } else {
-        1.0
-    };
 
     // Display extent in physical px — used to clamp padded boxes to the screen.
-    let min_x = bounds.x * scale_factor;
-    let min_y = bounds.y * scale_factor;
-    let max_x = (bounds.x + bounds.width) * scale_factor;
-    let max_y = (bounds.y + bounds.height) * scale_factor;
+    let (min_x, min_y, max_x, max_y, scale_factor) = display_physical_bounds(bounds);
 
     // Padding: grow each side by max(min_px, pct * size) so the box has breathing
     // room instead of hugging the element exactly. Tunable at runtime (no rebuild).
     let pad_pct = provider_env_optional("KAIRO_BOX_PAD_PCT")
         .and_then(|v| v.trim().parse::<f64>().ok())
         .filter(|v| *v >= 0.0)
-        .unwrap_or(0.35);
+        .unwrap_or(0.45);
     let pad_min_px = provider_env_optional("KAIRO_BOX_PAD_MIN_PX")
         .and_then(|v| v.trim().parse::<f64>().ok())
         .filter(|v| *v >= 0.0)
-        .unwrap_or(16.0)
+        .unwrap_or(20.0)
         * scale_factor;
 
+    // A detected box → raw (x, y, width, height) in physical px, clamped to the
+    // display. The companion pointer uses this exact center so padding never
+    // introduces a visual offset from the model's selected element.
+    let raw_rect = |b: &DetectedBox| -> (f64, f64, f64, f64) {
+        let x1 = ((bounds.x + b.norm_x1 * bounds.width) * scale_factor).clamp(min_x, max_x);
+        let y1 = ((bounds.y + b.norm_y1 * bounds.height) * scale_factor).clamp(min_y, max_y);
+        let x2 = ((bounds.x + b.norm_x2 * bounds.width) * scale_factor).clamp(min_x, max_x);
+        let y2 = ((bounds.y + b.norm_y2 * bounds.height) * scale_factor).clamp(min_y, max_y);
+        (x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0))
+    };
+
     // A detected box → padded (x, y, width, height) in physical px, clamped to
-    // the display. Both the drawn rectangle and the cursor corner derive from this.
+    // the display. This is only for the drawn highlight breathing room.
     let padded_rect = |b: &DetectedBox| -> (f64, f64, f64, f64) {
-        let x1 = (bounds.x + b.norm_x1 * bounds.width) * scale_factor;
-        let y1 = (bounds.y + b.norm_y1 * bounds.height) * scale_factor;
-        let x2 = (bounds.x + b.norm_x2 * bounds.width) * scale_factor;
-        let y2 = (bounds.y + b.norm_y2 * bounds.height) * scale_factor;
+        let (x1, y1, w, h) = raw_rect(b);
+        let x2 = x1 + w;
+        let y2 = y1 + h;
         let pad_x = (pad_pct * (x2 - x1)).max(pad_min_px);
         let pad_y = (pad_pct * (y2 - y1)).max(pad_min_px);
         let px1 = (x1 - pad_x).max(min_x);
@@ -1772,13 +1869,14 @@ fn apply_box_targets(
 
     let mut targets: Vec<Value> = Vec::new();
 
-    // Primary box (first = most relevant) → companion cursor at the bottom-left
-    // corner of its PADDED rectangle, so the cursor lines up with what's drawn.
+    // Primary box (first = most relevant) → companion cursor at the exact center
+    // of Claude's detected element. The highlight may be padded, but the cursor
+    // should point at the actual control/object the model selected.
     if let Some(primary) = boxes.first() {
-        let (px, py, _pw, ph) = padded_rect(primary);
-        let corner_x = px;
-        let corner_y = py + ph;
-        let marker_px = bounds.width * scale_factor * 0.05;
+        let (x, y, w, h) = raw_rect(primary);
+        let center_x = x + w / 2.0;
+        let center_y = y + h / 2.0;
+        let marker_px = 44.0 * scale_factor;
         targets.push(json!({
             "kind": "pointer",
             "targetId": "vision-primary",
@@ -1786,8 +1884,8 @@ fn apply_box_targets(
             "confidence": 0.95,
             "color": primary.color,
             "screenRegion": {
-                "x": corner_x - marker_px / 2.0,
-                "y": corner_y - marker_px / 2.0,
+                "x": center_x - marker_px / 2.0,
+                "y": center_y - marker_px / 2.0,
                 "width": marker_px,
                 "height": marker_px,
             },
@@ -1825,7 +1923,7 @@ fn build_screen_elements_block(elements: &[OcrElement]) -> String {
     }
     let mut lines = Vec::with_capacity(elements.len() + 1);
     lines.push(
-        "SCREEN ELEMENTS — text currently visible on the user's screen. Each line is `id: \"text\" @ x%,y%`, where x%,y% is the element's center (x from the left edge, y from the top). To point at or highlight something, set a visualTargets entry's elementId to the id of the matching element below. Only use ids that appear here."
+        "SCREEN ELEMENTS — text currently visible on the user's screen. Each line is `id: \"text\" @ x%,y%`, where x%,y% is the element's center (x from the left edge, y from the top). You may set visualTargets.elementId to one of these ids for text elements. For icon-only controls or visual objects, use the screenshot and return a tight screenRegion instead."
             .to_string(),
     );
     for element in elements {
@@ -1844,7 +1942,11 @@ fn build_screen_elements_block(elements: &[OcrElement]) -> String {
 // that element. Targets whose elementId doesn't match a detected element are
 // dropped (we can't ground them), which keeps highlights accurate. The model
 // never produces coordinates — they come from OCR.
-fn ground_visual_targets(content: String, elements: &[OcrElement]) -> String {
+fn ground_visual_targets(
+    content: String,
+    elements: &[OcrElement],
+    bounds: Option<&OverlayDisplayBounds>,
+) -> String {
     let Ok(mut parsed) = serde_json::from_str::<Value>(json_body(&content)) else {
         return content;
     };
@@ -1857,7 +1959,71 @@ fn ground_visual_targets(content: String, elements: &[OcrElement]) -> String {
     };
 
     let mut grounded: Vec<Value> = Vec::new();
-    for target in &raw_targets {
+    for (index, target) in raw_targets.iter().enumerate() {
+        let direct_region = target.get("screenRegion").and_then(Value::as_object);
+        if let Some(region) = direct_region {
+            let coords = (
+                region.get("x").and_then(Value::as_f64),
+                region.get("y").and_then(Value::as_f64),
+                region.get("width").and_then(Value::as_f64),
+                region.get("height").and_then(Value::as_f64),
+            );
+            if let (Some(x), Some(y), Some(width), Some(height)) = coords {
+                if width > 0.0 && height > 0.0 {
+                    let kind = match target.get("kind").and_then(Value::as_str) {
+                        Some(
+                            k @ ("pointer" | "highlight_box" | "arrow" | "underline" | "spotlight"
+                            | "ghost_cursor"),
+                        ) => k,
+                        _ => "highlight_box",
+                    };
+                    let label = target
+                        .get("label")
+                        .and_then(Value::as_str)
+                        .unwrap_or("Suggested target");
+                    let target_id = target
+                        .get("targetId")
+                        .or_else(|| target.get("target_id"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .unwrap_or_else(|| format!("provider-target-{}", index + 1));
+                    let confidence = target
+                        .get("confidence")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(0.7);
+                    let color = target.get("color").and_then(Value::as_str);
+                    let mut screen_region = ScreenRegion {
+                        x,
+                        y,
+                        width,
+                        height,
+                    };
+                    if matches!(kind, "highlight_box" | "spotlight") {
+                        screen_region = padded_screen_region(&screen_region, bounds, 0.25, 14.0);
+                    } else if kind == "underline" {
+                        screen_region = padded_screen_region(&screen_region, bounds, 0.18, 8.0);
+                    }
+                    let mut value = json!({
+                        "kind": kind,
+                        "targetId": target_id,
+                        "label": label,
+                        "confidence": confidence,
+                        "screenRegion": {
+                            "x": screen_region.x,
+                            "y": screen_region.y,
+                            "width": screen_region.width,
+                            "height": screen_region.height,
+                        },
+                    });
+                    if let (Some(object), Some(color)) = (value.as_object_mut(), color) {
+                        object.insert("color".to_string(), Value::String(color.to_string()));
+                    }
+                    grounded.push(value);
+                    continue;
+                }
+            }
+        }
+
         let element_id = target
             .get("elementId")
             .or_else(|| target.get("targetElementId"))
@@ -1873,7 +2039,10 @@ fn ground_visual_targets(content: String, elements: &[OcrElement]) -> String {
             continue;
         };
         let kind = match target.get("kind").and_then(Value::as_str) {
-            Some(k @ ("highlight_box" | "arrow" | "underline" | "spotlight" | "ghost_cursor")) => k,
+            Some(
+                k @ ("pointer" | "highlight_box" | "arrow" | "underline" | "spotlight"
+                | "ghost_cursor"),
+            ) => k,
             _ => "highlight_box",
         };
         let label = target
@@ -1885,16 +2054,23 @@ fn ground_visual_targets(content: String, elements: &[OcrElement]) -> String {
             .get("confidence")
             .and_then(Value::as_f64)
             .unwrap_or(0.9);
+        let screen_region = if matches!(kind, "highlight_box" | "spotlight") {
+            padded_screen_region(&element.region, bounds, 0.45, 18.0)
+        } else if kind == "underline" {
+            padded_screen_region(&element.region, bounds, 0.22, 10.0)
+        } else {
+            element.region.clone()
+        };
         grounded.push(json!({
             "kind": kind,
             "targetId": format!("element-{element_id}"),
             "label": label,
             "confidence": confidence,
             "screenRegion": {
-                "x": element.region.x,
-                "y": element.region.y,
-                "width": element.region.width,
-                "height": element.region.height,
+                "x": screen_region.x,
+                "y": screen_region.y,
+                "width": screen_region.width,
+                "height": screen_region.height,
             },
         }));
     }
@@ -1911,16 +2087,22 @@ fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
         "Return only JSON that matches this TypeScript shape:".to_string(),
         "{ mode: \"idle\" | \"stuck_help\" | \"guided_lesson\", skillSlug: string, voiceText: string, screenText: string, visualTargets: VisualTarget[], expectedNextState: string }".to_string(),
         "Never return null for string fields. Use an empty string when a string field has no value.".to_string(),
-        "Each VisualTarget is { kind, label, elementId }. kind is one of highlight_box, arrow, underline, spotlight. label is a short caption.".to_string(),
-        "To point at or highlight something on the user's screen, add a VisualTarget and set elementId to the id of the most relevant entry in the SCREEN ELEMENTS list given with the user message. NEVER output pixel coordinates or a screenRegion — the exact position is computed from the element you choose.".to_string(),
-        "Only reference element ids that exist in SCREEN ELEMENTS. If nothing on screen is relevant to your answer, return an empty visualTargets array. Use at most two targets, and prefer the single best one.".to_string(),
+        "Each VisualTarget is { kind, label, elementId?, screenRegion? }. kind is one of pointer, highlight_box, arrow, ghost_cursor, underline, spotlight. label is a short caption.".to_string(),
+        "Use visualTargets as Kairo-generated instructional overlays. They are not user drawing tools; they are how you show the user exactly what to look at, click, drag, type into, or inspect.".to_string(),
+        "For visible text elements, set elementId to an id from SCREEN ELEMENTS. For icon-only controls, diagrams, buttons without text, or visual objects, inspect the screenshot and return a tight screenRegion in screen pixels.".to_string(),
+        "WHERE/SHOW QUESTIONS: when the user asks where something is, show me something, or which tool/button to use, return a visible target for that exact thing. Prefer highlight_box around the control plus pointer at its click point.".to_string(),
+        "Icon-only tools still count as visible elements. Infer common tools from icon shape and nearby toolbar context: rectangle/box is usually a square outline icon, pen is a pencil, arrow is an arrow, text is T, hand is pan.".to_string(),
+        "VisualTarget semantics: pointer = exact click/tap/action point; ghost_cursor = where Kairo cursor should move; highlight_box = object/control/region to focus; arrow = direction or drag path from source to destination; underline = text/value/field row; spotlight = broad area to inspect.".to_string(),
+        "If nothing on screen is relevant to your answer, return an empty visualTargets array. Use at most three targets, and prefer the single best one.".to_string(),
+        "Ignore Kairo's own assistant/notch/answer card, purple labels, cursor, and overlay chrome if visible in the screenshot. They are Kairo feedback overlays, not target UI, unless the user explicitly asks about Kairo itself.".to_string(),
         "Give exactly one short next step. Do not invent app state.".to_string(),
         "Answer general user questions directly. Do not refuse just because the question is outside the selected skill pack.".to_string(),
-        "Use the selected skill pack only when it is relevant to the active app or user question.".to_string(),
+        "Use the selected skill pack only when it is relevant to the active app or user question. If the skill is general, answer from the screen and user request without mentioning any app-specific course.".to_string(),
+        "Do not mention Blender unless the active app, window title, user question, or selected skill is explicitly Blender.".to_string(),
         "When responding to a user question, prefer mode \"stuck_help\" or \"guided_lesson\"; reserve mode \"idle\" for no-op readiness.".to_string(),
         "If annotations are present, use them as user-marked screen areas and inspect the screenshot to infer what those marked areas point to.".to_string(),
         "Annotation IDs are internal coordinate references only. Never call them labels and never mention IDs like screen-annotation-1 in voiceText or screenText.".to_string(),
-        "Treat orange drawings, arrows, circles, and doodles as visual attention guides. Infer the intended target from arrow heads, enclosed areas, nearby labels, and stroke direction.".to_string(),
+        "Treat Kairo user markup, arrows, circles, and doodles as visual attention guides. Infer the intended target from arrow heads, enclosed areas, nearby labels, and stroke direction.".to_string(),
         "Do not count, name, or describe the marks themselves unless the user explicitly asks about the drawing marks.".to_string(),
         "If the user asks whether you see annotations, answer what the annotations appear to highlight on the screen, not just that marks exist.".to_string(),
         "If the user asks about a marked area, answer what underlying screen content or UI element appears to be marked. If the drawing is ambiguous, say what it may be pointing to and ask a brief clarification.".to_string(),
@@ -1936,7 +2118,7 @@ fn build_annotation_summary(input: &TutorTurnInput) -> String {
         return "No user annotations.".to_string();
     }
 
-    "The screenshot includes orange user markup drawn over the screen. Interpret arrows by their heads, loops/circles by what they enclose, boxes by their enclosed region, underlines by the nearby text, and freehand strokes by nearby UI. Use the markup only as visual attention guidance. Do not count the marks or expose internal annotation IDs. Describe the underlying marked content, app UI, or likely user intent instead.".to_string()
+    "The screenshot includes Kairo user markup drawn over the screen. Interpret arrows by their heads, loops/circles by what they enclose, boxes by their enclosed region, underlines by the nearby text, and freehand strokes by nearby UI. Use the markup only as visual attention guidance. Do not count the marks or expose internal annotation IDs. Describe the underlying marked content, app UI, or likely user intent instead.".to_string()
 }
 
 fn build_tutor_user_prompt(input: &TutorTurnInput) -> Result<String, String> {
@@ -2280,7 +2462,12 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
         let request_body = {
             let (request_model, include_screenshot) =
                 select_openrouter_request_model(&input, &model, &vision_model);
-            build_openrouter_request_body(&input, &request_model, include_screenshot, &ocr_elements)?
+            build_openrouter_request_body(
+                &input,
+                &request_model,
+                include_screenshot,
+                &ocr_elements,
+            )?
         };
         let first = send_openrouter_chat_request(
             client,
@@ -2333,7 +2520,7 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
         else {
             return Vec::new();
         };
-        detect_element_boxes(image_base64, bounds, &input.user_query).await
+        detect_element_boxes(image_base64, bounds, &input.user_query, &ocr_elements).await
     };
 
     let (answer_result, detected_boxes) = tokio::join!(answer_future, boxes_future);
@@ -2343,9 +2530,16 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
     // app) and give drawable labeled rectangles. Fall back to OCR Set-of-Mark
     // when none were found (e.g. no ANTHROPIC_API_KEY, or a purely conceptual
     // question with nothing on screen to box).
-    match (detected_boxes.is_empty(), input.screen.display_bounds.as_ref()) {
+    match (
+        detected_boxes.is_empty(),
+        input.screen.display_bounds.as_ref(),
+    ) {
         (false, Some(bounds)) => Ok(apply_box_targets(content, &detected_boxes, bounds)),
-        _ => Ok(ground_visual_targets(content, &ocr_elements)),
+        _ => Ok(ground_visual_targets(
+            content,
+            &ocr_elements,
+            input.screen.display_bounds.as_ref(),
+        )),
     }
 }
 
@@ -2789,9 +2983,10 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        audio_filename, build_openrouter_messages, build_openrouter_request_body,
-        decode_audio_base64, notch_window_size, parse_local_env, provider_timeout_ms,
-        select_openrouter_request_model, OverlayDisplayBounds, ScreenRegion, SynthesizeSpeechInput,
+        apply_box_targets, audio_filename, box_locator_prompt, build_openrouter_messages,
+        build_openrouter_request_body, decode_audio_base64, ground_visual_targets,
+        notch_window_size, parse_local_env, provider_timeout_ms, select_openrouter_request_model,
+        DetectedBox, OcrElement, OverlayDisplayBounds, ScreenRegion, SynthesizeSpeechInput,
         TranscribeAudioInput, TutorActiveAppContext, TutorAnnotation, TutorScreenInput,
         TutorSkillPack, TutorTurnInput, DEFAULT_OPENROUTER_VISION_MODEL,
     };
@@ -2936,6 +3131,9 @@ mod tests {
 
         assert!(system_prompt.contains("Answer general user questions directly"));
         assert!(system_prompt.contains("Selected skill context, when relevant: Blender"));
+        assert!(system_prompt.contains("WHERE/SHOW QUESTIONS"));
+        assert!(system_prompt.contains("rectangle/box is usually a square outline icon"));
+        assert!(system_prompt.contains("Do not mention Blender unless"));
         assert!(system_prompt.contains("Annotation IDs are internal coordinate references only"));
         assert!(system_prompt.contains("Infer the intended target from arrow heads"));
         assert!(system_prompt.contains("answer what the annotations appear to highlight"));
@@ -2963,11 +3161,174 @@ mod tests {
             .expect("user prompt should be string");
 
         assert!(user_prompt.contains("\"annotationSummary\""));
-        assert!(user_prompt.contains("orange user markup"));
+        assert!(user_prompt.contains("Kairo user markup"));
         assert!(user_prompt.contains("Interpret arrows by their heads"));
         assert!(user_prompt.contains("visual attention guidance"));
         assert!(!user_prompt.contains("User annotations: exactly 1"));
         assert!(!user_prompt.contains("screen-annotation-1"));
+    }
+
+    #[test]
+    fn preserves_direct_screen_region_targets_when_no_ocr_element_matches() {
+        let raw = serde_json::to_string(&json!({
+            "mode": "stuck_help",
+            "skillSlug": "general",
+            "voiceText": "The rectangle tool is here.",
+            "screenText": "The rectangle tool is here.",
+            "visualTargets": [{
+                "kind": "pointer",
+                "targetId": "rectangle-tool",
+                "label": "Rectangle",
+                "confidence": 0.9,
+                "screenRegion": { "x": 820.0, "y": 940.0, "width": 44.0, "height": 44.0 }
+            }],
+            "expectedNextState": "user_clicks_rectangle"
+        }))
+        .expect("raw target JSON should serialize");
+
+        let grounded = ground_visual_targets(raw, &[], None);
+        let parsed: serde_json::Value =
+            serde_json::from_str(&grounded).expect("grounded response should stay JSON");
+
+        assert_eq!(parsed["visualTargets"][0]["kind"], "pointer");
+        assert_eq!(parsed["visualTargets"][0]["targetId"], "rectangle-tool");
+        assert_eq!(parsed["visualTargets"][0]["screenRegion"]["x"], 820.0);
+    }
+
+    #[test]
+    fn box_locator_prompt_uses_generic_pixel_grounding() {
+        let prompt = box_locator_prompt(
+            "where can I click in order to change the url?",
+            1568,
+            982,
+            "OCR/TEXT HINTS:\n1: \"github.com\" @ 18%,10% size 140x32px",
+        );
+
+        assert!(prompt.contains("pixel grounding model"));
+        assert!(prompt.contains("All visible UI layers count"));
+        assert!(prompt.contains("browser or app chrome"));
+        assert!(prompt.contains("Do not ignore a control because it is outside the page content"));
+        assert!(prompt.contains("Ignore Kairo's own assistant/notch/answer card"));
+        assert!(prompt.contains("OCR/TEXT HINTS"));
+        assert!(prompt.contains("\"github.com\""));
+        assert!(prompt.contains("choose the visible editable field"));
+        assert!(prompt.contains("target is usually the enclosing editable address/input field"));
+        assert!(prompt.contains("Do not choose a search field unless the user asks to search"));
+        assert!(prompt.contains("ABSOLUTE PIXELS of this 1568x982 image"));
+    }
+
+    #[test]
+    fn box_locator_context_includes_ocr_position_hints() {
+        let context = super::build_box_locator_context(&[OcrElement {
+            id: 7,
+            text: "github.com".to_string(),
+            region: ScreenRegion {
+                x: 420.0,
+                y: 256.0,
+                width: 180.0,
+                height: 36.0,
+            },
+            center_x_pct: 24.0,
+            center_y_pct: 9.0,
+        }]);
+
+        assert!(context.contains("visible text boxes"));
+        assert!(context.contains("7: \"github.com\" @ 24%,9% size 180x36px"));
+        assert!(context.contains("still return the final tight pixel box from the image"));
+    }
+
+    #[test]
+    fn apply_box_targets_places_pointer_at_detected_box_center() {
+        let raw = serde_json::to_string(&json!({
+            "mode": "stuck_help",
+            "skillSlug": "general",
+            "voiceText": "Click the address field.",
+            "screenText": "Click the address field.",
+            "visualTargets": [],
+            "expectedNextState": "user_clicks_address_field"
+        }))
+        .expect("raw response should serialize");
+        let bounds = OverlayDisplayBounds {
+            x: 0.0,
+            y: 0.0,
+            width: 1000.0,
+            height: 700.0,
+            scale_factor: 2.0,
+        };
+        let boxes = vec![DetectedBox {
+            norm_x1: 0.10,
+            norm_y1: 0.20,
+            norm_x2: 0.20,
+            norm_y2: 0.30,
+            label: "Address field".to_string(),
+            color: "#a78bfa".to_string(),
+        }];
+
+        let grounded = apply_box_targets(raw, &boxes, &bounds);
+        let parsed: serde_json::Value =
+            serde_json::from_str(&grounded).expect("grounded response should stay JSON");
+
+        let pointer = &parsed["visualTargets"][0];
+        assert_eq!(pointer["kind"], "pointer");
+        assert_eq!(pointer["label"], "Address field");
+        assert_eq!(pointer["screenRegion"]["width"], 88.0);
+        assert_eq!(pointer["screenRegion"]["height"], 88.0);
+        // Raw detected center is (150, 175) logical px => (300, 350) physical px.
+        // The 88px cursor marker is centered there.
+        assert_eq!(pointer["screenRegion"]["x"], 256.0);
+        assert_eq!(pointer["screenRegion"]["y"], 306.0);
+
+        let highlight = &parsed["visualTargets"][1];
+        assert_eq!(highlight["kind"], "highlight_box");
+        assert_eq!(highlight["label"], "Address field");
+    }
+
+    #[test]
+    fn ground_visual_targets_pads_ocr_highlights() {
+        let raw = serde_json::to_string(&json!({
+            "mode": "stuck_help",
+            "skillSlug": "general",
+            "voiceText": "Use the repository search.",
+            "screenText": "Use the repository search.",
+            "visualTargets": [{
+                "kind": "highlight_box",
+                "targetId": "repo-search",
+                "label": "Repository search",
+                "confidence": 0.9,
+                "elementId": 4
+            }],
+            "expectedNextState": "user_searches_repo"
+        }))
+        .expect("raw target JSON should serialize");
+        let bounds = OverlayDisplayBounds {
+            x: 0.0,
+            y: 0.0,
+            width: 1000.0,
+            height: 700.0,
+            scale_factor: 2.0,
+        };
+        let elements = vec![OcrElement {
+            id: 4,
+            text: "Find a repository...".to_string(),
+            region: ScreenRegion {
+                x: 80.0,
+                y: 500.0,
+                width: 240.0,
+                height: 32.0,
+            },
+            center_x_pct: 20.0,
+            center_y_pct: 36.0,
+        }];
+
+        let grounded = ground_visual_targets(raw, &elements, Some(&bounds));
+        let parsed: serde_json::Value =
+            serde_json::from_str(&grounded).expect("grounded response should stay JSON");
+        let region = &parsed["visualTargets"][0]["screenRegion"];
+
+        assert_eq!(region["x"], 0.0);
+        assert_eq!(region["y"], 464.0);
+        assert_eq!(region["width"], 428.0);
+        assert_eq!(region["height"], 104.0);
     }
 
     #[test]

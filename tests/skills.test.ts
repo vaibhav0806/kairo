@@ -2,6 +2,17 @@ import { describe, expect, test } from 'vitest';
 import { createSkillPackRegistry } from '../src/core/skills';
 
 describe('createSkillPackRegistry', () => {
+  test('provides a general screen fallback without app-specific landmarks', () => {
+    const registry = createSkillPackRegistry();
+    const general = registry.getGeneral();
+
+    expect(general.slug).toBe('general');
+    expect(general.displayName).toBe('General screen');
+    expect(general.landmarks).toEqual({});
+    expect(registry.getBySlug('general')).toBe(general);
+    expect(registry.list().map((pack) => pack.slug)).toContain('general');
+  });
+
   test('loads the Blender skill pack and its UI landmarks', () => {
     const registry = createSkillPackRegistry();
     const blender = registry.getBySlug('blender');

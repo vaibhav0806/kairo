@@ -35,7 +35,7 @@ export function buildTutorTurnInput({
   const skill =
     registry.matchUserQuery(request.userQuery) ??
     registry.matchActiveApp(request) ??
-    registry.getBySlug(skillSlug);
+    registry.getGeneral();
 
   return {
     userQuery: request.userQuery,
@@ -62,7 +62,8 @@ export function buildTutorTurnInput({
     constraints: [
       'Return one short tutor step.',
       'Answer general user questions directly, even when they are not related to the selected skill pack.',
-      'Use the selected skill pack only when the active app or user question makes it relevant.',
+      'Use a named skill pack only when the active app or user question makes it relevant.',
+      `Configured default skill is ${skillSlug}; do not assume it applies unless the app or question matches it.`,
       'After a user question, use idle only when no answer is needed; otherwise use stuck_help or guided_lesson.',
       'Use screen coordinates only when a visual target is useful.',
       'Do not invent app state that is not visible in the provided context.'

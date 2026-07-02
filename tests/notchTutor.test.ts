@@ -153,7 +153,7 @@ describe('askTutorFromNotch', () => {
     });
   });
 
-  test('flies the companion cursor to a pointer target instead of the overlay', async () => {
+  test('flies the companion cursor to a pointer target and keeps it visible in the overlay', async () => {
     const bridge = createBridge({
       runTutorTurn: vi.fn(async () =>
         JSON.stringify({
@@ -188,9 +188,10 @@ describe('askTutorFromNotch', () => {
         displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 }
       })
     );
-    // A lone pointer target must not also render in the overlay.
-    expect(bridge.showOverlay).not.toHaveBeenCalled();
-    expect(bridge.hideOverlay).toHaveBeenCalled();
+    expect(bridge.showOverlay).toHaveBeenCalledWith({
+      displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 },
+      targets: [expect.objectContaining({ targetId: 'gh-tab', kind: 'pointer' })]
+    });
   });
 
   test('keeps area targets in the overlay and points the companion cursor at them', async () => {

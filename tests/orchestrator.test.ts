@@ -36,7 +36,7 @@ describe('tutor orchestrator', () => {
       'Answer general user questions directly, even when they are not related to the selected skill pack.'
     );
     expect(input.constraints).toContain(
-      'Use the selected skill pack only when the active app or user question makes it relevant.'
+      'Use a named skill pack only when the active app or user question makes it relevant.'
     );
   });
 
@@ -80,5 +80,25 @@ describe('tutor orchestrator', () => {
     });
 
     expect(input.skill.slug).toBe('blender');
+  });
+
+  test('uses a general skill fallback instead of assuming the configured default applies', () => {
+    const input = buildTutorTurnInput({
+      request: {
+        userQuery: 'Where is the rectangle tool?',
+        activeApp: 'Chrome',
+        bundleId: 'com.google.Chrome',
+        windowTitle: 'tldraw',
+        annotations: []
+      },
+      screenCapture: null,
+      skillSlug: 'blender'
+    });
+
+    expect(input.skill.slug).toBe('general');
+    expect(input.skill.displayName).toBe('General screen');
+    expect(input.constraints).toContain(
+      'Configured default skill is blender; do not assume it applies unless the app or question matches it.'
+    );
   });
 });

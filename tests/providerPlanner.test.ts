@@ -82,7 +82,7 @@ describe('OpenRouter tutor planner adapter', () => {
       ])
     );
     expect(JSON.stringify(userMessage.content)).toContain('annotationSummary');
-    expect(JSON.stringify(userMessage.content)).toContain('orange user markup');
+    expect(JSON.stringify(userMessage.content)).toContain('Kairo user markup');
     expect(JSON.stringify(userMessage.content)).toContain('visual attention guidance');
     expect(JSON.stringify(userMessage.content)).toContain('markedAreas');
     expect(JSON.stringify(userMessage.content)).toContain('first marked area');
@@ -108,7 +108,13 @@ describe('OpenRouter tutor planner adapter', () => {
 
     const messages = (chat.mock.calls as unknown as Array<[OpenRouterMessage[]]>)[0][0];
     expect(String(messages[0].content)).toContain('Answer general user questions directly');
+    expect(String(messages[0].content)).toContain('Use visualTargets as Kairo-generated instructional overlays');
+    expect(String(messages[0].content)).toContain('pointer = exact click/tap/action point');
+    expect(String(messages[0].content)).toContain('arrow = direction or drag path');
+    expect(String(messages[0].content)).toContain('WHERE/SHOW QUESTIONS');
+    expect(String(messages[0].content)).toContain('rectangle/box is usually a square outline icon');
     expect(String(messages[0].content)).toContain('Selected skill context, when relevant: Blender');
+    expect(String(messages[0].content)).toContain('Do not mention Blender unless');
     expect(String(messages[0].content)).toContain('Annotation IDs are internal coordinate references only');
     expect(String(messages[0].content)).toContain('Infer the intended target from arrow heads');
     expect(String(messages[0].content)).toContain('answer what the annotations appear to highlight');
