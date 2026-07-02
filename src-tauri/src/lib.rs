@@ -1170,6 +1170,28 @@ fn spawn_context_input_tap(app: &tauri::AppHandle, watch: ContextWatch) {
     });
 }
 
+// Input Monitoring (kTCCServiceListenEvent) is a SEPARATE grant from Accessibility
+// and is what a keyboard-class event tap needs. These CoreGraphics C APIs (macOS
+// 10.15+) let us check it and trigger the system prompt — which also registers
+// Kairo in System Settings > Privacy & Security > Input Monitoring so the user can
+// find and enable it. CoreGraphics is already linked via the core-graphics crate.
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn CGPreflightListenEventAccess() -> bool;
+    fn CGRequestListenEventAccess() -> bool;
+}
+
+// Ask for Input Monitoring so the ⌥⌃ push-to-talk tap can receive modifier events.
+// No-op (returns true) once granted; otherwise prompts + lists the app in Settings.
+#[cfg(target_os = "macos")]
+fn ensure_input_monitoring_access() {
+    unsafe {
+        if !CGPreflightListenEventAccess() {
+            let _ = CGRequestListenEventAccess();
+        }
+    }
+}
+
 // Separate listen-only tap for the ⌥⌃ push-to-talk chord (FlagsChanged). Kept apart
 // from the mouse/scroll tap on purpose: keyboard-class taps can require the separate
 // macOS "Input Monitoring" grant, so if THIS tap can't be created, PTT is simply
@@ -3309,7 +3331,9 @@ pub fn run() {
             spawn_context_poll(app.handle(), context_watch.clone());
             spawn_context_input_tap(app.handle(), context_watch.clone());
             // Push-to-talk runs on its own tap so its (possibly Input-Monitoring-gated)
-            // keyboard access can't disturb the mouse/scroll reset tap above.
+            // keyboard access can't disturb the mouse/scroll reset tap above. Request
+            // the grant first so Kairo shows up in the Input Monitoring settings list.
+            ensure_input_monitoring_access();
             spawn_ptt_tap(app.handle(), context_watch);
             Ok(())
         })
