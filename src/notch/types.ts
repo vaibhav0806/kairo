@@ -6,4 +6,7 @@ export type NotchPayload = {
   layout: NotchLayout;
   title: string;
   detail: string;
+  // True when this listening payload came from push-to-talk (record until release,
+  // not until silence).
+  ptt?: boolean;
 };

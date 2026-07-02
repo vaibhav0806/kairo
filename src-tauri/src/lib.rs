@@ -171,6 +171,10 @@ struct NotchPayload {
     layout: Option<String>,
     title: String,
     detail: String,
+    // Set true when a "listening" payload was raised by push-to-talk, so the notch
+    // records until key-release instead of auto-stopping on silence.
+    #[serde(default)]
+    ptt: Option<bool>,
 }
 
 #[derive(Default)]
@@ -1220,10 +1224,28 @@ fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                 let was = watch.ptt_active.load(Ordering::SeqCst);
                 if both && !was {
                     watch.ptt_active.store(true, Ordering::SeqCst);
-                    let _ = app.emit("ptt:start", ());
+                    eprintln!("[ptt] chord down -> show notch + record");
+                    // Show the notch on the MAIN thread (AppKit requires it). This
+                    // both wakes the otherwise-suspended notch webview and, via the
+                    // ptt-flagged listening payload, kicks off a push-to-talk record.
+                    let app2 = app.clone();
+                    let _ = app.run_on_main_thread(move || {
+                        let notch_state = app2.state::<NotchState>();
+                        if let Err(error) = show_notch_with_payload(
+                            &app2,
+                            notch_state.inner(),
+                            Some(listening_notch_payload(true)),
+                        ) {
+                            eprintln!("[ptt] failed to show notch: {error}");
+                        }
+                    });
                 } else if !both && was {
                     watch.ptt_active.store(false, Ordering::SeqCst);
-                    let _ = app.emit("ptt:stop", ());
+                    eprintln!("[ptt] chord up -> stop");
+                    // Notch is shown/awake by now; tell it to finalize + send.
+                    if let Some(window) = app.get_webview_window("notch") {
+                        let _ = window.emit("ptt:stop", ());
+                    }
                 }
                 CallbackResult::Keep
             },
@@ -1234,6 +1256,7 @@ fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
             );
             return;
         };
+        eprintln!("[ptt] input tap created; holding for ⌥⌃ FlagsChanged events");
         unsafe {
             let Ok(source) = tap.mach_port().create_runloop_source(0) else {
                 eprintln!("Kairo Tutor: failed to create PTT runloop source");
@@ -1396,12 +1419,13 @@ fn show_notch_with_payload(
     Ok(())
 }
 
-fn listening_notch_payload() -> NotchPayload {
+fn listening_notch_payload(ptt: bool) -> NotchPayload {
     NotchPayload {
         state: "listening".to_string(),
         layout: Some("compact".to_string()),
         title: "Kairo is listening".to_string(),
         detail: "Capturing the current screen".to_string(),
+        ptt: Some(ptt),
     }
 }
 
@@ -3272,7 +3296,7 @@ pub fn run() {
             // ⌘⇧Space shows the notch (voice is push-to-talk via ⌥⌃).
             let notch_state = app.state::<NotchState>();
             if let Err(error) =
-                show_notch_with_payload(app, notch_state.inner(), Some(listening_notch_payload()))
+                show_notch_with_payload(app, notch_state.inner(), Some(listening_notch_payload(false)))
             {
                 eprintln!("Kairo Tutor activation shortcut failed to show notch: {error}");
             }

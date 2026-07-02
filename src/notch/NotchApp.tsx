@@ -866,6 +866,9 @@ export function NotchApp() {
           Boolean(globalThis.MediaRecorder)
         ) {
           autoListenStartedRef.current = true;
+          // A listening payload raised by push-to-talk records until key-release
+          // (no silence auto-stop); ⌘⇧Space keeps the silence-based behavior.
+          pttModeRef.current = Boolean(nextPayload.ptt);
           startVoiceCaptureRef.current();
         }
         autoListenSuppressedRef.current = false;
@@ -958,18 +961,12 @@ export function NotchApp() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [hideNotch]);
 
-  // Push-to-talk (⌥⌃ held → record, released → send) and the pen shortcut (⌥⇧P),
-  // both driven natively. PTT records until release (no silence auto-stop); the
-  // cursor carries the listening/thinking state.
+  // Push-to-talk stop (⌥⌃ released) + the pen shortcut (⌥⇧P). PTT START is driven by
+  // the native side showing a ptt-flagged "listening" payload (which wakes the notch
+  // webview and starts recording via the auto-listen path); here we only handle the
+  // release (finalize + send) and the pen toggle.
   useEffect(() => {
     const pending = Promise.all([
-      listen('ptt:start', () => {
-        if (voiceCaptureStateRef.current === 'recording' || isSubmittingRef.current) {
-          return;
-        }
-        pttModeRef.current = true;
-        startVoiceCaptureRef.current();
-      }),
       listen('ptt:stop', () => {
         if (voiceCaptureStateRef.current === 'recording') {
           stopActiveRecording(false);
