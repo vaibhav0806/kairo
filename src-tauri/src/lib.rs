@@ -1346,9 +1346,8 @@ fn spawn_audio_capture(
         std::thread::sleep(Duration::from_millis(66));
         if capturing_level.load(Ordering::SeqCst) {
             let lvl = f32::from_bits(level_read.load(Ordering::SeqCst));
-            if let Some(window) = app_level.get_webview_window("cursor") {
-                let _ = window.emit("cursor:level", json!({ "level": lvl }));
-            }
+            // Global so BOTH the cursor halo and the status capsule react to voice.
+            let _ = app_level.emit("cursor:level", json!({ "level": lvl }));
         }
     });
 
@@ -1501,10 +1500,8 @@ fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                     // Start native mic capture immediately (instant; indicator on now).
                     eprintln!("[ptt-timing] ⌥⌃ chord down");
                     send_audio_command(&app, AudioCommand::Start(Instant::now()));
-                    // Cursor shows the listening halo.
-                    if let Some(window) = app.get_webview_window("cursor") {
-                        let _ = window.emit("cursor:listening", ());
-                    }
+                    // Cursor shows the listening halo (global emit so it lands).
+                    let _ = app.emit("cursor:listening", ());
                     // Show the notch (listening UI) on the MAIN thread — this also
                     // wakes its otherwise-suspended webview so it can receive the
                     // captured audio on release.
@@ -1524,9 +1521,7 @@ fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                     // Stop capture → the audio thread encodes WAV + emits `ptt:audio`
                     // to the (now awake) notch, which transcribes + runs the turn.
                     send_audio_command(&app, AudioCommand::Stop);
-                    if let Some(window) = app.get_webview_window("cursor") {
-                        let _ = window.emit("cursor:thinking", ());
-                    }
+                    let _ = app.emit("cursor:thinking", ());
                 }
                 CallbackResult::Keep
             },
