@@ -39,8 +39,8 @@ const defaultPayload: NotchPayload = {
 };
 
 // After the answer finishes speaking, close the notch this long after the user
-// stops interacting with it.
-const NOTCH_IDLE_CLOSE_MS = 5000;
+// stops interacting with it (also clears the box + companion cursor).
+const NOTCH_IDLE_CLOSE_MS = 3000;
 // Body copy shown under the title while the answer is being synthesized to speech,
 // after the LLM has replied but before playback (and the visuals) begin.
 const PREPARING_NEXT_STEP_TEXT = 'Preparing the next step';
