@@ -4,6 +4,7 @@ import { App } from './App';
 import { CursorApp } from './cursor/CursorApp';
 import { NotchApp } from './notch/NotchApp';
 import { OverlayApp } from './overlay/OverlayApp';
+import '@fontsource-variable/geist';
 import './styles.css';
 
 const RootApp =
