@@ -45,6 +45,10 @@ const NOTCH_IDLE_CLOSE_MS = 3000;
 // after the LLM has replied but before playback (and the visuals) begin.
 const PREPARING_NEXT_STEP_TEXT = 'Preparing the next step';
 
+// "Let me look" fillers, pre-synthesized at launch so they play INSTANTLY when the
+// gate flags a screen question — no per-question TTS latency.
+const FILLER_LINES = ['Let me take a look.', 'Sure, one sec.', 'Okay, let me check.', 'Let me see.'];
+
 function NotchIcon({ children, size = 18 }: { children: ReactNode; size?: number }) {
   return (
     <svg
@@ -144,6 +148,8 @@ export function NotchApp() {
   // Set true when the real answer supersedes the gate's "let me look" filler, so a
   // slow filler synth doesn't play over the answer.
   const fillerCancelRef = useRef(false);
+  // Pre-synthesized filler audio (data URLs), so "let me look" plays instantly.
+  const fillerAudioUrlsRef = useRef<string[]>([]);
   // The teaching visuals for the current answer, revealed on TTS start (not when
   // the LLM answer arrives), plus the app they point at for the context watcher.
   const revealVisualsRef = useRef<() => Promise<void>>(async () => {});
@@ -441,11 +447,22 @@ export function NotchApp() {
   // slow synth never plays over the real answer.
   const speakFiller = useCallback(
     async (text: string) => {
+      fillerCancelRef.current = false;
+      // Instant path: play a pre-synthesized filler — no TTS wait, so "let me look"
+      // starts the moment the gate returns.
+      const cached = fillerAudioUrlsRef.current;
+      if (cached.length > 0) {
+        const url = cached[Math.floor(Math.random() * cached.length)];
+        const audio = new Audio(url);
+        answerAudioRef.current = audio;
+        void audio.play().catch(() => {});
+        return;
+      }
+      // Fallback (cache not warmed yet): synthesize the gate's filler text.
       const trimmed = text.trim();
       if (!trimmed) {
         return;
       }
-      fillerCancelRef.current = false;
       try {
         const result = await nativeBridge.synthesizeSpeech({ text: trimmed });
         if (fillerCancelRef.current) {
@@ -1013,6 +1030,28 @@ export function NotchApp() {
       }
     })();
   }, []);
+
+  // Pre-synthesize the "let me look" fillers once at launch so they play instantly
+  // when the gate flags a screen question (no per-question TTS latency).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      for (const line of FILLER_LINES) {
+        try {
+          const result = await nativeBridge.synthesizeSpeech({ text: line });
+          const url = buildAudioDataUrl(result);
+          if (!cancelled && url) {
+            fillerAudioUrlsRef.current.push(url);
+          }
+        } catch {
+          // Best-effort; speakFiller falls back to on-demand synth.
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [nativeBridge]);
 
   useEffect(() => {
     let isMounted = true;
