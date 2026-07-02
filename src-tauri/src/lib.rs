@@ -5,8 +5,11 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
-    sync::Mutex,
-    time::Duration,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+    time::{Duration, Instant},
 };
 use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, State};
 use tauri_nspanel::{tauri_panel, CollectionBehavior, PanelHandle, StyleMask, WebviewWindowExt};
@@ -183,6 +186,43 @@ struct NotchState {
 struct CursorState {
     panel: Mutex<Option<PanelHandle<tauri::Wry>>>,
     window: Mutex<Option<tauri::WebviewWindow>>,
+}
+
+// Watches for the user moving on after Kairo points at something — an app/tab
+// switch, a page navigation, or a scroll/click — so stale guidance (the
+// highlight box + companion cursor) can be cleared instead of hovering over the
+// wrong place. Armed only while a teaching target is on screen. Plain mouse
+// *movement* is deliberately ignored, so moving toward the target never counts
+// as "the user moved on" (the key guard against false resets). Arc-wrapped so the
+// background watcher threads and the Tauri commands share one flag.
+#[derive(Clone)]
+struct ContextWatch {
+    armed: Arc<AtomicBool>,
+    // (bundleId, windowTitle) of the app the guidance was drawn for, captured when
+    // the box is revealed. Compared against the live frontmost app to detect moves.
+    baseline: Arc<Mutex<Option<(String, String)>>>,
+    // When arming happened; enforces a short settle window so the reveal's own
+    // transient (or the click that opened the notch) never trips an instant reset.
+    armed_at: Arc<Mutex<Option<Instant>>>,
+}
+
+impl Default for ContextWatch {
+    fn default() -> Self {
+        Self {
+            armed: Arc::new(AtomicBool::new(false)),
+            baseline: Arc::new(Mutex::new(None)),
+            armed_at: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ContextBaseline {
+    #[serde(default)]
+    bundle_id: Option<String>,
+    #[serde(default)]
+    window_title: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1003,6 +1043,123 @@ fn spawn_mouse_tracker(app: &tauri::AppHandle) {
                 }
             }
             std::thread::sleep(Duration::from_millis(16));
+        }
+    });
+}
+
+const KAIRO_BUNDLE_ID: &str = "com.kairo.tutor";
+// Ignore activity for the first moment after arming so the reveal itself (or the
+// click/key that triggered the ask) never counts as "the user moved on".
+const CONTEXT_SETTLE_MS: u64 = 500;
+
+// True only when armed AND past the settle window — the single gate every watcher
+// checks before firing.
+fn context_watch_settled(watch: &ContextWatch) -> bool {
+    if !watch.armed.load(Ordering::SeqCst) {
+        return false;
+    }
+    watch
+        .armed_at
+        .lock()
+        .ok()
+        .and_then(|guard| *guard)
+        .map(|at| at.elapsed() >= Duration::from_millis(CONTEXT_SETTLE_MS))
+        .unwrap_or(false)
+}
+
+// Disarm and tell the notch exactly once per armed session. `swap` makes it
+// one-shot even if the poll and the input tap fire in the same instant.
+fn fire_context_reset(app: &tauri::AppHandle, watch: &ContextWatch, reason: &str) {
+    if watch.armed.swap(false, Ordering::SeqCst) {
+        let _ = app.emit("context:changed", reason.to_string());
+    }
+}
+
+// Low-frequency poll (only costs anything while armed) that catches app switches
+// and tab/page changes: the frontmost bundle id changing, or the front window
+// title changing within the same app. Covers keyboard-driven switches (Cmd+Tab,
+// Cmd+number) that the input tap deliberately doesn't listen for.
+fn spawn_context_poll(app: &tauri::AppHandle, watch: ContextWatch) {
+    let app = app.clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_millis(450));
+        if !context_watch_settled(&watch) {
+            continue;
+        }
+        let Some((base_bundle, base_title)) =
+            watch.baseline.lock().ok().and_then(|guard| guard.clone())
+        else {
+            continue;
+        };
+        let cur_bundle = frontmost_bundle_id().unwrap_or_default();
+        // Our own non-activating panels shouldn't take frontmost, but never let
+        // Kairo's own UI count as the user switching away.
+        if cur_bundle == KAIRO_BUNDLE_ID {
+            continue;
+        }
+        let switched_app =
+            !base_bundle.is_empty() && !cur_bundle.is_empty() && cur_bundle != base_bundle;
+        if switched_app {
+            fire_context_reset(&app, &watch, "app-switch");
+            continue;
+        }
+        let cur_title = frontmost_window_title().unwrap_or_default();
+        let changed_title =
+            !base_title.is_empty() && !cur_title.is_empty() && cur_title != base_title;
+        if changed_title {
+            fire_context_reset(&app, &watch, "window-change");
+        }
+    });
+}
+
+// Listen-only global event tap for scroll + mouse-down (NOT mouse-moved, so
+// moving toward the target is never a reset, and NOT keyDown, so this needs only
+// the Accessibility grant Kairo already has — no Input Monitoring prompt). If the
+// tap can't be created it degrades gracefully; the poll above still covers
+// app/tab switches.
+fn spawn_context_input_tap(app: &tauri::AppHandle, watch: ContextWatch) {
+    use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
+    use core_graphics::event::{
+        CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType,
+        CallbackResult,
+    };
+
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let tap = CGEventTap::new(
+            CGEventTapLocation::Session,
+            CGEventTapPlacement::HeadInsertEventTap,
+            CGEventTapOptions::ListenOnly,
+            vec![
+                CGEventType::ScrollWheel,
+                CGEventType::LeftMouseDown,
+                CGEventType::RightMouseDown,
+                CGEventType::OtherMouseDown,
+            ],
+            move |_proxy, _event_type, _event| {
+                if context_watch_settled(&watch) {
+                    fire_context_reset(&app, &watch, "input");
+                }
+                // Listen-only: never modify the event stream, always keep the event.
+                CallbackResult::Keep
+            },
+        );
+        let Ok(tap) = tap else {
+            eprintln!(
+                "Kairo Tutor: input event tap unavailable; scroll/click reset disabled (app/tab switch reset still works)"
+            );
+            return;
+        };
+        // Standard CGEventTap → CFRunLoop wiring. run_current() blocks this
+        // dedicated thread for the process lifetime, keeping the tap alive.
+        unsafe {
+            let Ok(source) = tap.mach_port().create_runloop_source(0) else {
+                eprintln!("Kairo Tutor: failed to create event-tap runloop source");
+                return;
+            };
+            CFRunLoop::get_current().add_source(&source, kCFRunLoopCommonModes);
+            tap.enable();
+            CFRunLoop::run_current();
         }
     });
 }
@@ -1834,11 +1991,11 @@ fn apply_box_targets(
     let pad_pct = provider_env_optional("KAIRO_BOX_PAD_PCT")
         .and_then(|v| v.trim().parse::<f64>().ok())
         .filter(|v| *v >= 0.0)
-        .unwrap_or(0.45);
+        .unwrap_or(0.30);
     let pad_min_px = provider_env_optional("KAIRO_BOX_PAD_MIN_PX")
         .and_then(|v| v.trim().parse::<f64>().ok())
         .filter(|v| *v >= 0.0)
-        .unwrap_or(20.0)
+        .unwrap_or(14.0)
         * scale_factor;
 
     // A detected box → raw (x, y, width, height) in physical px, clamped to the
@@ -2055,7 +2212,7 @@ fn ground_visual_targets(
             .and_then(Value::as_f64)
             .unwrap_or(0.9);
         let screen_region = if matches!(kind, "highlight_box" | "spotlight") {
-            padded_screen_region(&element.region, bounds, 0.45, 18.0)
+            padded_screen_region(&element.region, bounds, 0.30, 14.0)
         } else if kind == "underline" {
             padded_screen_region(&element.region, bounds, 0.22, 10.0)
         } else {
@@ -2810,6 +2967,34 @@ fn cursor_release(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|error| format!("Failed to release cursor: {error}"))
 }
 
+// Arm the context watcher when a teaching target is revealed. `baseline` is the
+// app the guidance points at; a later frontmost/scroll/click change clears the box.
+#[tauri::command]
+fn arm_context_watch(
+    watch: State<'_, ContextWatch>,
+    baseline: ContextBaseline,
+) -> Result<(), String> {
+    *watch
+        .baseline
+        .lock()
+        .map_err(|_| "Failed to lock context baseline.".to_string())? = Some((
+        baseline.bundle_id.unwrap_or_default(),
+        baseline.window_title.unwrap_or_default(),
+    ));
+    *watch
+        .armed_at
+        .lock()
+        .map_err(|_| "Failed to lock context arm time.".to_string())? = Some(Instant::now());
+    watch.armed.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+// Stop watching (box cleared, notch closed, or a new turn started).
+#[tauri::command]
+fn disarm_context_watch(watch: State<'_, ContextWatch>) {
+    watch.armed.store(false, Ordering::SeqCst);
+}
+
 // macOS caches Screen Recording (and accessibility) authorization per process,
 // so a grant made while running is only observed after a relaunch. Restarting
 // is the reliable way to re-read permissions during onboarding.
@@ -2913,6 +3098,7 @@ pub fn run() {
         .manage(OverlayState::default())
         .manage(NotchState::default())
         .manage(CursorState::default())
+        .manage(ContextWatch::default())
         .plugin(global_shortcut_plugin)
         .plugin(tauri_nspanel::init())
         .setup(|app| {
@@ -2952,6 +3138,11 @@ pub fn run() {
                     eprintln!("Kairo Tutor: failed to pre-create cursor panel: {error}");
                 }
             }
+            // Context watcher: detect app/tab switches + scroll/click so stale
+            // guidance is cleared when the user moves on. Threads idle-cheap until armed.
+            let context_watch = app.state::<ContextWatch>().inner().clone();
+            spawn_context_poll(app.handle(), context_watch.clone());
+            spawn_context_input_tap(app.handle(), context_watch);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -2969,6 +3160,8 @@ pub fn run() {
             hide_overlay,
             cursor_point,
             cursor_release,
+            arm_context_watch,
+            disarm_context_watch,
             show_notch,
             get_current_notch_payload,
             hide_notch,
@@ -3325,10 +3518,12 @@ mod tests {
             serde_json::from_str(&grounded).expect("grounded response should stay JSON");
         let region = &parsed["visualTargets"][0]["screenRegion"];
 
-        assert_eq!(region["x"], 0.0);
-        assert_eq!(region["y"], 464.0);
-        assert_eq!(region["width"], 428.0);
-        assert_eq!(region["height"], 104.0);
+        // Padding is 30% of each side, min 14 logical px (×2 scale = 28 physical).
+        // pad_x = max(0.30·240, 28) = 72; pad_y = max(0.30·32, 28) = 28.
+        assert_eq!(region["x"], 8.0);
+        assert_eq!(region["y"], 472.0);
+        assert_eq!(region["width"], 384.0);
+        assert_eq!(region["height"], 88.0);
     }
 
     #[test]
