@@ -34,7 +34,7 @@ const DEFAULT_TRAIL = `linear-gradient(to left, #7c3aed, #7c3aed00)`;
 // unmistakable even apart from the halo.
 const RECORDING_FILL = '#ff4d6d';
 
-type CursorFx = 'none' | 'listening' | 'thinking';
+type CursorFx = 'none' | 'listening' | 'thinking' | 'speaking';
 
 type CursorMode = 'shadow' | 'pointing';
 
@@ -245,7 +245,10 @@ export function CursorApp() {
             : DEFAULT_TRAIL;
         }
         modeRef.current = 'pointing';
-        setFx('none');
+        // Keep the speaking pulse while pointing (it's shown at the target).
+        if (fxModeRef.current !== 'speaking') {
+          setFx('none');
+        }
         wake();
       }),
       listen('cursor:release', () => {
@@ -288,6 +291,16 @@ export function CursorApp() {
           arrowPathRef.current.style.fill = DEFAULT_ARROW_FILL;
         }
         setFx('thinking');
+      }),
+      // While the answer is spoken: a calm purple pulse (shown at the target).
+      listen('cursor:speaking', () => {
+        if (!isMounted) {
+          return;
+        }
+        if (arrowPathRef.current) {
+          arrowPathRef.current.style.fill = DEFAULT_ARROW_FILL;
+        }
+        setFx('speaking');
       }),
       listen('cursor:idle', () => {
         if (!isMounted) {

@@ -603,6 +603,24 @@ input {
   opacity: 1;
 }
 
+/* Speaking: a calm breathing pulse at the target (not voice-reactive). */
+.kairo-cursor-shell[data-fx="speaking"] .kairo-cursor-halo {
+  opacity: 1;
+  animation: kairo-halo-speak 1.3s ease-in-out infinite;
+}
+
+@keyframes kairo-halo-speak {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: translate(-2px, 2px) translate(-50%, -50%) scale(0.72);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-2px, 2px) translate(-50%, -50%) scale(1.05);
+  }
+}
+
 /* Thinking swirl: three purple dots orbiting the tip while Kairo works. */
 .kairo-cursor-think {
   height: 30px;
@@ -1400,7 +1418,8 @@ input {
   height: 100vh;
   justify-content: center;
   overflow: hidden;
-  padding: 10px 12px;
+  /* Top padding clears the MacBook notch / camera so the capsule isn't covered. */
+  padding: 44px 12px 12px;
   /* Empty area is click-through; the capsule itself re-enables pointer events. */
   pointer-events: none;
 }

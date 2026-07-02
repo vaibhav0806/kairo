@@ -369,6 +369,8 @@ export function NotchApp() {
         audio.onplay = () => {
           setIsSpeaking(true);
           onSpeechStart?.();
+          // Cursor shows a calm speaking pulse (survives the fly-to-target).
+          void emit('cursor:speaking', {});
           // Backstop: guarantee the answer settles (so auto-close can run) even if
           // 'ended' never fires. Cleared by 'ended' or a new turn (stopAnswerPlayback).
           if (settleFallbackRef.current) {
@@ -378,6 +380,7 @@ export function NotchApp() {
         };
         audio.onended = () => {
           setIsSpeaking(false);
+          void emit('cursor:idle', {});
           if (settleFallbackRef.current) {
             clearTimeout(settleFallbackRef.current);
             settleFallbackRef.current = null;
@@ -1024,19 +1027,20 @@ export function NotchApp() {
   // Single minimal status capsule (top-center). Live waveform while listening, a
   // pulse while thinking, animated bars while speaking, and it expands into the
   // input while typing (⌘⇧Space) / on an error. Idle → hidden.
-  const capsuleMode: 'listening' | 'thinking' | 'speaking' | 'typing' | 'idle' =
+  // While speaking (TTS) the capsule hides — the cursor carries the speaking state
+  // (a calm pulse at the target) instead. So: listening / thinking / typing only.
+  const capsuleMode: 'listening' | 'thinking' | 'typing' | 'idle' =
     payload.state === 'listening'
       ? 'listening'
-      : isSpeaking
-        ? 'speaking'
-        : isSubmitting ||
+      : !isSpeaking &&
+          (isSubmitting ||
             payload.state === 'thinking' ||
             voiceCaptureState === 'transcribing' ||
-            detailHidden
-          ? 'thinking'
-          : payload.layout === 'prompt'
-            ? 'typing'
-            : 'idle';
+            detailHidden)
+        ? 'thinking'
+        : !isSpeaking && payload.layout === 'prompt'
+          ? 'typing'
+          : 'idle';
 
   const noteCapsulePointer = () => {
     pointerInsideNotchRef.current = true;
@@ -1044,8 +1048,7 @@ export function NotchApp() {
     noteNotchActivity();
   };
 
-  const statusLabel =
-    capsuleMode === 'listening' ? 'Listening' : capsuleMode === 'speaking' ? 'Speaking' : 'Thinking';
+  const statusLabel = capsuleMode === 'listening' ? 'Listening' : 'Thinking';
 
   return (
     <main className="kairo-capsule-shell" aria-label="Kairo status">
