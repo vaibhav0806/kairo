@@ -49,6 +49,7 @@ function createBridge(overrides: Partial<NativeBridge> = {}): NativeBridge {
       })
     ),
     transcribeAudio: vi.fn(async () => ({ text: 'hello', provider: 'sarvam' })),
+    runGateTurn: vi.fn(async () => JSON.stringify({ needsScreen: true, voiceText: '' })),
     registerActivationShortcut: vi.fn(),
     ...overrides
   } as NativeBridge;

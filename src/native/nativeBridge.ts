@@ -98,6 +98,12 @@ export type NativeContextBaseline = {
   windowTitle?: string;
 };
 
+export type NativeGateInput = {
+  userQuery: string;
+  activeApp?: string;
+  windowTitle?: string;
+};
+
 export type NativeBridge = {
   getActiveApp(): Promise<NativeActiveApp>;
   getPermissionStatus(): Promise<NativePermissionStatus>;
@@ -123,6 +129,9 @@ export type NativeBridge = {
   getCurrentNotchPayload(): Promise<NotchPayload | null>;
   hideNotch(): Promise<void>;
   runTutorTurn(input: TutorTurnInput): Promise<string>;
+  // Text-only "do I need to look at the screen?" gate. Returns raw JSON
+  // { needsScreen: boolean, voiceText: string }.
+  runGateTurn(input: NativeGateInput): Promise<string>;
   transcribeAudio(input: NativeTranscribeAudioInput): Promise<NativeTranscriptionResult>;
   synthesizeSpeech(input: NativeSynthesizeSpeechInput): Promise<NativeSpeechSynthesisResult>;
   registerActivationShortcut(onActivated: () => void | Promise<void>): Promise<NativeShortcutRegistration>;
@@ -425,6 +434,15 @@ export function createNativeBridge(
 
     async runTutorTurn(input) {
       return invoke<string>('run_tutor_turn', { input });
+    },
+
+    async runGateTurn(input) {
+      try {
+        return await invoke<string>('run_gate_turn', { input });
+      } catch {
+        // No native runtime / failure → default to looking at the screen.
+        return JSON.stringify({ needsScreen: true, voiceText: '' });
+      }
     },
 
     async transcribeAudio(input) {

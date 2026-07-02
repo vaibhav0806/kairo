@@ -3224,6 +3224,87 @@ async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GateInput {
+    user_query: String,
+    #[serde(default)]
+    active_app: Option<String>,
+    #[serde(default)]
+    window_title: Option<String>,
+}
+
+// The "do I need to look?" gate. A cheap TEXT-ONLY first pass (no screenshot): the
+// model either answers directly, or flags that it must see the screen and returns a
+// short spoken filler. Only when it flags does the (expensive) vision turn run. The
+// model alone decides — no keyword rules.
+fn gate_system_prompt() -> String {
+    [
+        "You are Kairo, a screen-native voice tutor. The user just spoke a question and you have NOT looked at their screen yet.",
+        "Decide whether you must look at the screen to answer well.",
+        "- If you can answer fully from general knowledge WITHOUT seeing the screen (concepts, definitions, how-tos, general chat), set needsScreen=false and put the COMPLETE spoken answer in voiceText.",
+        "- If the question is about what is on the screen (where something is, what something is, clicking/finding/reading a specific element, anything visual or app-specific you cannot answer confidently blind), set needsScreen=true and put a short, natural spoken filler in voiceText, e.g. \"Sure, let me take a look.\"",
+        "When you are unsure, choose needsScreen=true. Never guess about on-screen details without looking.",
+        "voiceText is spoken aloud, so keep it natural and concise. Return ONLY JSON: { \"needsScreen\": boolean, \"voiceText\": string }.",
+    ]
+    .join("\n")
+}
+
+#[tauri::command]
+async fn run_gate_turn(input: GateInput) -> Result<String, String> {
+    // Safe default when no text provider is configured: always look (the full vision
+    // turn then runs), so behaviour degrades to the pre-gate flow.
+    let look = || json!({ "needsScreen": true, "voiceText": "" }).to_string();
+
+    if provider_env("KAIRO_AI_PROVIDER", "mock") != "openrouter" {
+        return Ok(look());
+    }
+    let Some(api_key) = provider_env_optional("OPENROUTER_API_KEY") else {
+        return Ok(look());
+    };
+    let model = provider_env("OPENROUTER_MODEL", "~openai/gpt-latest");
+    let base_url = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
+    let site_url = provider_env_optional("OPENROUTER_SITE_URL");
+    let app_title = provider_env("OPENROUTER_APP_TITLE", "Kairo Tutor");
+    let timeout = Duration::from_millis(provider_timeout_ms(provider_env_optional(
+        "OPENROUTER_REQUEST_TIMEOUT_MS",
+    )));
+    let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+
+    let app = input.active_app.unwrap_or_else(|| "unknown".to_string());
+    let title = input.window_title.unwrap_or_default();
+    let user_message = format!(
+        "Active app: {app}\nWindow title: {title}\nUser question (spoken): \"{}\"",
+        input.user_query
+    );
+    let body = json!({
+        "model": model,
+        "messages": [
+            { "role": "system", "content": gate_system_prompt() },
+            { "role": "user", "content": user_message },
+        ],
+        "response_format": { "type": "json_object" },
+    });
+
+    match send_openrouter_chat_request(
+        shared_http_client(),
+        &endpoint,
+        &api_key,
+        &app_title,
+        site_url.as_deref(),
+        timeout,
+        body,
+    )
+    .await
+    {
+        Ok(content) => Ok(content),
+        Err(error) => {
+            eprintln!("Kairo Tutor gate turn failed; defaulting to look: {}", error.message);
+            Ok(look())
+        }
+    }
+}
+
 #[tauri::command]
 async fn transcribe_audio(input: TranscribeAudioInput) -> Result<TranscriptionResult, String> {
     let provider = provider_env("KAIRO_STT_PROVIDER", "mock");
@@ -3727,6 +3808,7 @@ pub fn run() {
             get_current_notch_payload,
             hide_notch,
             run_tutor_turn,
+            run_gate_turn,
             transcribe_audio,
             synthesize_speech
         ])
