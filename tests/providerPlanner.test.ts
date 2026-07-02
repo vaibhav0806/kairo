@@ -114,7 +114,9 @@ describe('OpenRouter tutor planner adapter', () => {
     expect(String(messages[0].content)).toContain('WHERE/SHOW QUESTIONS');
     expect(String(messages[0].content)).toContain('rectangle/box is usually a square outline icon');
     expect(String(messages[0].content)).toContain('Selected skill context, when relevant: Blender');
-    expect(String(messages[0].content)).toContain('Do not mention Blender unless');
+    expect(String(messages[0].content)).toContain(
+      'Do not mention a specific app, tool, or course by name'
+    );
     expect(String(messages[0].content)).toContain('Annotation IDs are internal coordinate references only');
     expect(String(messages[0].content)).toContain('Infer the intended target from arrow heads');
     expect(String(messages[0].content)).toContain('answer what the annotations appear to highlight');

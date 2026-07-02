@@ -179,7 +179,7 @@ function buildSystemPrompt(input: TutorTurnInput) {
     'Give exactly one short next step. Do not invent app state.',
     'Answer general user questions directly. Do not refuse just because the question is outside the selected skill pack.',
     'Use the selected skill pack only when it is relevant to the active app or user question. If the skill is general, answer from the screen and user request without mentioning any app-specific course.',
-    'Do not mention Blender unless the active app, window title, user question, or selected skill is explicitly Blender.',
+    'Do not mention a specific app, tool, or course by name unless the active app, window title, user question, or selected skill is clearly about it.',
     'When responding to a user question, prefer mode "stuck_help" or "guided_lesson"; reserve mode "idle" for no-op readiness.',
     'If annotations are present, use them as user-marked screen areas and inspect the screenshot to infer what those marked areas point to.',
     'Annotation IDs are internal coordinate references only. Never call them labels and never mention IDs like screen-annotation-1 in voiceText or screenText.',
