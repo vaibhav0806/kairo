@@ -1687,7 +1687,7 @@ fn sample_background(rgb: &image::RgbImage, x1: u32, y1: u32, x2: u32, y2: u32) 
 // vision. Aspect ratio is preserved so returned pixel boxes map back cleanly.
 // Tunable at runtime via KAIRO_VISION_MAX_EDGE (no rebuild) — raise toward 2576
 // for tiny pro-app icons, browser chrome, and dense professional toolbars.
-const DEFAULT_VISION_MAX_EDGE: u32 = 2048;
+const DEFAULT_VISION_MAX_EDGE: u32 = 1568;
 
 fn build_box_locator_context(elements: &[OcrElement]) -> String {
     if elements.is_empty() {
@@ -1719,7 +1719,118 @@ fn box_locator_prompt(user_query: &str, rw: u32, rh: u32, screen_context: &str) 
     )
 }
 
-// Locate the on-screen elements the user is asking about by asking Claude vision
+// Ask the grounding provider for the target boxes as raw JSON text. Both providers
+// receive the SAME prompt + resized JPEG and return the same {"elements":[...]}
+// shape, so the caller parses one format regardless of which provider ran.
+async fn anthropic_vision_text(prompt: &str, image_jpeg_base64: &str) -> Option<String> {
+    let api_key = provider_env_optional("ANTHROPIC_API_KEY")?;
+    if api_key.trim().is_empty() {
+        return None;
+    }
+    let model = provider_env("ANTHROPIC_VISION_MODEL", "claude-opus-4-8");
+    let base_url = provider_env("ANTHROPIC_BASE_URL", "https://api.anthropic.com");
+    let body = json!({
+        "model": model,
+        "max_tokens": 1024,
+        "messages": [{
+            "role": "user",
+            "content": [
+                { "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": image_jpeg_base64 } },
+                { "type": "text", "text": prompt },
+            ],
+        }],
+    });
+    let response = shared_http_client()
+        .post(format!("{}/v1/messages", base_url.trim_end_matches('/')))
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .timeout(Duration::from_secs(25))
+        .json(&body)
+        .send()
+        .await
+        .ok()?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        eprintln!(
+            "[boxes-diag] anthropic vision {status}: {}",
+            text.chars().take(220).collect::<String>()
+        );
+        return None;
+    }
+    let payload = response.json::<Value>().await.ok()?;
+    // Text block(s) hold the JSON — concatenate them.
+    let text = payload
+        .get("content")
+        .and_then(Value::as_array)
+        .map(|blocks| {
+            blocks
+                .iter()
+                .filter(|b| b.get("type").and_then(Value::as_str) == Some("text"))
+                .filter_map(|b| b.get("text").and_then(Value::as_str))
+                .collect::<String>()
+        })
+        .unwrap_or_default();
+    Some(text)
+}
+
+// qwen3.7-plus (and other Qwen-VL models) via Alibaba Model Studio / DashScope's
+// OpenAI-compatible endpoint. ~12x cheaper than Opus for grounding at 79.0 vs 87.9
+// on ScreenSpot-Pro. Enable with KAIRO_GROUNDING_PROVIDER=qwen + DASHSCOPE_API_KEY.
+async fn qwen_vision_text(prompt: &str, image_jpeg_base64: &str) -> Option<String> {
+    let api_key = provider_env_optional("DASHSCOPE_API_KEY")
+        .or_else(|| provider_env_optional("QWEN_API_KEY"))?;
+    if api_key.trim().is_empty() {
+        return None;
+    }
+    let model = provider_env("QWEN_VISION_MODEL", "qwen3.7-plus");
+    let base_url = provider_env(
+        "QWEN_BASE_URL",
+        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    );
+    let data_url = format!("data:image/jpeg;base64,{image_jpeg_base64}");
+    let body = json!({
+        "model": model,
+        "max_tokens": 1024,
+        "messages": [{
+            "role": "user",
+            "content": [
+                { "type": "image_url", "image_url": { "url": data_url } },
+                { "type": "text", "text": prompt },
+            ],
+        }],
+    });
+    let response = shared_http_client()
+        .post(format!("{}/chat/completions", base_url.trim_end_matches('/')))
+        .header("Authorization", format!("Bearer {api_key}"))
+        .timeout(Duration::from_secs(25))
+        .json(&body)
+        .send()
+        .await
+        .ok()?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        eprintln!(
+            "[boxes-diag] qwen vision {status}: {}",
+            text.chars().take(220).collect::<String>()
+        );
+        return None;
+    }
+    let payload = response.json::<Value>().await.ok()?;
+    let text = payload
+        .get("choices")
+        .and_then(Value::as_array)
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|message| message.get("content"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    Some(text)
+}
+
+// Locate the on-screen elements the user is asking about by asking a vision model
 // for bounding boxes. This is a normal messages request (NOT the computer tool):
 // Claude vision returns multiple [x1,y1,x2,y2] pixel boxes + captions in one
 // call, which we draw as labeled rectangles. Works on ANY app/OS (icons,
@@ -1731,14 +1842,9 @@ async fn detect_element_boxes(
     user_query: &str,
     ocr_elements: &[OcrElement],
 ) -> Vec<DetectedBox> {
-    let Some(api_key) = provider_env_optional("ANTHROPIC_API_KEY") else {
-        return Vec::new();
-    };
-    if api_key.trim().is_empty() {
-        return Vec::new();
-    }
-    let model = provider_env("ANTHROPIC_VISION_MODEL", "claude-opus-4-8");
-    let base_url = provider_env("ANTHROPIC_BASE_URL", "https://api.anthropic.com");
+    // Swappable at runtime (no rebuild): Anthropic Opus by default, or the ~12x
+    // cheaper qwen3.7-plus via KAIRO_GROUNDING_PROVIDER=qwen. Same prompt + image.
+    let provider = provider_env("KAIRO_GROUNDING_PROVIDER", "anthropic").to_lowercase();
     let max_edge = provider_env_optional("KAIRO_VISION_MAX_EDGE")
         .and_then(|v| v.trim().parse::<u32>().ok())
         .filter(|v| *v >= 256)
@@ -1777,56 +1883,15 @@ async fn detect_element_boxes(
 
     let prompt = box_locator_prompt(user_query, rw, rh, &build_box_locator_context(ocr_elements));
 
-    let body = json!({
-        "model": model,
-        "max_tokens": 1024,
-        "messages": [{
-            "role": "user",
-            "content": [
-                { "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": resized_base64 } },
-                { "type": "text", "text": prompt },
-            ],
-        }],
-    });
-
-    let response = match shared_http_client()
-        .post(format!("{}/v1/messages", base_url.trim_end_matches('/')))
-        .header("x-api-key", api_key)
-        .header("anthropic-version", "2023-06-01")
-        .timeout(Duration::from_secs(25))
-        .json(&body)
-        .send()
-        .await
-    {
-        Ok(response) => response,
-        Err(_) => return Vec::new(),
+    let text = match provider.as_str() {
+        "qwen" | "qwen3" | "dashscope" | "alibaba" => {
+            qwen_vision_text(&prompt, &resized_base64).await
+        }
+        _ => anthropic_vision_text(&prompt, &resized_base64).await,
     };
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let text = response.text().await.unwrap_or_default();
-        eprintln!(
-            "[boxes-diag] vision API {status}: {}",
-            text.chars().take(220).collect::<String>()
-        );
-        return Vec::new();
-    }
-
-    let Ok(payload) = response.json::<Value>().await else {
+    let Some(text) = text else {
         return Vec::new();
     };
-    // Structured outputs put the JSON in the text block(s) — concatenate them.
-    let text = payload
-        .get("content")
-        .and_then(Value::as_array)
-        .map(|blocks| {
-            blocks
-                .iter()
-                .filter(|b| b.get("type").and_then(Value::as_str) == Some("text"))
-                .filter_map(|b| b.get("text").and_then(Value::as_str))
-                .collect::<String>()
-        })
-        .unwrap_or_default();
     let Ok(parsed) = serde_json::from_str::<Value>(json_body(&text)) else {
         return Vec::new();
     };
@@ -2255,7 +2320,7 @@ fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
         "Give exactly one short next step. Do not invent app state.".to_string(),
         "Answer general user questions directly. Do not refuse just because the question is outside the selected skill pack.".to_string(),
         "Use the selected skill pack only when it is relevant to the active app or user question. If the skill is general, answer from the screen and user request without mentioning any app-specific course.".to_string(),
-        "Do not mention Blender unless the active app, window title, user question, or selected skill is explicitly Blender.".to_string(),
+        "Do not mention a specific app, tool, or course by name unless the active app, window title, user question, or selected skill is clearly about it.".to_string(),
         "When responding to a user question, prefer mode \"stuck_help\" or \"guided_lesson\"; reserve mode \"idle\" for no-op readiness.".to_string(),
         "If annotations are present, use them as user-marked screen areas and inspect the screenshot to infer what those marked areas point to.".to_string(),
         "Annotation IDs are internal coordinate references only. Never call them labels and never mention IDs like screen-annotation-1 in voiceText or screenText.".to_string(),
@@ -3326,7 +3391,7 @@ mod tests {
         assert!(system_prompt.contains("Selected skill context, when relevant: Blender"));
         assert!(system_prompt.contains("WHERE/SHOW QUESTIONS"));
         assert!(system_prompt.contains("rectangle/box is usually a square outline icon"));
-        assert!(system_prompt.contains("Do not mention Blender unless"));
+        assert!(system_prompt.contains("Do not mention a specific app, tool, or course by name"));
         assert!(system_prompt.contains("Annotation IDs are internal coordinate references only"));
         assert!(system_prompt.contains("Infer the intended target from arrow heads"));
         assert!(system_prompt.contains("answer what the annotations appear to highlight"));
