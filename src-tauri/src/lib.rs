@@ -1774,20 +1774,17 @@ async fn anthropic_vision_text(prompt: &str, image_jpeg_base64: &str) -> Option<
     Some(text)
 }
 
-// qwen3.7-plus (and other Qwen-VL models) via Alibaba Model Studio / DashScope's
-// OpenAI-compatible endpoint. ~12x cheaper than Opus for grounding at 79.0 vs 87.9
-// on ScreenSpot-Pro. Enable with KAIRO_GROUNDING_PROVIDER=qwen + DASHSCOPE_API_KEY.
-async fn qwen_vision_text(prompt: &str, image_jpeg_base64: &str) -> Option<String> {
-    let api_key = provider_env_optional("DASHSCOPE_API_KEY")
-        .or_else(|| provider_env_optional("QWEN_API_KEY"))?;
-    if api_key.trim().is_empty() {
-        return None;
-    }
-    let model = provider_env("QWEN_VISION_MODEL", "qwen3.7-plus");
-    let base_url = provider_env(
-        "QWEN_BASE_URL",
-        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-    );
+// Any OpenAI-compatible chat/completions vision endpoint (OpenRouter, Alibaba
+// DashScope, etc.). The caller resolves base_url/key/model per provider; here we
+// just POST the image + prompt and return the model's raw text. Used for the
+// cheap Qwen grounding path (qwen3.7-plus etc.) via the user's existing key.
+async fn openai_compatible_vision_text(
+    base_url: &str,
+    api_key: &str,
+    model: &str,
+    prompt: &str,
+    image_jpeg_base64: &str,
+) -> Option<String> {
     let data_url = format!("data:image/jpeg;base64,{image_jpeg_base64}");
     let body = json!({
         "model": model,
@@ -1803,6 +1800,9 @@ async fn qwen_vision_text(prompt: &str, image_jpeg_base64: &str) -> Option<Strin
     let response = shared_http_client()
         .post(format!("{}/chat/completions", base_url.trim_end_matches('/')))
         .header("Authorization", format!("Bearer {api_key}"))
+        // OpenRouter attribution headers; harmlessly ignored by other hosts.
+        .header("HTTP-Referer", "https://kairo.tutor")
+        .header("X-Title", "Kairo Tutor")
         .timeout(Duration::from_secs(25))
         .json(&body)
         .send()
@@ -1812,7 +1812,7 @@ async fn qwen_vision_text(prompt: &str, image_jpeg_base64: &str) -> Option<Strin
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
         eprintln!(
-            "[boxes-diag] qwen vision {status}: {}",
+            "[boxes-diag] grounding {status}: {}",
             text.chars().take(220).collect::<String>()
         );
         return None;
@@ -1842,8 +1842,9 @@ async fn detect_element_boxes(
     user_query: &str,
     ocr_elements: &[OcrElement],
 ) -> Vec<DetectedBox> {
-    // Swappable at runtime (no rebuild): Anthropic Opus by default, or the ~12x
-    // cheaper qwen3.7-plus via KAIRO_GROUNDING_PROVIDER=qwen. Same prompt + image.
+    // Swappable at runtime (no rebuild) via KAIRO_GROUNDING_PROVIDER: `anthropic`
+    // (Opus, default), `openrouter` (qwen3.7-plus via the user's OpenRouter key,
+    // ~12x cheaper), or `qwen` (direct DashScope). All share this prompt + image.
     let provider = provider_env("KAIRO_GROUNDING_PROVIDER", "anthropic").to_lowercase();
     let max_edge = provider_env_optional("KAIRO_VISION_MAX_EDGE")
         .and_then(|v| v.trim().parse::<u32>().ok())
@@ -1884,8 +1885,34 @@ async fn detect_element_boxes(
     let prompt = box_locator_prompt(user_query, rw, rh, &build_box_locator_context(ocr_elements));
 
     let text = match provider.as_str() {
+        // Cheap Qwen grounding via the user's existing OpenRouter key.
+        "openrouter" | "open-router" => {
+            match provider_env_optional("OPENROUTER_API_KEY") {
+                Some(key) if !key.trim().is_empty() => {
+                    let base = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
+                    let model = provider_env("KAIRO_GROUNDING_MODEL", "qwen/qwen3.7-plus");
+                    openai_compatible_vision_text(&base, &key, &model, &prompt, &resized_base64)
+                        .await
+                }
+                _ => None,
+            }
+        }
+        // Direct Alibaba DashScope (needs a DashScope key, which some regions can't get).
         "qwen" | "qwen3" | "dashscope" | "alibaba" => {
-            qwen_vision_text(&prompt, &resized_base64).await
+            match provider_env_optional("DASHSCOPE_API_KEY")
+                .or_else(|| provider_env_optional("QWEN_API_KEY"))
+            {
+                Some(key) if !key.trim().is_empty() => {
+                    let base = provider_env(
+                        "QWEN_BASE_URL",
+                        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+                    );
+                    let model = provider_env("QWEN_VISION_MODEL", "qwen3.7-plus");
+                    openai_compatible_vision_text(&base, &key, &model, &prompt, &resized_base64)
+                        .await
+                }
+                _ => None,
+            }
         }
         _ => anthropic_vision_text(&prompt, &resized_base64).await,
     };
