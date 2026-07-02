@@ -135,6 +135,10 @@ export function NotchApp() {
   const voiceCaptureStateRef = useRef<VoiceCaptureState>('idle');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  // A microphone stream kept open from launch so push-to-talk records instantly
+  // (no getUserMedia at press time). Owned separately from mediaStreamRef so the
+  // per-capture cleanup never stops it.
+  const warmStreamRef = useRef<MediaStream | null>(null);
   const answerAudioRef = useRef<HTMLAudioElement | null>(null);
   // The teaching visuals for the current answer, revealed on TTS start (not when
   // the LLM answer arrives), plus the app they point at for the context watcher.
@@ -191,6 +195,18 @@ export function NotchApp() {
   const stopVoiceTracks = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
+  }, []);
+
+  // Return a live, pre-warmed mic stream — reused across captures so listening
+  // starts with zero getUserMedia latency. Re-acquires if the device dropped.
+  const ensureWarmStream = useCallback(async () => {
+    const existing = warmStreamRef.current;
+    if (existing && existing.getAudioTracks().some((track) => track.readyState === 'live')) {
+      return existing;
+    }
+    const stream = await acquireMicrophoneStream();
+    warmStreamRef.current = stream;
+    return stream;
   }, []);
 
   const updateVoiceCaptureState = useCallback((state: VoiceCaptureState) => {
@@ -640,12 +656,14 @@ export function NotchApp() {
       .catch(() => {});
 
     try {
-      const stream = await acquireMicrophoneStream();
+      const stream = await ensureWarmStream();
       const { recorder, mimeType } = createVoiceRecorder(stream);
       const AudioContextConstructor = globalThis.AudioContext;
       voiceCancelledRef.current = false;
       voiceHeardSpeechRef.current = false;
-      mediaStreamRef.current = stream;
+      // Leave mediaStreamRef null: the warm stream is persistent, so the per-capture
+      // cleanup (stopVoiceTracks) must NOT stop it.
+      mediaStreamRef.current = null;
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
       pcmChunksRef.current = [];
@@ -766,6 +784,7 @@ export function NotchApp() {
       showVoiceError(detail);
     }
   }, [
+    ensureWarmStream,
     nativeBridge,
     setVoicePayload,
     showVoiceError,
@@ -801,23 +820,21 @@ export function NotchApp() {
     };
   }, []);
 
-  // Warm the microphone once on mount: the very first getUserMedia after launch
-  // is cold (device + permission init) and drops the opening words, which showed
-  // up as "no speech detected" on the first capture. Acquiring and immediately
-  // releasing a stream initializes the device so the first real capture is warm.
+  // Pre-warm the microphone at launch AND keep it open, so the first (and every)
+  // push-to-talk records instantly with no getUserMedia delay. Released on unmount.
+  // Cost: the mic stays active (OS indicator on) while Kairo is running.
   useEffect(() => {
     if (!globalThis.navigator?.mediaDevices?.getUserMedia) {
       return;
     }
-    void (async () => {
-      try {
-        const stream = await acquireMicrophoneStream();
-        stream.getTracks().forEach((track) => track.stop());
-      } catch {
-        // Permission denied / unavailable — real capture will surface errors.
-      }
-    })();
-  }, []);
+    void ensureWarmStream().catch(() => {
+      // Permission denied / unavailable — real capture will surface errors.
+    });
+    return () => {
+      warmStreamRef.current?.getTracks().forEach((track) => track.stop());
+      warmStreamRef.current = null;
+    };
+  }, [ensureWarmStream]);
 
   useEffect(() => {
     let isMounted = true;

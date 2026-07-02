@@ -1224,7 +1224,6 @@ fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                 let was = watch.ptt_active.load(Ordering::SeqCst);
                 if both && !was {
                     watch.ptt_active.store(true, Ordering::SeqCst);
-                    eprintln!("[ptt] chord down -> show notch + record");
                     // Show the notch on the MAIN thread (AppKit requires it). This
                     // both wakes the otherwise-suspended notch webview and, via the
                     // ptt-flagged listening payload, kicks off a push-to-talk record.
@@ -1241,7 +1240,6 @@ fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                     });
                 } else if !both && was {
                     watch.ptt_active.store(false, Ordering::SeqCst);
-                    eprintln!("[ptt] chord up -> stop");
                     // Notch is shown/awake by now; tell it to finalize + send.
                     if let Some(window) = app.get_webview_window("notch") {
                         let _ = window.emit("ptt:stop", ());
@@ -1256,7 +1254,6 @@ fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
             );
             return;
         };
-        eprintln!("[ptt] input tap created; holding for ⌥⌃ FlagsChanged events");
         unsafe {
             let Ok(source) = tap.mach_port().create_runloop_source(0) else {
                 eprintln!("Kairo Tutor: failed to create PTT runloop source");
