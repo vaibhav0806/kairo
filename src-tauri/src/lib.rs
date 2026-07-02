@@ -13,9 +13,12 @@ use std::{
 };
 use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, State};
 use tauri_nspanel::{tauri_panel, CollectionBehavior, PanelHandle, StyleMask, WebviewWindowExt};
-use tauri_plugin_global_shortcut::ShortcutState;
+use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 
 const KAIRO_ACTIVATION_SHORTCUT: &str = "CommandOrControl+Shift+Space";
+// Toggle the pen directly without opening the notch first. Avoids ⌥⌃ (the
+// push-to-talk chord) so holding it never starts a recording.
+const KAIRO_PEN_SHORTCUT: &str = "Alt+Shift+P";
 const DEFAULT_OPENROUTER_VISION_MODEL: &str = "google/gemini-2.5-flash";
 
 // Non-activating NSPanel for the notch. A non-activating panel can receive
@@ -204,6 +207,8 @@ struct ContextWatch {
     // When arming happened; enforces a short settle window so the reveal's own
     // transient (or the click that opened the notch) never trips an instant reset.
     armed_at: Arc<Mutex<Option<Instant>>>,
+    // Push-to-talk: true while the ⌥⌃ chord is held. Shares the same input tap.
+    ptt_active: Arc<AtomicBool>,
 }
 
 impl Default for ContextWatch {
@@ -212,6 +217,7 @@ impl Default for ContextWatch {
             armed: Arc::new(AtomicBool::new(false)),
             baseline: Arc::new(Mutex::new(None)),
             armed_at: Arc::new(Mutex::new(None)),
+            ptt_active: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -1120,8 +1126,8 @@ fn spawn_context_poll(app: &tauri::AppHandle, watch: ContextWatch) {
 fn spawn_context_input_tap(app: &tauri::AppHandle, watch: ContextWatch) {
     use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop};
     use core_graphics::event::{
-        CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType,
-        CallbackResult,
+        CGEventFlags, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
+        CGEventType, CallbackResult,
     };
 
     let app = app.clone();
@@ -1135,10 +1141,33 @@ fn spawn_context_input_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                 CGEventType::LeftMouseDown,
                 CGEventType::RightMouseDown,
                 CGEventType::OtherMouseDown,
+                // Push-to-talk: watch modifier presses/releases for the ⌥⌃ chord.
+                CGEventType::FlagsChanged,
             ],
-            move |_proxy, _event_type, _event| {
-                if context_watch_settled(&watch) {
-                    fire_context_reset(&app, &watch, "input");
+            move |_proxy, event_type, event| {
+                match event_type {
+                    // ⌥⌃ (Option+Control) held → start recording; released → send.
+                    // Pure modifiers (no letter) can't be a normal global shortcut,
+                    // so we detect the held state here on the input tap instead.
+                    CGEventType::FlagsChanged => {
+                        let flags = event.get_flags();
+                        let both = flags.contains(CGEventFlags::CGEventFlagAlternate)
+                            && flags.contains(CGEventFlags::CGEventFlagControl);
+                        let was = watch.ptt_active.load(Ordering::SeqCst);
+                        if both && !was {
+                            watch.ptt_active.store(true, Ordering::SeqCst);
+                            let _ = app.emit("ptt:start", ());
+                        } else if !both && was {
+                            watch.ptt_active.store(false, Ordering::SeqCst);
+                            let _ = app.emit("ptt:stop", ());
+                        }
+                    }
+                    // Scroll / click → clear stale guidance (only while armed).
+                    _ => {
+                        if context_watch_settled(&watch) {
+                            fire_context_reset(&app, &watch, "input");
+                        }
+                    }
                 }
                 // Listen-only: never modify the event stream, always keep the event.
                 CallbackResult::Keep
@@ -3167,14 +3196,27 @@ fn log_window_startup(window: &tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let pen_shortcut: Shortcut = KAIRO_PEN_SHORTCUT
+        .parse()
+        .expect("failed to parse Kairo pen shortcut");
+    let activation_shortcut: Shortcut = KAIRO_ACTIVATION_SHORTCUT
+        .parse()
+        .expect("failed to parse Kairo activation shortcut");
     let global_shortcut_plugin = tauri_plugin_global_shortcut::Builder::new()
-        .with_shortcut(KAIRO_ACTIVATION_SHORTCUT)
-        .expect("failed to parse Kairo activation shortcut")
-        .with_handler(|app, _shortcut, event| {
+        .with_shortcuts([activation_shortcut, pen_shortcut.clone()])
+        .expect("failed to register Kairo shortcuts")
+        .with_handler(move |app, shortcut, event| {
             if event.state != ShortcutState::Pressed {
                 return;
             }
 
+            // ⌥⇧P toggles the pen directly (no notch trip).
+            if shortcut == &pen_shortcut {
+                let _ = app.emit("pen:toggle", ());
+                return;
+            }
+
+            // ⌘⇧Space shows the notch (voice is push-to-talk via ⌥⌃).
             let notch_state = app.state::<NotchState>();
             if let Err(error) =
                 show_notch_with_payload(app, notch_state.inner(), Some(listening_notch_payload()))

@@ -89,7 +89,8 @@ describe('macOS bundle permissions', () => {
     expect(nativeSource).toContain(
       'const KAIRO_ACTIVATION_SHORTCUT: &str = "CommandOrControl+Shift+Space";'
     );
-    expect(nativeSource).toContain('.with_shortcut(KAIRO_ACTIVATION_SHORTCUT)');
+    expect(nativeSource).toContain('KAIRO_ACTIVATION_SHORTCUT');
+    expect(nativeSource).toContain('.with_shortcuts([activation_shortcut, pen_shortcut');
     expect(nativeSource).toContain('app.emit("activation:shortcut", ())');
   });
 });
