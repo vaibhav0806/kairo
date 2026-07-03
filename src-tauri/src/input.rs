@@ -171,11 +171,16 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                 let flags = event.get_flags();
                 let both = flags.contains(CGEventFlags::CGEventFlagAlternate)
                     && flags.contains(CGEventFlags::CGEventFlagControl);
-                let was = watch.ptt_active.load(Ordering::SeqCst);
+                // Always record the CURRENT chord state so the deferred release commit can
+                // tell (after the grace) whether the chord came back — the flicker guard.
+                watch.ptt_both.store(both, Ordering::SeqCst);
+                let active = watch.ptt_active.load(Ordering::SeqCst);
 
-                if both && !was {
-                    // Chord DOWN. Start capturing immediately (the ~200ms cpal build overlaps
-                    // the tap/hold window). Stay visually quiet until the promote timer.
+                if both && !active {
+                    // GENUINE new press. `ptt_active` stays true through the whole logical
+                    // press — INCLUDING the 60ms release grace — so a mid-hold flicker re-down
+                    // finds active==true and never reaches here: it can't restart capture,
+                    // clear the buffer, or reset the down instant.
                     watch.ptt_active.store(true, Ordering::SeqCst);
                     let press_id = watch.ptt_generation.fetch_add(1, Ordering::SeqCst) + 1;
                     if let Ok(mut guard) = watch.ptt_down_at.lock() {
@@ -184,8 +189,8 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                     crate::klog!(ptt, info, press = press_id, "⌥⌃ down");
                     send_audio_command(&app, AudioCommand::Start(Instant::now()));
 
-                    // Promote to "listening" only if still held after the tap window AND this is
-                    // still the same press (generation unchanged).
+                    // Promote to "listening" only if still the same held press after the tap
+                    // window. Log the skip so the packaged-app log explains a no-capsule hold.
                     let app_promote = app.clone();
                     let watch_promote = watch.clone();
                     std::thread::spawn(move || {
@@ -208,16 +213,21 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                                     crate::klog!(ptt, error, "failed to show notch: {error}");
                                 }
                             });
+                        } else {
+                            crate::klog!(
+                                ptt,
+                                debug,
+                                press = press_id,
+                                "promote skipped (released/superseded)"
+                            );
                         }
                     });
-                } else if !both && was {
-                    // Chord UP — but a ⌥/⌃ can flicker mid-hold. Mark released and bump
-                    // generation NOW (so a re-down is detected and any pending promote is
-                    // invalidated), but DEFER the classify/commit by RELEASE_DEBOUNCE_MS. If
-                    // the chord goes back down within that window we treat the blip as a
-                    // continuous hold and never commit — no truncated send, no spurious typing.
-                    watch.ptt_active.store(false, Ordering::SeqCst);
-                    let release_gen = watch.ptt_generation.fetch_add(1, Ordering::SeqCst) + 1;
+                } else if !both && active {
+                    // UP edge. Do NOT clear `ptt_active` yet — schedule a DEBOUNCED commit so a
+                    // mid-hold flicker (up→down within the grace) is absorbed and recording
+                    // continues seamlessly (buffer + down instant stay intact). Measure the held
+                    // duration NOW, at the physical release, so the 60ms grace never inflates it.
+                    let release_id = watch.ptt_release_gen.fetch_add(1, Ordering::SeqCst) + 1;
                     let held = watch
                         .ptt_down_at
                         .lock()
@@ -230,14 +240,23 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                     let watch_release = watch.clone();
                     std::thread::spawn(move || {
                         std::thread::sleep(Duration::from_millis(RELEASE_DEBOUNCE_MS));
-                        // A re-down within the window bumps generation + sets ptt_active, so
-                        // the release no longer stands — absorb the blip, stay recording.
-                        if watch_release.ptt_active.load(Ordering::SeqCst)
-                            || watch_release.ptt_generation.load(Ordering::SeqCst) != release_gen
+                        // Commit only if this is still the latest release AND the chord is
+                        // currently up. A re-press within the grace (flicker or a deliberate
+                        // quick re-press) supersedes/aborts this → the presses merge.
+                        if watch_release.ptt_release_gen.load(Ordering::SeqCst) != release_id
+                            || watch_release.ptt_both.load(Ordering::SeqCst)
                         {
-                            crate::klog!(ptt, info, "release blip absorbed → continuous hold");
+                            crate::klog!(
+                                ptt,
+                                debug,
+                                release = release_id,
+                                "release absorbed (flicker/continuation)"
+                            );
                             return;
                         }
+                        watch_release.ptt_active.store(false, Ordering::SeqCst);
+                        // Invalidate any still-pending promote from this press.
+                        watch_release.ptt_generation.fetch_add(1, Ordering::SeqCst);
                         // Recording truth is now false regardless of branch.
                         let _ = app_release
                             .emit("ptt:recording", serde_json::json!({ "active": false }));
@@ -261,6 +280,9 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                                     }
                                     let _ = app_main.emit("notch:focus-input", ());
                                 });
+                                // Clear the listening halo a borderline ~250ms promote may have
+                                // shown just before this tap committed.
+                                let _ = app_release.emit("cursor:idle", ());
                             }
                             PttOutcome::Hold => {
                                 crate::klog!(ptt, info, ms = held.as_millis(), "hold → send");
@@ -270,6 +292,8 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                         }
                     });
                 }
+                // both && active  → continuation no-op: recording continues, buffer + down
+                // instant intact. !both && !active → idle no-op.
                 CallbackResult::Keep
             },
         );

@@ -26,8 +26,7 @@ import {
   type NativeActiveApp,
   type NativePermissionState,
   type NativePermissionStatus,
-  type NativeScreenCapture,
-  type NativeShortcutRegistration
+  type NativeScreenCapture
 } from './native/nativeBridge';
 import { normalizeRegionToPercent } from './overlay/coordinates';
 import { VisualOverlay } from './overlay/VisualOverlay';
@@ -199,11 +198,6 @@ export function App() {
   const [draftPenPoints, setDraftPenPoints] = useState<AnnotationPoint[] | null>(null);
   const [isRequestingPermissions, setIsRequestingPermissions] = useState(false);
   const annotationSequence = useRef(0);
-  const [activationShortcut, setActivationShortcut] = useState<NativeShortcutRegistration>({
-    registered: true,
-    shortcut: 'CommandOrControl+Shift+Space',
-    reason: 'Registered by native app shell.'
-  });
   const [response, setResponse] = useState<TutorResponse>(() =>
     planner.createIdleResponse(env.defaultSkill)
   );
@@ -599,8 +593,7 @@ export function App() {
         <aside className="panel">
           <h2>Activation</h2>
           <p>State: {activationState}</p>
-          <p>Shortcut target: {activationShortcut.shortcut}</p>
-          <p>Status: {activationShortcut.registered ? 'registered' : activationShortcut.reason}</p>
+          <p>Shortcuts: ⌥⌃ hold to talk / tap to type · ⌥⇧P pen</p>
           <p>Default skill: {env.defaultSkill}</p>
           <p>Voice: {env.sttProvider === 'sarvam' || env.ttsProvider === 'sarvam' ? 'Sarvam' : 'Mock'}</p>
           <p>Active app: {activeApp.activeApp}</p>
