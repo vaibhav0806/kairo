@@ -1,0 +1,168 @@
+# CLAUDE.md — Kairo Tutor
+
+Operating guide for working in this repo. Read this before making changes.
+
+> **Source of truth:** product vision → [FEATURE.md](./FEATURE.md); implementation
+> architecture, setup, provider choices, engineering rules → [README.md](./README.md).
+> This file is the quick operating map + the **mandatory logging rules**. If this
+> file conflicts with README/FEATURE on product/architecture facts, those win —
+> update this file.
+
+## What Kairo is
+
+Mac-first, **screen-native AI tutor** for practical software labs. It listens to a
+spoken question, looks at the current screen, and guides the user one step at a time
+with voice + on-screen visual cues. Principle: **the AI points, the user acts.** The
+app stays visually quiet until the user activates voice or on-screen guidance.
+
+## Run / build (THE workflow — read this)
+
+**Never run a dev server for real testing.** Always build and run the packaged
+`.app` — that is the environment users get and the one where native permissions,
+panels, and logging behave correctly.
+
+```bash
+# Build the macOS app bundle
+npm run tauri:build -- --bundles app
+
+# Launch it
+open "src-tauri/target/release/bundle/macos/Kairo Tutor.app"
+```
+
+- App identifier: `com.kairo.tutor`. Product name: `Kairo Tutor`. Dev Vite port: `5273`.
+- Signed with a stable self-signed cert (`Kairo Tutor Local Dev`) so macOS TCC grants
+  (Screen Recording, Accessibility, Input Monitoring) persist across rebuilds.
+- Secrets: the native process reads `OPENROUTER_*`, `KAIRO_*`, etc. from the process
+  env first, then from `.env.local` / `.env` walking up from the executable and CWD.
+  Change env → relaunch (no rebuild needed).
+
+## Reading the logs
+
+Every subsystem (Rust + all WebViews) logs to one persistent file:
+
+```bash
+tail -F ~/Library/Logs/Kairo/kairo-latest.log        # stable symlink to today's file
+# or the dated file directly:
+tail -F ~/Library/Logs/Kairo/kairo.$(date -u +%F).log
+```
+
+Control verbosity per run (read from env/.env, no rebuild). Our subsystems log
+under `kairo::<subsystem>` targets, so:
+
+- Default is `info,kairo=debug` — dependencies quiet at INFO, all Kairo steps at DEBUG.
+- `KAIRO_LOG=kairo=trace` — max detail from our code (deps still quiet).
+- `KAIRO_LOG=debug` — everything, including dependency internals (hyper/wry/reqwest).
+- Per-subsystem: `KAIRO_LOG=info,kairo::vision=trace,kairo::mic=warn`.
+- `KAIRO_LOG_STDERR=true` — also mirror to stderr (default off; useful when running in a terminal).
+- `KAIRO_LOG_TRANSCRIPTS=true` — include full STT transcript text (default off → length only).
+
+Design + rationale: [docs/superpowers/specs/2026-07-03-universal-logger-and-claude-md-design.md](./docs/superpowers/specs/2026-07-03-universal-logger-and-claude-md-design.md).
+
+## Repo layout
+
+```text
+src/                         Frontend (React 19 + Vite). One entry (main.tsx) routes
+                             by URL hash into four WebViews:
+  main.tsx                   entry: installs global error logging, routes by #hash
+  App.tsx                    main/setup window
+  notch/                     the notch panel UI (voice PTT, typing, tutor loop)
+  overlay/                   full-screen annotation + visual-target overlay
+  cursor/                    companion pet cursor (own click-through panel, #/cursor)
+  activation/                activation state machine
+  core/                      orchestrator, runtimePlanner, skills, types, logger.ts
+  server/providers/          provider-side code (elevenLabs, openRouter, sarvam, tutorPlanner)
+  native/nativeBridge.ts     typed wrapper over Tauri `invoke` (+ browser fallbacks)
+  config/env.ts              KAIRO_* public env parsing (zod)
+
+src-tauri/src/               Native macOS (Rust). Split into focused modules:
+  lib.rs                     Tauri setup, managed state, all #[tauri::command]s, run()
+  klog.rs                    the universal non-blocking logger (see below)
+  audio.rs                   cpal mic capture (push-to-talk), WAV encode
+  input.rs                   CGEventTaps: PTT ⌥⌃ chord + scroll/click context reset
+  capture.rs                 screen capture + display bounds
+  grounding.rs               vision element-box detection (Anthropic / OpenRouter / Qwen)
+  ocr.rs, color.rs           Set-of-Mark OCR fallback + color helpers
+  tutor.rs                   run_tutor_turn + run_gate_turn (OpenRouter)
+  speech.rs                  transcribe_audio (STT) + synthesize_speech (TTS)
+  panels.rs                  NSPanel creation (notch/overlay/cursor) + mouse tracker
+  permissions.rs, platform.rs, capture.rs, prompts.rs, env.rs, types.rs
+
+tests/                       vitest unit tests (node env; no DOM libs installed)
+docs/superpowers/            specs/ and plans/
+scripts/smoke-providers.mjs  provider smoke test
+```
+
+Subsystems worth knowing: notch = **non-activating** NSPanel; the annotation overlay
+must be a **can-become-key** NSPanel (a borderless window drops clicks); the companion
+cursor lives in its own click-through panel. Shortcuts: PTT = ⌥⌃ (hold), pen = ⌥⇧P,
+notch/typing = ⌘⇧Space.
+
+## Providers & env
+
+Provider selection is runtime env (`KAIRO_AI_PROVIDER`, `KAIRO_STT_PROVIDER`,
+`KAIRO_TTS_PROVIDER`, `KAIRO_GROUNDING_PROVIDER`) with per-provider keys/models in
+`.env` (see `.env.example`). Grounding is swappable: `anthropic` (Opus, default),
+`openrouter` (Qwen, cheaper), or `qwen` (direct DashScope). No Sonnet for grounding.
+
+## Logging is MANDATORY
+
+Kairo has one universal, non-blocking logger. **Every change you make must log its
+steps through it.** This is not optional — it is how we debug the packaged app.
+
+**Rust** — use the `klog!` macro (never `println!`/`eprintln!`):
+
+```rust
+klog!(vision, info, count = boxes.len(), ms = elapsed, "detected element boxes");
+klog!(mic, error, "failed to build mic stream: {err}");
+let _t = crate::klog::timer("gate", "gate_turn"); // auto-logs `ms=` on drop
+```
+
+- First arg = **subsystem tag** (the log target): `mic` `audio` `ptt` `vision`
+  `grounding` `gate` `tutor` `stt` `tts` `screen` `cursor` `overlay` `notch`
+  `input` `activation` `app`. Add new ones as needed — keep them short + lowercase.
+- Second arg = level: `error` `warn` `info` `debug` `trace`.
+- **Fields first, message literal last** (tracing grammar): `klog!(sub, info, k = v, "msg")`.
+
+**Frontend** — use `klog()` from `src/core/logger.ts` (never `console.*`):
+
+```ts
+import { klog } from '../core/logger';
+klog('notch', 'info', 'ptt released', { ms: elapsed });
+```
+
+Lines are batched and flushed to the same file. Uncaught errors/rejections are
+captured automatically (installed once in `main.tsx`).
+
+**Rules for what you log:**
+
+- Log every meaningful step, state transition, provider round-trip (with `ms=`), and
+  **every error path**. Prefer structured `key = value` fields over prose.
+- **Never log secrets or raw media.** No API keys/auth headers, no raw audio samples,
+  no screenshot pixels/base64, no full transcripts. Log metadata only:
+  `audio_bytes=48000`, `screenshot=1280x800 jpeg bytes=63210`, `transcript=len=214`.
+  Use `crate::klog::transcript_field(&text)` (Rust) for transcripts.
+- The logger is non-blocking by design; it drops lines under load rather than stall a
+  hot thread. **Never** do blocking I/O or heavy formatting on the audio callback,
+  event-tap runloop, or UI thread — just `klog!` and move on.
+
+## Testing / verification
+
+Before considering native or provider work done, run:
+
+```bash
+npm run typecheck
+npm run test
+cargo check --manifest-path src-tauri/Cargo.toml
+npm run tauri:build -- --bundles app     # the real target
+npm run smoke:providers                  # when touching providers
+```
+
+## Conventions
+
+- **Keep cross-platform in mind.** macOS is the only shipping target today, but
+  Windows is a planned future platform — gate macOS-only code behind `#[cfg(...)]`.
+- Before UI work for any new macOS native capability: update `Info.plist`, add
+  entitlements, document TCC reset/test notes, and verify the signed app with
+  `codesign -d --entitlements :- "…/Kairo Tutor.app"`.
+- Follow existing module boundaries. Don't do unrelated refactors in a feature change.
+- Add tests in `tests/` (node env — no DOM libs; guard `window` usage).

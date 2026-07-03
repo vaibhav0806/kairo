@@ -107,16 +107,14 @@ pub(crate) fn spawn_context_input_tap(app: &tauri::AppHandle, watch: ContextWatc
             },
         );
         let Ok(tap) = tap else {
-            eprintln!(
-                "Kairo Tutor: input event tap unavailable; scroll/click reset disabled (app/tab switch reset still works)"
-            );
+            crate::klog!(input, warn, "event tap unavailable; scroll/click reset disabled (app/tab switch reset still works)");
             return;
         };
         // Standard CGEventTap → CFRunLoop wiring. run_current() blocks this
         // dedicated thread for the process lifetime, keeping the tap alive.
         unsafe {
             let Ok(source) = tap.mach_port().create_runloop_source(0) else {
-                eprintln!("Kairo Tutor: failed to create event-tap runloop source");
+                crate::klog!(input, error, "failed to create event-tap runloop source");
                 return;
             };
             CFRunLoop::get_current().add_source(&source, kCFRunLoopCommonModes);
@@ -155,7 +153,7 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                 if both && !was {
                     watch.ptt_active.store(true, Ordering::SeqCst);
                     // Start native mic capture immediately (instant; indicator on now).
-                    eprintln!("[ptt-timing] ⌥⌃ chord down");
+                    crate::klog!(ptt, info, "⌥⌃ chord down");
                     send_audio_command(&app, AudioCommand::Start(Instant::now()));
                     // Cursor shows the listening halo (global emit so it lands).
                     let _ = app.emit("cursor:listening", ());
@@ -170,7 +168,7 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
                             notch_state.inner(),
                             Some(listening_notch_payload()),
                         ) {
-                            eprintln!("Kairo Tutor: ptt failed to show notch: {error}");
+                            crate::klog!(ptt, error, "failed to show notch: {error}");
                         }
                     });
                 } else if !both && was {
@@ -184,14 +182,12 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
             },
         );
         let Ok(tap) = tap else {
-            eprintln!(
-                "Kairo Tutor: push-to-talk tap unavailable; grant Input Monitoring + relaunch to enable ⌥⌃"
-            );
+            crate::klog!(ptt, warn, "tap unavailable; grant Input Monitoring + relaunch to enable ⌥⌃");
             return;
         };
         unsafe {
             let Ok(source) = tap.mach_port().create_runloop_source(0) else {
-                eprintln!("Kairo Tutor: failed to create PTT runloop source");
+                crate::klog!(ptt, error, "failed to create PTT runloop source");
                 return;
             };
             CFRunLoop::get_current().add_source(&source, kCFRunLoopCommonModes);

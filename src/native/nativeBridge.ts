@@ -1,5 +1,6 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { register as registerGlobalShortcut } from '@tauri-apps/plugin-global-shortcut';
+import { klog } from '../core/logger';
 import type { ScreenRegion, UserAnnotation, VisualTarget } from '../core/types';
 import type { TutorTurnInput } from '../core/orchestrator';
 import type { NotchAnnotationTool } from '../notch/annotationActions';
@@ -320,11 +321,9 @@ export function createNativeBridge(
     },
 
     async debugLog(message) {
-      try {
-        await invoke<void>('debug_log', { message });
-      } catch {
-        // No-op outside the native runtime.
-      }
+      // Route through the unified batched logger so bridge diagnostics land in the
+      // same Kairo log file as everything else.
+      klog('bridge', 'info', message);
     },
 
     async showOverlay(payload) {

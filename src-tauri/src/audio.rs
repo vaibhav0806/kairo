@@ -57,7 +57,7 @@ pub(crate) fn pick_input_device(host: &cpal::Host) -> Option<cpal::Device> {
 }
 
 pub(crate) fn audio_stream_error(err: cpal::StreamError) {
-    eprintln!("Kairo Tutor: audio stream error: {err}");
+    crate::klog!(audio, error, "stream error: {err}");
 }
 
 // Append captured frames as mono to the shared buffer and update the live level.
@@ -161,14 +161,14 @@ pub(crate) fn build_armed_input(
             None,
         ),
         other => {
-            eprintln!("Kairo Tutor: unsupported input sample format {other:?}");
+            crate::klog!(mic, error, "unsupported input sample format {other:?}");
             return None;
         }
     };
     match built {
         Ok(stream) => Some((stream, rate)),
         Err(err) => {
-            eprintln!("Kairo Tutor: failed to build mic stream: {err}");
+            crate::klog!(mic, error, "failed to build mic stream: {err}");
             None
         }
     }
@@ -224,16 +224,12 @@ pub(crate) fn spawn_audio_capture(
                             current_rate = rate;
                             match stream.play() {
                                 Ok(()) => {
-                                    eprintln!(
-                                        "[ptt-timing] recording started {} ms after ⌥⌃ down @ {} Hz",
-                                        chord_down.elapsed().as_millis(),
-                                        current_rate
-                                    );
+                                    crate::klog!(ptt, info, ms = chord_down.elapsed().as_millis(), hz = current_rate, "recording started");
                                     current = Some(stream);
                                     capturing_worker.store(true, Ordering::SeqCst);
                                 }
                                 Err(err) => {
-                                    eprintln!("Kairo Tutor: failed to start mic stream: {err}");
+                                    crate::klog!(mic, error, "failed to start mic stream: {err}");
                                 }
                             }
                         }
@@ -248,11 +244,7 @@ pub(crate) fn spawn_audio_capture(
                     current.take();
                     let captured: Vec<f32> =
                         samples.lock().map(|buf| buf.clone()).unwrap_or_default();
-                    eprintln!(
-                        "[ptt-timing] captured {} samples @ {} Hz",
-                        captured.len(),
-                        current_rate
-                    );
+                    crate::klog!(ptt, info, samples = captured.len(), hz = current_rate, "captured audio");
                     if captured.is_empty() {
                         continue;
                     }

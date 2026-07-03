@@ -281,7 +281,7 @@ pub(crate) fn spawn_mouse_tracker(app: &tauri::AppHandle) {
         Err(_) => None,
     };
     let Some(window) = window else {
-        eprintln!("Kairo Tutor: cursor window missing; mouse tracker not started");
+        crate::klog!(cursor, warn, "cursor window missing; mouse tracker not started");
         return;
     };
     let app = app.clone();
