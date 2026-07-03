@@ -21,12 +21,23 @@ app stays visually quiet until the user activates voice or on-screen guidance.
 `.app` — that is the environment users get and the one where native permissions,
 panels, and logging behave correctly.
 
-```bash
-# Build the macOS app bundle
-npm run tauri:build -- --bundles app
+**One command does it all** — quit the running app, rebuild, sign, verify the
+signature, and relaunch:
 
-# Launch it
-open "src-tauri/target/release/bundle/macos/Kairo Tutor.app"
+```bash
+npm run app             # quit → build+sign → verify signature → launch
+npm run app -- --check  # same, but run typecheck + tests + cargo check first
+```
+
+Signing is automatic (`tauri.conf.json` → `bundle.macOS.signingIdentity =
+"Kairo Tutor Local Dev"`); `npm run app` additionally verifies the signature so a
+broken sign fails loudly, not at launch. It wraps (see `scripts/rebuild-run.sh`):
+
+```bash
+osascript -e 'quit app "Kairo Tutor"'                        # quit old instance
+npm run tauri:build -- --bundles app                         # build + sign
+codesign --verify --deep --strict "…/Kairo Tutor.app"        # verify sign
+open "src-tauri/target/release/bundle/macos/Kairo Tutor.app" # launch
 ```
 
 - App identifier: `com.kairo.tutor`. Product name: `Kairo Tutor`. Dev Vite port: `5273`.
