@@ -4,6 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kairo Tutor</title>
+    <style>
+      /* Kairo's transparent surfaces (cursor/overlay/notch) live on transparent
+         windows. Force their background transparent from the very first paint —
+         before the bundle CSS (which defaults body to a light colour) loads —
+         otherwise the full-screen cursor webview flashes light while it loads. */
+      html.kairo-transparent,
+      html.kairo-transparent body {
+        background: transparent !important;
+      }
+    </style>
+    <script>
+      (function () {
+        var hash = window.location.hash || '';
+        if (/^#\/(cursor|overlay|notch)/.test(hash)) {
+          document.documentElement.classList.add('kairo-transparent');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
