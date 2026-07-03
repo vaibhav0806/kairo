@@ -1,9 +1,9 @@
 //! On-screen text detection (Apple Vision OCR) and the text-hint context blocks
 //! used to ground the model's targets on real screen elements.
 
-use crate::types::{OcrElement, OverlayDisplayBounds, TutorTurnInput};
 #[cfg(target_os = "macos")]
 use crate::types::ScreenRegion;
+use crate::types::{OcrElement, OverlayDisplayBounds, TutorTurnInput};
 
 // Run Apple's Vision OCR on the screenshot bytes and return on-screen text
 // elements with accurate regions. Synchronous (Vision's performRequests blocks).
@@ -38,11 +38,6 @@ pub(crate) fn ocr_screenshot(image_bytes: &[u8], bounds: &OverlayDisplayBounds) 
         return Vec::new();
     };
 
-    let scale_factor = if bounds.scale_factor > 0.0 {
-        bounds.scale_factor
-    } else {
-        1.0
-    };
     let mut elements: Vec<OcrElement> = Vec::new();
     for observation in results.iter() {
         if (unsafe { observation.confidence() } as f64) < 0.3 {
@@ -72,10 +67,10 @@ pub(crate) fn ocr_screenshot(image_bytes: &[u8], bounds: &OverlayDisplayBounds) 
             id: elements.len() as u32 + 1,
             text,
             region: ScreenRegion {
-                x: left_logical * scale_factor,
-                y: top_logical * scale_factor,
-                width: bw * bounds.width * scale_factor,
-                height: bh * bounds.height * scale_factor,
+                x: left_logical,
+                y: top_logical,
+                width: bw * bounds.width,
+                height: bh * bounds.height,
             },
             center_x_pct: (min_x + bw / 2.0) * 100.0,
             center_y_pct: (1.0 - (min_y + bh / 2.0)) * 100.0,
@@ -88,7 +83,10 @@ pub(crate) fn ocr_screenshot(image_bytes: &[u8], bounds: &OverlayDisplayBounds) 
 }
 
 #[cfg(not(target_os = "macos"))]
-pub(crate) fn ocr_screenshot(_image_bytes: &[u8], _bounds: &OverlayDisplayBounds) -> Vec<OcrElement> {
+pub(crate) fn ocr_screenshot(
+    _image_bytes: &[u8],
+    _bounds: &OverlayDisplayBounds,
+) -> Vec<OcrElement> {
     Vec::new()
 }
 

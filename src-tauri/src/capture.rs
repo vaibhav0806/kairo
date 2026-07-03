@@ -2,7 +2,7 @@
 //! downscales the screenshot for vision, and the `capture_screen` command.
 
 use crate::platform::{get_active_app, is_sensitive_app};
-use crate::types::{DisplayBounds, ScreenCaptureResult};
+use crate::types::{CaptureImageGeometry, DisplayBounds, ScreenCaptureResult};
 #[cfg(target_os = "macos")]
 use std::fs;
 #[cfg(target_os = "macos")]
@@ -73,10 +73,21 @@ pub(crate) fn main_display_bounds() -> DisplayBounds {
 // decode/encode failure.
 const SCREENSHOT_MAX_EDGE: u32 = 1280;
 
-fn downscale_screenshot(png_bytes: Vec<u8>) -> (Vec<u8>, &'static str) {
+fn display_bounds_summary(bounds: &DisplayBounds) -> String {
+    format!(
+        "x={:.1} y={:.1} w={:.1} h={:.1} scale={:.3}",
+        bounds.x, bounds.y, bounds.width, bounds.height, bounds.scale_factor
+    )
+}
+
+fn downscale_screenshot(
+    png_bytes: Vec<u8>,
+) -> (Vec<u8>, &'static str, Option<CaptureImageGeometry>) {
     let Ok(image) = image::load_from_memory(&png_bytes) else {
-        return (png_bytes, "image/png");
+        return (png_bytes, "image/png", None);
     };
+    let original_width = image.width();
+    let original_height = image.height();
     let scaled = if image.width().max(image.height()) > SCREENSHOT_MAX_EDGE {
         image.resize(
             SCREENSHOT_MAX_EDGE,
@@ -91,8 +102,30 @@ fn downscale_screenshot(png_bytes: Vec<u8>) -> (Vec<u8>, &'static str) {
         .to_rgb8()
         .write_to(&mut out, image::ImageFormat::Jpeg)
     {
-        Ok(()) => (out.into_inner(), "image/jpeg"),
-        Err(_) => (png_bytes, "image/png"),
+        Ok(()) => {
+            let output_width = scaled.width();
+            let output_height = scaled.height();
+            (
+                out.into_inner(),
+                "image/jpeg",
+                Some(CaptureImageGeometry {
+                    raw_width: original_width,
+                    raw_height: original_height,
+                    encoded_width: output_width,
+                    encoded_height: output_height,
+                }),
+            )
+        }
+        Err(_) => (
+            png_bytes,
+            "image/png",
+            Some(CaptureImageGeometry {
+                raw_width: original_width,
+                raw_height: original_height,
+                encoded_width: original_width,
+                encoded_height: original_height,
+            }),
+        ),
     }
 }
 
@@ -102,7 +135,18 @@ pub(crate) fn capture_screen() -> ScreenCaptureResult {
     #[cfg(target_os = "macos")]
     {
         let active_app = get_active_app();
+        let bounds = main_display_bounds();
+        let bounds_summary = display_bounds_summary(&bounds);
         if is_sensitive_app(&active_app) {
+            crate::klog!(
+                screen,
+                info,
+                captured = false,
+                sensitive = true,
+                active_app = %active_app.active_app,
+                bounds = %bounds_summary,
+                "capture skipped"
+            );
             return ScreenCaptureResult {
                 captured: false,
                 reason: Some(
@@ -114,15 +158,49 @@ pub(crate) fn capture_screen() -> ScreenCaptureResult {
                 image_mime_type: None,
                 image_base64: None,
                 byte_length: None,
-                display_bounds: Some(main_display_bounds()),
+                display_bounds: Some(bounds),
+                image_geometry: None,
             };
         }
 
         match capture_screen_with_screencapture() {
             Ok(bytes) => {
                 use base64::Engine;
-                let (image_bytes, mime) = downscale_screenshot(bytes);
+                let raw_bytes = bytes.len();
+                let (image_bytes, mime, image_geometry) = downscale_screenshot(bytes);
                 let byte_length = image_bytes.len();
+                let dims = image_geometry
+                    .as_ref()
+                    .map(|geometry| {
+                        format!(
+                            "{}x{}->{}x{}",
+                            geometry.raw_width,
+                            geometry.raw_height,
+                            geometry.encoded_width,
+                            geometry.encoded_height
+                        )
+                    })
+                    .unwrap_or_else(|| "unknown".to_string());
+                let capture_scale = image_geometry.as_ref().map(|geometry| {
+                    format!(
+                        "{:.3}x{:.3}",
+                        geometry.raw_width as f64 / bounds.width.max(1.0),
+                        geometry.raw_height as f64 / bounds.height.max(1.0)
+                    )
+                });
+                crate::klog!(
+                    screen,
+                    debug,
+                    captured = true,
+                    active_app = %active_app.active_app,
+                    mime = mime,
+                    raw_bytes = raw_bytes,
+                    output_bytes = byte_length,
+                    dims = %dims,
+                    capture_scale = %capture_scale.as_deref().unwrap_or("unknown"),
+                    bounds = %bounds_summary,
+                    "capture complete"
+                );
                 let image_base64 = base64::engine::general_purpose::STANDARD.encode(image_bytes);
                 return ScreenCaptureResult {
                     captured: true,
@@ -132,10 +210,19 @@ pub(crate) fn capture_screen() -> ScreenCaptureResult {
                     image_mime_type: Some(mime.to_string()),
                     image_base64: Some(image_base64),
                     byte_length: Some(byte_length),
-                    display_bounds: Some(main_display_bounds()),
+                    display_bounds: Some(bounds),
+                    image_geometry,
                 };
             }
             Err(error) => {
+                crate::klog!(
+                    screen,
+                    warn,
+                    captured = false,
+                    active_app = %active_app.active_app,
+                    bounds = %bounds_summary,
+                    "capture failed: {error}"
+                );
                 return ScreenCaptureResult {
                     captured: false,
                     reason: Some(error),
@@ -144,7 +231,8 @@ pub(crate) fn capture_screen() -> ScreenCaptureResult {
                     image_mime_type: None,
                     image_base64: None,
                     byte_length: None,
-                    display_bounds: Some(main_display_bounds()),
+                    display_bounds: Some(bounds),
+                    image_geometry: None,
                 };
             }
         }
@@ -161,6 +249,7 @@ pub(crate) fn capture_screen() -> ScreenCaptureResult {
             image_base64: None,
             byte_length: None,
             display_bounds: None,
+            image_geometry: None,
         }
     }
 }

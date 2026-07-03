@@ -1,5 +1,5 @@
 //! Vision-based element grounding: ask a vision model for target boxes, map them
-//! back to screen pixels, and reconcile the model's visual targets with real
+//! back to display points, and reconcile the model's visual targets with real
 //! OCR/box regions.
 
 use crate::color::{sample_background, vibrant_accent};
@@ -20,7 +20,19 @@ const DEFAULT_VISION_MAX_EDGE: u32 = 1568;
 // Ask the grounding provider for the target boxes as raw JSON text. Both providers
 // receive the SAME prompt + resized JPEG and return the same {"elements":[...]}
 // shape, so the caller parses one format regardless of which provider ran.
-async fn anthropic_vision_text(prompt: &str, image_jpeg_base64: &str) -> Option<String> {
+fn grounding_timeout() -> Duration {
+    let timeout_ms = provider_env_optional("KAIRO_GROUNDING_TIMEOUT_MS")
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(12_000);
+    Duration::from_millis(timeout_ms)
+}
+
+async fn anthropic_vision_text(
+    prompt: &str,
+    image_jpeg_base64: &str,
+    timeout: Duration,
+) -> Option<String> {
     let api_key = provider_env_optional("ANTHROPIC_API_KEY")?;
     if api_key.trim().is_empty() {
         return None;
@@ -42,7 +54,7 @@ async fn anthropic_vision_text(prompt: &str, image_jpeg_base64: &str) -> Option<
         .post(format!("{}/v1/messages", base_url.trim_end_matches('/')))
         .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
-        .timeout(Duration::from_secs(25))
+        .timeout(timeout)
         .json(&body)
         .send()
         .await
@@ -79,6 +91,7 @@ async fn openai_compatible_vision_text(
     model: &str,
     prompt: &str,
     image_jpeg_base64: &str,
+    timeout: Duration,
 ) -> Option<String> {
     let data_url = format!("data:image/jpeg;base64,{image_jpeg_base64}");
     let body = json!({
@@ -93,12 +106,15 @@ async fn openai_compatible_vision_text(
         }],
     });
     let response = shared_http_client()
-        .post(format!("{}/chat/completions", base_url.trim_end_matches('/')))
+        .post(format!(
+            "{}/chat/completions",
+            base_url.trim_end_matches('/')
+        ))
         .header("Authorization", format!("Bearer {api_key}"))
         // OpenRouter attribution headers; harmlessly ignored by other hosts.
         .header("HTTP-Referer", "https://kairo.tutor")
         .header("X-Title", "Kairo Tutor")
-        .timeout(Duration::from_secs(25))
+        .timeout(timeout)
         .json(&body)
         .send()
         .await
@@ -139,19 +155,25 @@ pub(crate) async fn detect_element_boxes(
     // ~12x cheaper), or `qwen` (direct DashScope). All share this prompt + image.
     let _t = crate::klog::timer("grounding", "detect_boxes");
     let provider = provider_env("KAIRO_GROUNDING_PROVIDER", "anthropic").to_lowercase();
+    let timeout = grounding_timeout();
     let max_edge = provider_env_optional("KAIRO_VISION_MAX_EDGE")
         .and_then(|v| v.trim().parse::<u32>().ok())
         .filter(|v| *v >= 256)
         .unwrap_or(DEFAULT_VISION_MAX_EDGE);
-    let _ = bounds; // display bounds are applied later when mapping boxes to px
+    let bounds_summary = format!(
+        "x={:.1} y={:.1} w={:.1} h={:.1} scale={:.3}",
+        bounds.x, bounds.y, bounds.width, bounds.height, bounds.scale_factor
+    );
 
     // Downscale aspect-preserving so the longest edge <= max_edge. Claude returns
     // pixel boxes in THIS resized space; we normalize by (rw, rh) and map back.
     use base64::Engine;
     let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(image_base64) else {
+        crate::klog!(grounding, warn, provider = %provider, "failed to decode screenshot base64");
         return Vec::new();
     };
     let Ok(image) = image::load_from_memory(&bytes) else {
+        crate::klog!(grounding, warn, provider = %provider, bytes = bytes.len(), "failed to load screenshot image");
         return Vec::new();
     };
     let (ow, oh) = (image.width(), image.height());
@@ -171,25 +193,32 @@ pub(crate) async fn detect_element_boxes(
     let rgb = resized.to_rgb8();
     let mut out = std::io::Cursor::new(Vec::new());
     if rgb.write_to(&mut out, image::ImageFormat::Jpeg).is_err() {
+        crate::klog!(grounding, warn, provider = %provider, original = %format!("{ow}x{oh}"), resized = %format!("{rw}x{rh}"), "failed to encode resized grounding image");
         return Vec::new();
     }
     let resized_base64 = base64::engine::general_purpose::STANDARD.encode(out.into_inner());
 
     let prompt = box_locator_prompt(user_query, rw, rh, &build_box_locator_context(ocr_elements));
 
-    let text = match provider.as_str() {
+    let (model, text) = match provider.as_str() {
         // Cheap Qwen grounding via the user's existing OpenRouter key.
-        "openrouter" | "open-router" => {
-            match provider_env_optional("OPENROUTER_API_KEY") {
-                Some(key) if !key.trim().is_empty() => {
-                    let base = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
-                    let model = provider_env("KAIRO_GROUNDING_MODEL", "qwen/qwen3.7-plus");
-                    openai_compatible_vision_text(&base, &key, &model, &prompt, &resized_base64)
-                        .await
-                }
-                _ => None,
+        "openrouter" | "open-router" => match provider_env_optional("OPENROUTER_API_KEY") {
+            Some(key) if !key.trim().is_empty() => {
+                let base = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
+                let model = provider_env("KAIRO_GROUNDING_MODEL", "qwen/qwen3.7-plus");
+                let text = openai_compatible_vision_text(
+                    &base,
+                    &key,
+                    &model,
+                    &prompt,
+                    &resized_base64,
+                    timeout,
+                )
+                .await;
+                (model, text)
             }
-        }
+            _ => ("missing-openrouter-key".to_string(), None),
+        },
         // Direct Alibaba DashScope (needs a DashScope key, which some regions can't get).
         "qwen" | "qwen3" | "dashscope" | "alibaba" => {
             match provider_env_optional("DASHSCOPE_API_KEY")
@@ -201,21 +230,50 @@ pub(crate) async fn detect_element_boxes(
                         "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
                     );
                     let model = provider_env("QWEN_VISION_MODEL", "qwen3.7-plus");
-                    openai_compatible_vision_text(&base, &key, &model, &prompt, &resized_base64)
-                        .await
+                    let text = openai_compatible_vision_text(
+                        &base,
+                        &key,
+                        &model,
+                        &prompt,
+                        &resized_base64,
+                        timeout,
+                    )
+                    .await;
+                    (model, text)
                 }
-                _ => None,
+                _ => ("missing-qwen-key".to_string(), None),
             }
         }
-        _ => anthropic_vision_text(&prompt, &resized_base64).await,
+        _ => {
+            let model = provider_env("ANTHROPIC_VISION_MODEL", "claude-opus-4-8");
+            let text = anthropic_vision_text(&prompt, &resized_base64, timeout).await;
+            (model, text)
+        }
     };
+    crate::klog!(
+        grounding,
+        debug,
+        provider = %provider,
+        model = %model,
+        original = %format!("{ow}x{oh}"),
+        resized = %format!("{rw}x{rh}"),
+        max_edge = max_edge,
+        timeout_ms = timeout.as_millis(),
+        bounds = %bounds_summary,
+        ocr_count = ocr_elements.len(),
+        query_len = user_query.len(),
+        "grounding request metadata"
+    );
     let Some(text) = text else {
+        crate::klog!(grounding, warn, provider = %provider, model = %model, "grounding provider returned no text");
         return Vec::new();
     };
     let Ok(parsed) = serde_json::from_str::<Value>(json_body(&text)) else {
+        crate::klog!(grounding, warn, provider = %provider, model = %model, text_len = text.len(), "failed to parse grounding JSON");
         return Vec::new();
     };
     let Some(elements) = parsed.get("elements").and_then(Value::as_array) else {
+        crate::klog!(grounding, warn, provider = %provider, model = %model, "grounding JSON missing elements array");
         return Vec::new();
     };
 
@@ -247,6 +305,15 @@ pub(crate) async fn detect_element_boxes(
         if nx2 <= nx1 || ny2 <= ny1 {
             continue;
         }
+        crate::klog!(
+            grounding,
+            debug,
+            label = %label,
+            model_px = %format!("[{x1:.1},{y1:.1},{x2:.1},{y2:.1}]"),
+            norm = %format!("[{nx1:.4},{ny1:.4},{nx2:.4},{ny2:.4}]"),
+            resized = %format!("{rw}x{rh}"),
+            "grounding model box"
+        );
         // Derive a vibrant accent from the pixels surrounding the box (in resized
         // space) so the highlight pops against whatever is behind it.
         let bx1 = (nx1 * rw as f64) as u32;
@@ -278,7 +345,15 @@ pub(crate) async fn detect_element_boxes(
             )
         })
         .collect();
-    crate::klog!(grounding, info, count = boxes.len(), elements = %summary.join(", "), "element boxes detected");
+    crate::klog!(
+        grounding,
+        info,
+        provider = %provider,
+        model = %model,
+        count = boxes.len(),
+        elements = %summary.join(", "),
+        "element boxes detected"
+    );
 
     boxes
 }
@@ -296,18 +371,12 @@ fn json_body(content: &str) -> &str {
     inner.trim_matches(|c: char| c == '`' || c.is_whitespace())
 }
 
-fn display_physical_bounds(bounds: &OverlayDisplayBounds) -> (f64, f64, f64, f64, f64) {
-    let scale_factor = if bounds.scale_factor > 0.0 {
-        bounds.scale_factor
-    } else {
-        1.0
-    };
+fn display_point_bounds(bounds: &OverlayDisplayBounds) -> (f64, f64, f64, f64) {
     (
-        bounds.x * scale_factor,
-        bounds.y * scale_factor,
-        (bounds.x + bounds.width) * scale_factor,
-        (bounds.y + bounds.height) * scale_factor,
-        scale_factor,
+        bounds.x,
+        bounds.y,
+        bounds.x + bounds.width,
+        bounds.y + bounds.height,
     )
 }
 
@@ -316,30 +385,23 @@ fn padded_screen_region(
     bounds: Option<&OverlayDisplayBounds>,
     pad_pct: f64,
     pad_min_px: f64,
+    pad_max_px: f64,
 ) -> ScreenRegion {
     let x1 = region.x;
     let y1 = region.y;
     let x2 = region.x + region.width.max(0.0);
     let y2 = region.y + region.height.max(0.0);
-    let scale_factor = bounds
-        .map(|b| {
-            if b.scale_factor > 0.0 {
-                b.scale_factor
-            } else {
-                1.0
-            }
-        })
-        .unwrap_or(1.0);
-    let pad_min_px = pad_min_px * scale_factor;
-    let pad_x = (pad_pct * (x2 - x1)).max(pad_min_px);
-    let pad_y = (pad_pct * (y2 - y1)).max(pad_min_px);
+    let pad_x = (pad_pct * (x2 - x1))
+        .max(pad_min_px)
+        .min(pad_max_px.max(pad_min_px));
+    let pad_y = (pad_pct * (y2 - y1))
+        .max(pad_min_px)
+        .min(pad_max_px.max(pad_min_px));
 
-    let (min_x, min_y, max_x, max_y) = bounds
-        .map(|b| {
-            let (min_x, min_y, max_x, max_y, _) = display_physical_bounds(b);
-            (min_x, min_y, max_x, max_y)
-        })
-        .unwrap_or((0.0, 0.0, f64::INFINITY, f64::INFINITY));
+    let (min_x, min_y, max_x, max_y) =
+        bounds
+            .map(display_point_bounds)
+            .unwrap_or((0.0, 0.0, f64::INFINITY, f64::INFINITY));
 
     let px1 = (x1 - pad_x).max(min_x);
     let py1 = (y1 - pad_y).max(min_y);
@@ -352,6 +414,29 @@ fn padded_screen_region(
         width: (px2 - px1).max(0.0),
         height: (py2 - py1).max(0.0),
     }
+}
+
+fn env_f64(name: &str, fallback: f64) -> f64 {
+    provider_env_optional(name)
+        .and_then(|value| value.trim().parse::<f64>().ok())
+        .filter(|value| *value >= 0.0)
+        .unwrap_or(fallback)
+}
+
+fn highlight_padding(region: &ScreenRegion) -> (f64, f64, f64, f64) {
+    let base_pct = env_f64("KAIRO_BOX_PAD_PCT", 0.08);
+    let min_px = env_f64("KAIRO_BOX_PAD_MIN_PX", 6.0);
+    let max_px = env_f64("KAIRO_BOX_PAD_MAX_PX", 24.0);
+
+    if region.width > region.height.max(1.0) * 6.0 {
+        let x_pct = env_f64("KAIRO_WIDE_BOX_PAD_X_PCT", 0.015);
+        let y_pct = env_f64("KAIRO_WIDE_BOX_PAD_Y_PCT", 0.18);
+        let x_max = env_f64("KAIRO_WIDE_BOX_PAD_X_MAX_PX", 16.0);
+        let y_max = env_f64("KAIRO_WIDE_BOX_PAD_Y_MAX_PX", 10.0);
+        return (x_pct, y_pct, x_max.max(min_px), y_max.max(min_px));
+    }
+
+    (base_pct, base_pct, max_px.max(min_px), max_px.max(min_px))
 }
 
 // Replace the model's visualTargets with the grounded boxes: one labeled
@@ -368,40 +453,37 @@ pub(crate) fn apply_box_targets(
         return content;
     };
 
-    // Display extent in physical px — used to clamp padded boxes to the screen.
-    let (min_x, min_y, max_x, max_y, scale_factor) = display_physical_bounds(bounds);
+    // Display extent in display points — final AI regions use the same coordinate
+    // space as the overlay/cursor WebViews.
+    let (min_x, min_y, max_x, max_y) = display_point_bounds(bounds);
 
-    // Padding: grow each side by max(min_px, pct * size) so the box has breathing
-    // room instead of hugging the element exactly. Tunable at runtime (no rebuild).
-    let pad_pct = provider_env_optional("KAIRO_BOX_PAD_PCT")
-        .and_then(|v| v.trim().parse::<f64>().ok())
-        .filter(|v| *v >= 0.0)
-        .unwrap_or(0.30);
-    let pad_min_px = provider_env_optional("KAIRO_BOX_PAD_MIN_PX")
-        .and_then(|v| v.trim().parse::<f64>().ok())
-        .filter(|v| *v >= 0.0)
-        .unwrap_or(14.0)
-        * scale_factor;
-
-    // A detected box → raw (x, y, width, height) in physical px, clamped to the
+    // A detected box → raw (x, y, width, height) in display points, clamped to the
     // display. The companion pointer uses this exact center so padding never
     // introduces a visual offset from the model's selected element.
     let raw_rect = |b: &DetectedBox| -> (f64, f64, f64, f64) {
-        let x1 = ((bounds.x + b.norm_x1 * bounds.width) * scale_factor).clamp(min_x, max_x);
-        let y1 = ((bounds.y + b.norm_y1 * bounds.height) * scale_factor).clamp(min_y, max_y);
-        let x2 = ((bounds.x + b.norm_x2 * bounds.width) * scale_factor).clamp(min_x, max_x);
-        let y2 = ((bounds.y + b.norm_y2 * bounds.height) * scale_factor).clamp(min_y, max_y);
+        let x1 = (bounds.x + b.norm_x1 * bounds.width).clamp(min_x, max_x);
+        let y1 = (bounds.y + b.norm_y1 * bounds.height).clamp(min_y, max_y);
+        let x2 = (bounds.x + b.norm_x2 * bounds.width).clamp(min_x, max_x);
+        let y2 = (bounds.y + b.norm_y2 * bounds.height).clamp(min_y, max_y);
         (x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0))
     };
 
-    // A detected box → padded (x, y, width, height) in physical px, clamped to
+    // A detected box → padded (x, y, width, height) in display points, clamped to
     // the display. This is only for the drawn highlight breathing room.
     let padded_rect = |b: &DetectedBox| -> (f64, f64, f64, f64) {
         let (x1, y1, w, h) = raw_rect(b);
         let x2 = x1 + w;
         let y2 = y1 + h;
-        let pad_x = (pad_pct * (x2 - x1)).max(pad_min_px);
-        let pad_y = (pad_pct * (y2 - y1)).max(pad_min_px);
+        let raw_region = ScreenRegion {
+            x: x1,
+            y: y1,
+            width: w,
+            height: h,
+        };
+        let (pad_x_pct, pad_y_pct, pad_x_max, pad_y_max) = highlight_padding(&raw_region);
+        let min_px = env_f64("KAIRO_BOX_PAD_MIN_PX", 6.0);
+        let pad_x = (pad_x_pct * (x2 - x1)).max(min_px).min(pad_x_max);
+        let pad_y = (pad_y_pct * (y2 - y1)).max(min_px).min(pad_y_max);
         let px1 = (x1 - pad_x).max(min_x);
         let py1 = (y1 - pad_y).max(min_y);
         let px2 = (x2 + pad_x).min(max_x);
@@ -418,7 +500,17 @@ pub(crate) fn apply_box_targets(
         let (x, y, w, h) = raw_rect(primary);
         let center_x = x + w / 2.0;
         let center_y = y + h / 2.0;
-        let marker_px = 44.0 * scale_factor;
+        let marker_px = 44.0;
+        crate::klog!(
+            grounding,
+            debug,
+            label = %primary.label,
+            raw = %format!("[{x:.1},{y:.1},{w:.1},{h:.1}]"),
+            center = %format!("[{center_x:.1},{center_y:.1}]"),
+            marker_px = marker_px,
+            scale = bounds.scale_factor,
+            "mapped pointer target"
+        );
         targets.push(json!({
             "kind": "pointer",
             "targetId": "vision-primary",
@@ -436,7 +528,28 @@ pub(crate) fn apply_box_targets(
 
     // Every box → a labeled, padded highlight rectangle drawn in the overlay.
     for (index, b) in boxes.iter().enumerate() {
+        let (rx, ry, rw, rh) = raw_rect(b);
         let (x, y, w, h) = padded_rect(b);
+        let raw_region = ScreenRegion {
+            x: rx,
+            y: ry,
+            width: rw,
+            height: rh,
+        };
+        let (pad_x_pct, pad_y_pct, pad_x_max, pad_y_max) = highlight_padding(&raw_region);
+        crate::klog!(
+            grounding,
+            debug,
+            index = index,
+            label = %b.label,
+            raw = %format!("[{rx:.1},{ry:.1},{rw:.1},{rh:.1}]"),
+            padded = %format!("[{x:.1},{y:.1},{w:.1},{h:.1}]"),
+            pad_x_pct = pad_x_pct,
+            pad_y_pct = pad_y_pct,
+            pad_x_max = pad_x_max,
+            pad_y_max = pad_y_max,
+            "mapped highlight target"
+        );
         targets.push(json!({
             "kind": "highlight_box",
             "targetId": format!("vision-box-{index}"),
@@ -519,10 +632,21 @@ pub(crate) fn ground_visual_targets(
                         height,
                     };
                     if matches!(kind, "highlight_box" | "spotlight") {
-                        screen_region = padded_screen_region(&screen_region, bounds, 0.25, 14.0);
+                        screen_region =
+                            padded_screen_region(&screen_region, bounds, 0.08, 6.0, 24.0);
                     } else if kind == "underline" {
-                        screen_region = padded_screen_region(&screen_region, bounds, 0.18, 8.0);
+                        screen_region =
+                            padded_screen_region(&screen_region, bounds, 0.12, 5.0, 16.0);
                     }
+                    crate::klog!(
+                        grounding,
+                        debug,
+                        kind = kind,
+                        label = %label,
+                        source = "provider-screen-region",
+                        mapped = %format!("[{:.1},{:.1},{:.1},{:.1}]", screen_region.x, screen_region.y, screen_region.width, screen_region.height),
+                        "grounded visual target"
+                    );
                     let mut value = json!({
                         "kind": kind,
                         "targetId": target_id,
@@ -575,9 +699,9 @@ pub(crate) fn ground_visual_targets(
             .and_then(Value::as_f64)
             .unwrap_or(0.9);
         let screen_region = if matches!(kind, "highlight_box" | "spotlight") {
-            padded_screen_region(&element.region, bounds, 0.30, 14.0)
+            padded_screen_region(&element.region, bounds, 0.08, 6.0, 24.0)
         } else if kind == "underline" {
-            padded_screen_region(&element.region, bounds, 0.22, 10.0)
+            padded_screen_region(&element.region, bounds, 0.12, 5.0, 16.0)
         } else {
             element.region.clone()
         };

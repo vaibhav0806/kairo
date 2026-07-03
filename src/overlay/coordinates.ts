@@ -31,14 +31,12 @@ export function normalizeRegionToDisplayPercent(
   region: ScreenRegion,
   displayBounds: DisplayBounds
 ): PercentRegion {
-  const scaleFactor = displayBounds.scaleFactor > 0 ? displayBounds.scaleFactor : 1;
-
   return normalizeRegionToPercent(
     {
-      x: region.x / scaleFactor - displayBounds.x,
-      y: region.y / scaleFactor - displayBounds.y,
-      width: region.width / scaleFactor,
-      height: region.height / scaleFactor
+      x: region.x - displayBounds.x,
+      y: region.y - displayBounds.y,
+      width: region.width,
+      height: region.height
     },
     displayBounds
   );

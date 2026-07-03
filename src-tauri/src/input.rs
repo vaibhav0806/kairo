@@ -182,7 +182,11 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
             },
         );
         let Ok(tap) = tap else {
-            crate::klog!(ptt, warn, "tap unavailable; grant Input Monitoring + relaunch to enable ⌥⌃");
+            crate::klog!(
+                ptt,
+                warn,
+                "tap unavailable; grant Input Monitoring + relaunch to enable ⌥⌃"
+            );
             return;
         };
         unsafe {

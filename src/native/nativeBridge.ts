@@ -55,6 +55,12 @@ export type NativeScreenCapture = {
     height: number;
     scaleFactor: number;
   };
+  imageGeometry?: {
+    rawWidth: number;
+    rawHeight: number;
+    encodedWidth: number;
+    encodedHeight: number;
+  };
 };
 
 export type NativeOverlayDisplayBounds = NonNullable<NativeScreenCapture['displayBounds']>;

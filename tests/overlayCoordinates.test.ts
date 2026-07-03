@@ -49,14 +49,14 @@ describe('overlay coordinate normalization', () => {
     });
   });
 
-  test('normalizes retina screenshot pixels into logical overlay percentages', () => {
+  test('normalizes display-point target regions into overlay percentages', () => {
     expect(
       normalizeRegionToDisplayPercent(
         {
-          x: 1800,
-          y: 900,
-          width: 300,
-          height: 200
+          x: 450,
+          y: 300,
+          width: 150,
+          height: 100
         },
         {
           x: 0,
@@ -67,9 +67,9 @@ describe('overlay coordinate normalization', () => {
         }
       )
     ).toEqual({
-      left: 100,
-      top: 75,
-      width: 0,
+      left: 50,
+      top: 50,
+      width: 16.666666666666664,
       height: 16.666666666666664
     });
   });

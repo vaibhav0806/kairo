@@ -75,7 +75,9 @@ pub(crate) fn include_window_in_screen_capture(_window: &tauri::WebviewWindow) {
 // Lazily create the notch window, convert it to a non-activating NSPanel, and
 // apply the level / style / collection behavior that let it float over
 // full-screen Spaces. Idempotent: returns the existing panel once converted.
-pub(crate) fn ensure_notch_panel(app: &tauri::AppHandle) -> Result<PanelHandle<tauri::Wry>, String> {
+pub(crate) fn ensure_notch_panel(
+    app: &tauri::AppHandle,
+) -> Result<PanelHandle<tauri::Wry>, String> {
     let notch_state = app.state::<NotchState>();
     if let Some(panel) = notch_state
         .panel
@@ -281,7 +283,11 @@ pub(crate) fn spawn_mouse_tracker(app: &tauri::AppHandle) {
         Err(_) => None,
     };
     let Some(window) = window else {
-        crate::klog!(cursor, warn, "cursor window missing; mouse tracker not started");
+        crate::klog!(
+            cursor,
+            warn,
+            "cursor window missing; mouse tracker not started"
+        );
         return;
     };
     let app = app.clone();

@@ -30,6 +30,7 @@ fn build_tutor_user_prompt(input: &TutorTurnInput) -> Result<String, String> {
             "imageMimeType": input.screen.image_mime_type,
             "byteLength": input.screen.byte_length,
             "displayBounds": input.screen.display_bounds,
+            "imageGeometry": input.screen.image_geometry,
         },
         "skillLandmarks": input.skill.landmarks,
     }))
@@ -244,7 +245,12 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
                     && input.screen.captured
                     && input.screen.image_base64.is_some() =>
             {
-                crate::klog!(tutor, warn, "screenshot request failed; retrying text-only: {}", error.message);
+                crate::klog!(
+                    tutor,
+                    warn,
+                    "screenshot request failed; retrying text-only: {}",
+                    error.message
+                );
                 send_openrouter_chat_request(
                     client,
                     &endpoint,
@@ -315,9 +321,12 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
     let base_url = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
     let site_url = provider_env_optional("OPENROUTER_SITE_URL");
     let app_title = provider_env("OPENROUTER_APP_TITLE", "Kairo Tutor");
-    let timeout = Duration::from_millis(provider_timeout_ms(provider_env_optional(
-        "OPENROUTER_REQUEST_TIMEOUT_MS",
-    )));
+    let timeout = Duration::from_millis(
+        provider_env_optional("OPENROUTER_GATE_TIMEOUT_MS")
+            .and_then(|value| value.trim().parse::<u64>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(3_500),
+    );
     let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
     let app = input.active_app.unwrap_or_else(|| "unknown".to_string());
@@ -348,11 +357,21 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
     .await
     {
         Ok(content) => {
-            crate::klog!(gate, debug, "gate result: {}", content.chars().take(200).collect::<String>());
+            crate::klog!(
+                gate,
+                debug,
+                "gate result: {}",
+                content.chars().take(200).collect::<String>()
+            );
             Ok(content)
         }
         Err(error) => {
-            crate::klog!(gate, warn, "turn failed; defaulting to look: {}", error.message);
+            crate::klog!(
+                gate,
+                warn,
+                "turn failed; defaulting to look: {}",
+                error.message
+            );
             Ok(look())
         }
     }

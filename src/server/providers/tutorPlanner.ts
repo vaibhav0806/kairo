@@ -175,7 +175,7 @@ function buildSystemPrompt(input: TutorTurnInput) {
     'For drag/move guidance, combine a highlight_box on the source, an arrow across the intended path, and a pointer or ghost_cursor near the destination when coordinates are clear.',
     'Do not wait to be explicitly asked to point — if there is a concrete on-screen element involved in your answer, point at it.',
     'Only omit visualTargets when the answer is purely conceptual with no on-screen element to indicate, or when you are genuinely unsure where the element is.',
-    'Use screenRegion pixel coordinates only for visible UI areas you are confident about, and keep each screenRegion as tight as possible around the target element.',
+    'Use screenRegion display-point coordinates only for visible UI areas you are confident about, and keep each screenRegion as tight as possible around the target element.',
     'Give exactly one short next step. Do not invent app state.',
     'Answer general user questions directly. Do not refuse just because the question is outside the selected skill pack.',
     'Use the selected skill pack only when it is relevant to the active app or user question. If the skill is general, answer from the screen and user request without mentioning any app-specific course.',
