@@ -33,7 +33,8 @@ fi
 # --- 1. quit any running instance (clean reinstall) --------------------------
 echo "▸ Quitting any running ${APP_NAME}…"
 osascript -e "quit app \"${APP_NAME}\"" 2>/dev/null || true
-pkill -x "${APP_NAME}" 2>/dev/null || true
+# Force-kill fallback uses the BINARY name (kairo-tutor), not the product name.
+pkill -x kairo-tutor 2>/dev/null || true
 sleep 1
 
 # --- 2. build + sign ---------------------------------------------------------
