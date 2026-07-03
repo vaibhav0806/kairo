@@ -1,4 +1,5 @@
 import type { VisualTarget } from '../core/types';
+import { klog } from '../core/logger';
 import type { NativeBridge, NativeOverlayDisplayBounds } from '../native/nativeBridge';
 
 // Target kinds the companion cursor flies to. The overlay suppresses duplicate
@@ -18,6 +19,19 @@ export async function routeVisualTargets(
   displayBounds: NativeOverlayDisplayBounds
 ): Promise<void> {
   const pointTarget = targets.find((target) => POINT_KINDS.has(target.kind)) ?? targets[0];
+  const targetSummary = targets
+    .map(
+      (target) =>
+        `${target.kind}:${target.label}[${target.screenRegion.x.toFixed(1)},${target.screenRegion.y.toFixed(1)},${target.screenRegion.width.toFixed(1)},${target.screenRegion.height.toFixed(1)}]`
+    )
+    .join(' | ');
+
+  klog('overlay', 'debug', 'route visual targets', {
+    target_count: targets.length,
+    point_target: pointTarget ? `${pointTarget.kind}:${pointTarget.label}` : 'none',
+    bounds: `${displayBounds.x.toFixed(1)},${displayBounds.y.toFixed(1)},${displayBounds.width.toFixed(1)},${displayBounds.height.toFixed(1)},${displayBounds.scaleFactor.toFixed(3)}`,
+    targets: targetSummary
+  });
 
   if (pointTarget) {
     await nativeBridge.cursorPoint({

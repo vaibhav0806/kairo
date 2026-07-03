@@ -2,7 +2,7 @@ import type { ScreenRegion } from '../core/types';
 import type { DisplayBounds } from '../overlay/coordinates';
 
 // All geometry here works in display-LOCAL points (CSS px inside the cursor
-// window), the same space the overlay uses: region ÷ scaleFactor − display origin.
+// window), the same space the overlay uses: region − display origin.
 
 export type LocalRect = {
   left: number;
@@ -35,12 +35,11 @@ export const SHADOW_OFFSET_X = -2;
 export const SHADOW_OFFSET_Y = 16;
 
 export function regionToLocalRect(region: ScreenRegion, displayBounds: DisplayBounds): LocalRect {
-  const scaleFactor = displayBounds.scaleFactor > 0 ? displayBounds.scaleFactor : 1;
   return {
-    left: region.x / scaleFactor - displayBounds.x,
-    top: region.y / scaleFactor - displayBounds.y,
-    width: region.width / scaleFactor,
-    height: region.height / scaleFactor
+    left: region.x - displayBounds.x,
+    top: region.y - displayBounds.y,
+    width: region.width,
+    height: region.height
   };
 }
 

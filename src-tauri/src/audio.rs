@@ -224,7 +224,13 @@ pub(crate) fn spawn_audio_capture(
                             current_rate = rate;
                             match stream.play() {
                                 Ok(()) => {
-                                    crate::klog!(ptt, info, ms = chord_down.elapsed().as_millis(), hz = current_rate, "recording started");
+                                    crate::klog!(
+                                        ptt,
+                                        info,
+                                        ms = chord_down.elapsed().as_millis(),
+                                        hz = current_rate,
+                                        "recording started"
+                                    );
                                     current = Some(stream);
                                     capturing_worker.store(true, Ordering::SeqCst);
                                 }
@@ -244,7 +250,13 @@ pub(crate) fn spawn_audio_capture(
                     current.take();
                     let captured: Vec<f32> =
                         samples.lock().map(|buf| buf.clone()).unwrap_or_default();
-                    crate::klog!(ptt, info, samples = captured.len(), hz = current_rate, "captured audio");
+                    crate::klog!(
+                        ptt,
+                        info,
+                        samples = captured.len(),
+                        hz = current_rate,
+                        "captured audio"
+                    );
                     if captured.is_empty() {
                         continue;
                     }

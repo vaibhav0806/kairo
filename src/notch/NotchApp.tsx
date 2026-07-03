@@ -48,6 +48,7 @@ const PREPARING_NEXT_STEP_TEXT = 'Preparing the next step';
 // "Let me look" fillers, pre-synthesized at launch so they play INSTANTLY when the
 // gate flags a screen question — no per-question TTS latency.
 const FILLER_LINES = ['Let me take a look.', 'Sure, one sec.', 'Okay, let me check.', 'Let me see.'];
+type QuerySource = 'typed' | 'voice';
 
 function NotchIcon({ children, size = 18 }: { children: ReactNode; size?: number }) {
   return (
@@ -553,7 +554,7 @@ export function NotchApp() {
   );
 
   const submitQuery = useCallback(
-    async (nextQuery: string) => {
+    async (nextQuery: string, source: QuerySource = 'typed') => {
       const trimmedQuery = nextQuery.trim();
       if (!trimmedQuery || isSubmittingRef.current) {
         return;
@@ -579,11 +580,14 @@ export function NotchApp() {
       await waitForNotchPaint();
 
       try {
-        // Phase 1: the gate (text-only) ALWAYS runs — its spoken response is the
-        // "let me look" filler. A pen drawing MANDATES the second (vision) call
-        // regardless of what the gate decided.
-        const gate = await runGate(trimmedQuery);
-        const needsScreen = annotations.length > 0 || gate.needsScreen;
+        // Phase 1 gate: keep it for voice, where direct answers can avoid a screen
+        // turn. Typed asks are already explicit text, so route them screen-first;
+        // the tutor/grounder then decides whether any visual target is useful.
+        const gate =
+          source === 'voice' && annotations.length === 0
+            ? await runGate(trimmedQuery)
+            : { needsScreen: true, voiceText: '' };
+        const needsScreen = source === 'typed' || annotations.length > 0 || gate.needsScreen;
 
         if (!needsScreen && gate.voiceText.trim().length > 0) {
           // Direct answer — no screenshot, no grounding, no vision cost.
@@ -891,7 +895,7 @@ export function NotchApp() {
         }
         setQuery(transcript);
         await capturePromise;
-        await submitQuery(transcript);
+        await submitQuery(transcript, 'voice');
       } catch (error) {
         const detail =
           error instanceof Error && error.message.trim()
@@ -1021,7 +1025,7 @@ export function NotchApp() {
             }
 
             setQuery(transcript);
-            await submitQuery(transcript);
+            await submitQuery(transcript, 'voice');
           } catch (error) {
             const detail =
               error instanceof Error && error.message.trim()
@@ -1301,7 +1305,7 @@ export function NotchApp() {
                 if (isSubmittingRef.current || query.trim().length === 0) {
                   return;
                 }
-                submitQuery(query).catch(() => {
+                submitQuery(query, 'typed').catch(() => {
                   isSubmittingRef.current = false;
                   setIsSubmitting(false);
                 });

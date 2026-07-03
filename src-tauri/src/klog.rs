@@ -54,7 +54,10 @@ const DEFAULT_DIRECTIVES: &str = "info,kairo=debug";
 /// subsystem starts. Never panics — on any failure it degrades (temp dir, then
 /// stderr-only) so logging can never crash the app.
 pub(crate) fn init() {
-    LOG_TRANSCRIPTS.store(crate::env::env_flag("KAIRO_LOG_TRANSCRIPTS"), Ordering::Relaxed);
+    LOG_TRANSCRIPTS.store(
+        crate::env::env_flag("KAIRO_LOG_TRANSCRIPTS"),
+        Ordering::Relaxed,
+    );
 
     // Directive string, RUST_LOG-style. Default `debug` for dev. Per-subsystem
     // overrides work for free, e.g. `KAIRO_LOG=info,vision=trace,mic=warn`.
@@ -171,7 +174,11 @@ pub(crate) struct Timer {
 }
 
 pub(crate) fn timer(sub: &'static str, op: &'static str) -> Timer {
-    Timer { sub, op, start: Instant::now() }
+    Timer {
+        sub,
+        op,
+        start: Instant::now(),
+    }
 }
 
 impl Drop for Timer {

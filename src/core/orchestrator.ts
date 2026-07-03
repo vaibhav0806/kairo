@@ -9,6 +9,7 @@ export type TutorScreenInput = {
   imageBase64?: string;
   byteLength?: number;
   displayBounds?: NativeScreenCapture['displayBounds'];
+  imageGeometry?: NativeScreenCapture['imageGeometry'];
 };
 
 export type TutorTurnInput = {
@@ -53,7 +54,8 @@ export function buildTutorTurnInput({
           imageMimeType: screenCapture.imageMimeType,
           imageBase64: screenCapture.imageBase64,
           byteLength: screenCapture.byteLength,
-          displayBounds: screenCapture.displayBounds
+          displayBounds: screenCapture.displayBounds,
+          imageGeometry: screenCapture.imageGeometry
         }
       : {
           captured: false,

@@ -24,12 +24,12 @@ mod platform;
 use platform::get_active_app;
 
 mod permissions;
+#[cfg(target_os = "macos")]
+use permissions::ensure_input_monitoring_access;
 use permissions::{
     get_permission_status, open_permission_settings, request_required_permissions,
     should_show_setup_window,
 };
-#[cfg(target_os = "macos")]
-use permissions::ensure_input_monitoring_access;
 
 mod capture;
 use capture::capture_screen;
@@ -184,6 +184,47 @@ struct AudioCapture {
     level: Arc<AtomicU32>,
 }
 
+fn region_summary(region: &ScreenRegion) -> String {
+    format!(
+        "[{:.1},{:.1},{:.1},{:.1}]",
+        region.x, region.y, region.width, region.height
+    )
+}
+
+fn overlay_bounds_summary(bounds: &OverlayDisplayBounds) -> String {
+    format!(
+        "x={:.1} y={:.1} w={:.1} h={:.1} scale={:.3}",
+        bounds.x, bounds.y, bounds.width, bounds.height, bounds.scale_factor
+    )
+}
+
+fn log_overlay_payload(subsystem: &'static str, payload: &OverlayPayload) {
+    let summary = payload
+        .targets
+        .iter()
+        .map(|target| {
+            format!(
+                "{}:{}:{}",
+                target.kind,
+                target.label,
+                region_summary(&target.screen_region)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" | ");
+    klog!(
+        overlay,
+        debug,
+        source = subsystem,
+        mode = payload.mode.as_deref().unwrap_or("none"),
+        target_count = payload.targets.len(),
+        annotation_count = payload.annotations.as_ref().map_or(0, Vec::len),
+        bounds = %overlay_bounds_summary(&payload.display_bounds),
+        targets = %summary,
+        "overlay payload"
+    );
+}
+
 #[tauri::command]
 fn show_overlay(
     app: tauri::AppHandle,
@@ -192,6 +233,7 @@ fn show_overlay(
 ) -> Result<(), String> {
     let panel = ensure_overlay_panel(&app)?;
     let window = overlay_window(&app)?;
+    log_overlay_payload("show_overlay", &payload);
     configure_overlay_window(&window, &payload)?;
     store_overlay_payload(&state, Some(payload.clone()))?;
     if payload.mode.as_deref() == Some("annotate") {
@@ -211,6 +253,7 @@ fn update_overlay(
     payload: OverlayPayload,
 ) -> Result<(), String> {
     let window = overlay_window(&app)?;
+    log_overlay_payload("update_overlay", &payload);
     configure_overlay_window(&window, &payload)?;
     store_overlay_payload(&state, Some(payload.clone()))?;
     emit_overlay_payload(&window, payload)
@@ -288,6 +331,14 @@ fn hide_overlay(_app: tauri::AppHandle, state: State<'_, OverlayState>) -> Resul
 #[tauri::command]
 fn cursor_point(app: tauri::AppHandle, payload: CursorPointPayload) -> Result<(), String> {
     let window = cursor_window(&app)?;
+    klog!(
+        cursor,
+        debug,
+        region = %region_summary(&payload.screen_region),
+        bounds = %overlay_bounds_summary(&payload.display_bounds),
+        color = payload.color.as_deref().unwrap_or("none"),
+        "cursor point"
+    );
     window
         .emit("cursor:point", payload)
         .map_err(|error| format!("Failed to send cursor point: {error}"))
@@ -750,12 +801,12 @@ mod tests {
         let pointer = &parsed["visualTargets"][0];
         assert_eq!(pointer["kind"], "pointer");
         assert_eq!(pointer["label"], "Address field");
-        assert_eq!(pointer["screenRegion"]["width"], 88.0);
-        assert_eq!(pointer["screenRegion"]["height"], 88.0);
-        // Raw detected center is (150, 175) logical px => (300, 350) physical px.
-        // The 88px cursor marker is centered there.
-        assert_eq!(pointer["screenRegion"]["x"], 256.0);
-        assert_eq!(pointer["screenRegion"]["y"], 306.0);
+        assert_eq!(pointer["screenRegion"]["width"], 44.0);
+        assert_eq!(pointer["screenRegion"]["height"], 44.0);
+        // Raw detected center is (150, 175) display points. The 44px cursor
+        // marker is centered there.
+        assert_eq!(pointer["screenRegion"]["x"], 128.0);
+        assert_eq!(pointer["screenRegion"]["y"], 153.0);
 
         let highlight = &parsed["visualTargets"][1];
         assert_eq!(highlight["kind"], "highlight_box");
@@ -804,23 +855,25 @@ mod tests {
             serde_json::from_str(&grounded).expect("grounded response should stay JSON");
         let region = &parsed["visualTargets"][0]["screenRegion"];
 
-        // Padding is 30% of each side, min 14 logical px (×2 scale = 28 physical).
-        // pad_x = max(0.30·240, 28) = 72; pad_y = max(0.30·32, 28) = 28.
-        assert_eq!(region["x"], 8.0);
-        assert_eq!(region["y"], 472.0);
-        assert_eq!(region["width"], 384.0);
-        assert_eq!(region["height"], 88.0);
+        // Padding is capped in display points so skinny controls do not balloon.
+        // pad_x = min(max(0.08·240, 6), 24) = 19.2
+        // pad_y = min(max(0.08·32, 6), 24) = 6
+        assert_eq!(region["x"], 60.8);
+        assert_eq!(region["y"], 494.0);
+        assert_eq!(region["width"], 278.4);
+        assert_eq!(region["height"], 44.0);
     }
 
     #[test]
     fn mock_speech_synthesis_returns_silent_audio_result() {
         std::env::set_var("KAIRO_TTS_PROVIDER", "mock");
 
-        let result =
-            tauri::async_runtime::block_on(crate::speech::synthesize_speech(SynthesizeSpeechInput {
+        let result = tauri::async_runtime::block_on(crate::speech::synthesize_speech(
+            SynthesizeSpeechInput {
                 text: "Hello from Kairo.".to_string(),
-            }))
-            .expect("mock synthesis should not fail");
+            },
+        ))
+        .expect("mock synthesis should not fail");
 
         assert_eq!(result.audio_base64, "");
         assert_eq!(result.mime_type, "audio/mpeg");
@@ -871,6 +924,7 @@ mod tests {
                     height: 600.0,
                     scale_factor: 2.0,
                 }),
+                image_geometry: None,
             },
             skill: TutorSkillPack {
                 slug: "blender".to_string(),

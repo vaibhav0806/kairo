@@ -52,6 +52,16 @@ pub(crate) struct ScreenCaptureResult {
     pub(crate) image_base64: Option<String>,
     pub(crate) byte_length: Option<usize>,
     pub(crate) display_bounds: Option<DisplayBounds>,
+    pub(crate) image_geometry: Option<CaptureImageGeometry>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CaptureImageGeometry {
+    pub(crate) raw_width: u32,
+    pub(crate) raw_height: u32,
+    pub(crate) encoded_width: u32,
+    pub(crate) encoded_height: u32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -165,6 +175,7 @@ pub(crate) struct TutorScreenInput {
     pub(crate) image_base64: Option<String>,
     pub(crate) byte_length: Option<usize>,
     pub(crate) display_bounds: Option<OverlayDisplayBounds>,
+    pub(crate) image_geometry: Option<CaptureImageGeometry>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -223,8 +234,8 @@ pub(crate) struct SpeechSynthesisResult {
 pub(crate) struct OcrElement {
     pub(crate) id: u32,
     pub(crate) text: String,
-    // Physical-pixel region, matching the displayBounds.scaleFactor convention the
-    // overlay uses (it divides by scaleFactor to get logical points).
+    // Display-point region. Final UI targets, overlay windows, and cursor windows
+    // all use the same logical coordinate space.
     pub(crate) region: ScreenRegion,
     pub(crate) center_x_pct: f64,
     pub(crate) center_y_pct: f64,
