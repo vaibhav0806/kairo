@@ -686,7 +686,7 @@ mod tests {
         assert!(system_prompt.contains("Only name a specific app, tool, or course"));
         assert!(system_prompt.contains("mention internal IDs like screen-annotation-1"));
         assert!(system_prompt.contains("arrowheads"));
-        assert!(system_prompt.contains("answer what screen content it highlights"));
+        assert!(system_prompt.contains("acknowledge it in your answer"));
         assert!(!system_prompt.contains("Skill: Blender"));
     }
 

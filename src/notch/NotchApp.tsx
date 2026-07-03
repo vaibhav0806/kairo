@@ -449,35 +449,34 @@ export function NotchApp() {
   const speakFiller = useCallback(
     async (text: string) => {
       fillerCancelRef.current = false;
-      // Instant path: play a pre-synthesized filler — no TTS wait, so "let me look"
-      // starts the moment the gate returns.
+      const trimmed = text.trim();
+      // Preferred: speak the gate's OWN contextual filler (it references the
+      // question, e.g. "let me look at that button"). Synthesized on the spot — the
+      // ~1s cost is accepted for the context it adds.
+      if (trimmed) {
+        try {
+          const result = await nativeBridge.synthesizeSpeech({ text: trimmed });
+          if (fillerCancelRef.current) {
+            return;
+          }
+          const audioUrl = buildAudioDataUrl(result);
+          if (audioUrl) {
+            const audio = new Audio(audioUrl);
+            answerAudioRef.current = audio;
+            await audio.play();
+            return;
+          }
+        } catch {
+          // fall through to the generic cached fallback
+        }
+      }
+      // Fallback: a generic pre-synthesized line (gate returned no text / synth failed).
       const cached = fillerAudioUrlsRef.current;
-      if (cached.length > 0) {
+      if (cached.length > 0 && !fillerCancelRef.current) {
         const url = cached[Math.floor(Math.random() * cached.length)];
         const audio = new Audio(url);
         answerAudioRef.current = audio;
         void audio.play().catch(() => {});
-        return;
-      }
-      // Fallback (cache not warmed yet): synthesize the gate's filler text.
-      const trimmed = text.trim();
-      if (!trimmed) {
-        return;
-      }
-      try {
-        const result = await nativeBridge.synthesizeSpeech({ text: trimmed });
-        if (fillerCancelRef.current) {
-          return;
-        }
-        const audioUrl = buildAudioDataUrl(result);
-        if (!audioUrl) {
-          return;
-        }
-        const audio = new Audio(audioUrl);
-        answerAudioRef.current = audio;
-        await audio.play();
-      } catch {
-        // Filler is best-effort.
       }
     },
     [nativeBridge]
@@ -1013,24 +1012,13 @@ export function NotchApp() {
     };
   }, []);
 
-  // Warm the mic device once on mount (acquire + immediately release) so the first
-  // WebView capture isn't cold. Push-to-talk uses NATIVE capture, so this no longer
-  // needs to stay open — the mic (and its indicator) is only active during a capture.
-  useEffect(() => {
-    if (!globalThis.navigator?.mediaDevices?.getUserMedia) {
-      return;
-    }
-    void (async () => {
-      try {
-        const stream = await acquireMicrophoneStream();
-        stream.getTracks().forEach((track) => track.stop());
-      } catch {
-        // Permission denied / unavailable — real capture will surface errors.
-      }
-    })();
-  }, []);
+  // NOTE: no WebView mic warm-up. Push-to-talk uses NATIVE cpal capture (build the
+  // stream on ⌥⌃-down, drop it on release), so the mic is active ONLY while
+  // recording. A WebView getUserMedia warm-up here kept the macOS mic indicator lit
+  // for the whole session (WebKit doesn't drop it after track.stop()), so it's gone.
 
-  // Pre-synthesize the "let me look" fillers once at launch so they play instantly
+  // Pre-synthesize the fallback fillers once at launch (used only if the gate's own
+  // contextual filler can't be synthesized).
   // when the gate flags a screen question (no per-question TTS latency).
   useEffect(() => {
     let cancelled = false;
