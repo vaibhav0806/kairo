@@ -148,8 +148,17 @@ export function NotchApp() {
   // Set true when the real answer supersedes the gate's "let me look" filler, so a
   // slow filler synth doesn't play over the answer.
   const fillerCancelRef = useRef(false);
-  // Pre-synthesized filler audio (data URLs), so "let me look" plays instantly.
+  // Pre-synthesized filler audio (data URLs), used only as a fallback line.
   const fillerAudioUrlsRef = useRef<string[]>([]);
+  // The currently-playing filler clip, kept separate from the answer so the answer
+  // can QUEUE behind it (wait for it to finish) instead of cutting it off.
+  const fillerAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Resolves when the current filler finishes (or is cancelled); the answer awaits it.
+  const fillerDoneRef = useRef<Promise<void> | null>(null);
+  const fillerResolveRef = useRef<(() => void) | null>(null);
+  // Bumped on every stopAnswerPlayback so a queued answer can detect it was
+  // superseded by a newer turn while waiting for the filler, and not play stale.
+  const playbackEpochRef = useRef(0);
   // The teaching visuals for the current answer, revealed on TTS start (not when
   // the LLM answer arrives), plus the app they point at for the context watcher.
   const revealVisualsRef = useRef<() => Promise<void>>(async () => {});
@@ -229,6 +238,21 @@ export function NotchApp() {
     setIsSpeaking(false);
     // Any new playback supersedes a pending gate filler.
     fillerCancelRef.current = true;
+    // Supersede anything queued behind the filler (see playAnswerAudio).
+    playbackEpochRef.current += 1;
+    // Stop the filler clip + unblock any answer waiting on it.
+    if (fillerAudioRef.current) {
+      try {
+        fillerAudioRef.current.pause();
+      } catch {
+        // ignore
+      }
+      fillerAudioRef.current = null;
+    }
+    if (fillerResolveRef.current) {
+      fillerResolveRef.current();
+      fillerResolveRef.current = null;
+    }
     if (settleFallbackRef.current) {
       clearTimeout(settleFallbackRef.current);
       settleFallbackRef.current = null;
@@ -359,52 +383,78 @@ export function NotchApp() {
     // visuals then); `onSettled` fires when playback ends, or immediately when
     // there is nothing to play, so the notch auto-close countdown can begin.
     async (text: string, onSpeechStart?: () => void, onSettled?: () => void) => {
-      stopAnswerPlayback();
       const trimmedText = text.trim();
       if (!trimmedText) {
+        stopAnswerPlayback();
         // Nothing to speak: reveal immediately so the answer isn't left hidden.
         onSpeechStart?.();
         onSettled?.();
         return;
       }
 
+      // Synthesize the answer NOW, while the "let me look" filler is still playing,
+      // so there's no silent gap once the filler ends.
+      let audioUrl: string | null = null;
       try {
         const result = await nativeBridge.synthesizeSpeech({ text: trimmedText });
-        const audioUrl = buildAudioDataUrl(result);
-        if (!audioUrl) {
-          onSpeechStart?.();
-          onSettled?.();
-          return;
-        }
+        audioUrl = buildAudioDataUrl(result);
+      } catch {
+        audioUrl = null;
+      }
 
-        const audio = new Audio(audioUrl);
-        answerAudioRef.current = audio;
-        // Reveal the answer text + teaching visuals the instant speech begins.
-        audio.onplay = () => {
-          setIsSpeaking(true);
-          onSpeechStart?.();
-          // Cursor shows a calm speaking pulse (survives the fly-to-target).
-          void emit('cursor:speaking', {});
-          // Backstop: guarantee the answer settles (so auto-close can run) even if
-          // 'ended' never fires. Cleared by 'ended' or a new turn (stopAnswerPlayback).
-          if (settleFallbackRef.current) {
-            clearTimeout(settleFallbackRef.current);
-          }
-          settleFallbackRef.current = setTimeout(() => onSettled?.(), 60000);
-        };
-        audio.onended = () => {
-          setIsSpeaking(false);
-          void emit('cursor:idle', {});
-          if (settleFallbackRef.current) {
-            clearTimeout(settleFallbackRef.current);
-            settleFallbackRef.current = null;
-          }
-          onSettled?.();
-        };
+      // QUEUE behind the filler: wait for it to finish rather than cutting it off.
+      // Guarded by a timeout so a stuck filler can't wedge the answer forever.
+      const epoch = playbackEpochRef.current;
+      const pendingFiller = fillerDoneRef.current;
+      fillerDoneRef.current = null;
+      if (pendingFiller) {
+        await Promise.race([
+          pendingFiller,
+          new Promise<void>((resolve) => setTimeout(resolve, 12000))
+        ]);
+      }
+      // A newer turn superseded this one while we waited → don't play a stale answer.
+      if (playbackEpochRef.current !== epoch) {
+        return;
+      }
+
+      stopAnswerPlayback();
+
+      if (!audioUrl) {
+        // Synthesis failed; reveal the text anyway so a silent answer isn't invisible.
+        onSpeechStart?.();
+        onSettled?.();
+        return;
+      }
+
+      const audio = new Audio(audioUrl);
+      answerAudioRef.current = audio;
+      // Reveal the answer text + teaching visuals the instant speech begins.
+      audio.onplay = () => {
+        setIsSpeaking(true);
+        onSpeechStart?.();
+        // Cursor shows a calm speaking pulse (survives the fly-to-target).
+        void emit('cursor:speaking', {});
+        // Backstop: guarantee the answer settles (so auto-close can run) even if
+        // 'ended' never fires. Cleared by 'ended' or a new turn (stopAnswerPlayback).
+        if (settleFallbackRef.current) {
+          clearTimeout(settleFallbackRef.current);
+        }
+        settleFallbackRef.current = setTimeout(() => onSettled?.(), 60000);
+      };
+      audio.onended = () => {
+        setIsSpeaking(false);
+        void emit('cursor:idle', {});
+        if (settleFallbackRef.current) {
+          clearTimeout(settleFallbackRef.current);
+          settleFallbackRef.current = null;
+        }
+        onSettled?.();
+      };
+      try {
         await audio.play();
       } catch {
-        // Speech playback is best-effort; reveal the text anyway so a silent
-        // answer is never left invisible.
+        // Playback is best-effort; reveal + settle so nothing is left hidden.
         onSpeechStart?.();
         onSettled?.();
       }
@@ -449,20 +499,37 @@ export function NotchApp() {
   const speakFiller = useCallback(
     async (text: string) => {
       fillerCancelRef.current = false;
+      // Set up the "filler finished" signal the answer will queue behind.
+      let resolveDone: () => void = () => {};
+      fillerDoneRef.current = new Promise<void>((resolve) => {
+        resolveDone = resolve;
+      });
+      fillerResolveRef.current = resolveDone;
+      const finishFiller = () => {
+        fillerAudioRef.current = null;
+        fillerResolveRef.current?.();
+        fillerResolveRef.current = null;
+      };
+      const startClip = (audio: HTMLAudioElement) => {
+        fillerAudioRef.current = audio;
+        audio.onended = finishFiller;
+        audio.onerror = finishFiller;
+      };
+
       const trimmed = text.trim();
-      // Preferred: speak the gate's OWN contextual filler (it references the
-      // question, e.g. "let me look at that button"). Synthesized on the spot — the
-      // ~1s cost is accepted for the context it adds.
+      // Preferred: speak the gate's OWN contextual filler (references the question,
+      // e.g. "let me look at that button"). Synthesized on the spot.
       if (trimmed) {
         try {
           const result = await nativeBridge.synthesizeSpeech({ text: trimmed });
           if (fillerCancelRef.current) {
+            finishFiller();
             return;
           }
           const audioUrl = buildAudioDataUrl(result);
           if (audioUrl) {
             const audio = new Audio(audioUrl);
-            answerAudioRef.current = audio;
+            startClip(audio);
             await audio.play();
             return;
           }
@@ -475,9 +542,12 @@ export function NotchApp() {
       if (cached.length > 0 && !fillerCancelRef.current) {
         const url = cached[Math.floor(Math.random() * cached.length)];
         const audio = new Audio(url);
-        answerAudioRef.current = audio;
-        void audio.play().catch(() => {});
+        startClip(audio);
+        void audio.play().catch(finishFiller);
+        return;
       }
+      // Nothing played → unblock the answer immediately.
+      finishFiller();
     },
     [nativeBridge]
   );

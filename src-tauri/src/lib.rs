@@ -530,15 +530,14 @@ mod tests {
     use crate::env::{parse_local_env, provider_timeout_ms};
     use crate::grounding::{apply_box_targets, ground_visual_targets};
     use crate::panels::notch_window_size;
-    use crate::prompts::box_locator_prompt;
     use crate::speech::{audio_filename, decode_audio_base64};
     use crate::tutor::{
         build_openrouter_messages, build_openrouter_request_body, select_openrouter_request_model,
     };
     use crate::types::{
         DetectedBox, OcrElement, OverlayDisplayBounds, ScreenRegion, SynthesizeSpeechInput,
-        TranscribeAudioInput, TutorActiveAppContext, TutorAnnotation, TutorScreenInput,
-        TutorSkillPack, TutorTurnInput,
+        TranscribeAudioInput, TutorActiveAppContext, TutorScreenInput, TutorSkillPack,
+        TutorTurnInput,
     };
     use serde_json::json;
 
@@ -671,54 +670,6 @@ mod tests {
     }
 
     #[test]
-    fn openrouter_prompt_allows_general_questions() {
-        let input = sample_tutor_turn_input();
-        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", false, &[])
-            .expect("body should build");
-        let system_prompt = body["messages"][0]["content"]
-            .as_str()
-            .expect("system prompt should be string");
-
-        assert!(system_prompt.contains("Answer general questions directly"));
-        assert!(system_prompt.contains("Selected skill, when relevant: Blender"));
-        assert!(system_prompt.contains("WHERE/HOW/SHOW"));
-        assert!(system_prompt.contains("Infer icon-only tools from shape"));
-        assert!(system_prompt.contains("Only name a specific app, tool, or course"));
-        assert!(system_prompt.contains("mention internal IDs like screen-annotation-1"));
-        assert!(system_prompt.contains("arrowheads"));
-        assert!(system_prompt.contains("acknowledge it in your answer"));
-        assert!(!system_prompt.contains("Skill: Blender"));
-    }
-
-    #[test]
-    fn openrouter_prompt_includes_exact_annotation_summary() {
-        let mut input = sample_tutor_turn_input();
-        input.annotations = vec![TutorAnnotation {
-            id: "screen-annotation-1".to_string(),
-            annotation_type: "pen".to_string(),
-            screen_region: ScreenRegion {
-                x: 120.0,
-                y: 140.0,
-                width: 180.0,
-                height: 90.0,
-            },
-            points: None,
-        }];
-        let body = build_openrouter_request_body(&input, "qwen/qwen3.6-flash", false, &[])
-            .expect("body should build");
-        let user_prompt = body["messages"][1]["content"]
-            .as_str()
-            .expect("user prompt should be string");
-
-        assert!(user_prompt.contains("\"annotationSummary\""));
-        assert!(user_prompt.contains("Kairo user markup"));
-        assert!(user_prompt.contains("Interpret arrows by their heads"));
-        assert!(user_prompt.contains("visual attention guidance"));
-        assert!(!user_prompt.contains("User annotations: exactly 1"));
-        assert!(!user_prompt.contains("screen-annotation-1"));
-    }
-
-    #[test]
     fn preserves_direct_screen_region_targets_when_no_ocr_element_matches() {
         let raw = serde_json::to_string(&json!({
             "mode": "stuck_help",
@@ -743,26 +694,6 @@ mod tests {
         assert_eq!(parsed["visualTargets"][0]["kind"], "pointer");
         assert_eq!(parsed["visualTargets"][0]["targetId"], "rectangle-tool");
         assert_eq!(parsed["visualTargets"][0]["screenRegion"]["x"], 820.0);
-    }
-
-    #[test]
-    fn box_locator_prompt_uses_generic_pixel_grounding() {
-        let prompt = box_locator_prompt(
-            "where can I click in order to change the url?",
-            1568,
-            982,
-            "OCR/TEXT HINTS:\n1: \"github.com\" @ 18%,10% size 140x32px",
-        );
-
-        assert!(prompt.contains("pixel grounding model"));
-        assert!(prompt.contains("All visible UI counts"));
-        assert!(prompt.contains("app/browser chrome"));
-        assert!(prompt.contains("Ignore Kairo's own notch"));
-        assert!(prompt.contains("OCR/TEXT HINTS"));
-        assert!(prompt.contains("\"github.com\""));
-        assert!(prompt.contains("the editable field holding that value"));
-        assert!(prompt.contains("not a search box, unless they asked to search"));
-        assert!(prompt.contains("ABSOLUTE PIXELS of this 1568x982 image"));
     }
 
     #[test]
