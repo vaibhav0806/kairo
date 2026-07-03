@@ -83,34 +83,39 @@ async fn anthropic_vision_text(
 
 /// Anthropic Messages call with a system prompt, one user text block, and one
 /// image. Returns the assistant's text (JSON expected via the prompt — Anthropic
-/// has no json_object mode, so callers parse defensively with `json_body`).
+/// has no json_object mode, so callers parse defensively with `clean_model_json`).
+/// Fails loud: logs + times the round-trip and returns `None` on any non-2xx or
+/// empty body so the caller can degrade gracefully.
 pub(crate) async fn anthropic_vision_chat(
     system: &str,
     user_text: &str,
-    image_jpeg_base64: &str,
+    image_base64: &str,
+    media_type: &str,
     model: &str,
     timeout: Duration,
 ) -> Option<String> {
     let api_key = provider_env_optional("ANTHROPIC_API_KEY")?;
     if api_key.trim().is_empty() {
+        crate::klog!(grounding, warn, "opus vision chat: ANTHROPIC_API_KEY empty");
         return None;
     }
     let base_url = provider_env("ANTHROPIC_BASE_URL", "https://api.anthropic.com");
     let body = json!({
         "model": model,
-        "max_tokens": 900,
+        "max_tokens": 1200,
         "system": system,
         "messages": [{
             "role": "user",
             "content": [
                 { "type": "text", "text": user_text },
                 { "type": "image", "source": {
-                    "type": "base64", "media_type": "image/jpeg", "data": image_jpeg_base64
+                    "type": "base64", "media_type": media_type, "data": image_base64
                 }}
             ]
         }]
     });
-    let response = shared_http_client()
+    let _t = crate::klog::timer("grounding", "opus_vision_chat");
+    let response = match shared_http_client()
         .post(format!("{}/v1/messages", base_url.trim_end_matches('/')))
         .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
@@ -118,15 +123,41 @@ pub(crate) async fn anthropic_vision_chat(
         .json(&body)
         .send()
         .await
-        .ok()?;
+    {
+        Ok(response) => response,
+        Err(error) => {
+            crate::klog!(grounding, warn, model = %model, "opus vision chat request failed: {error}");
+            return None;
+        }
+    };
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        crate::klog!(grounding, warn, status = %status, model = %model, "opus vision chat failed: {}", body.chars().take(220).collect::<String>());
+        return None;
+    }
     let payload = response.json::<Value>().await.ok()?;
-    payload
+    if payload.get("stop_reason").and_then(Value::as_str) == Some("max_tokens") {
+        crate::klog!(grounding, warn, model = %model, "opus vision response truncated at max_tokens");
+    }
+    // Concatenate every text block (Anthropic can split output across blocks).
+    let text = payload
         .get("content")
         .and_then(Value::as_array)
-        .and_then(|blocks| blocks.first())
-        .and_then(|block| block.get("text"))
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
+        .map(|blocks| {
+            blocks
+                .iter()
+                .filter(|b| b.get("type").and_then(Value::as_str) == Some("text"))
+                .filter_map(|b| b.get("text").and_then(Value::as_str))
+                .collect::<String>()
+        })
+        .unwrap_or_default();
+    if text.trim().is_empty() {
+        crate::klog!(grounding, warn, model = %model, "opus vision chat returned no text");
+        return None;
+    }
+    crate::klog!(grounding, info, model = %model, chars = text.len(), "opus vision chat ok");
+    Some(text)
 }
 
 // Any OpenAI-compatible chat/completions vision endpoint (OpenRouter, Alibaba
@@ -417,6 +448,57 @@ fn json_body(content: &str) -> &str {
     let inner = trimmed.trim_start_matches('`');
     let inner = inner.strip_prefix("json").unwrap_or(inner);
     inner.trim_matches(|c: char| c == '`' || c.is_whitespace())
+}
+
+// Return the first balanced JSON object substring (from the first `{` to its
+// matching `}`), ignoring braces inside strings. Anthropic has no json_object
+// mode, so Opus can prepend prose ("Here's the guidance:\n{...}") or add trailing
+// text; this recovers the object so serde parses and the frontend never receives
+// non-JSON. Returns the input unchanged when no balanced object is found (callers
+// still attempt to parse). Brace/quote/backslash are all ASCII, so byte scanning
+// is safe on UTF-8 (multibyte continuation bytes are >= 0x80 and never collide).
+fn extract_json_object(content: &str) -> &str {
+    let bytes = content.as_bytes();
+    let Some(start) = content.find('{') else {
+        return content;
+    };
+    let mut depth: i32 = 0;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut i = start;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if c == b'\\' {
+                escaped = true;
+            } else if c == b'"' {
+                in_string = false;
+            }
+        } else {
+            match c {
+                b'"' => in_string = true,
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return &content[start..=i];
+                    }
+                }
+                _ => {}
+            }
+        }
+        i += 1;
+    }
+    content
+}
+
+// Strip a code fence then extract the first balanced JSON object, so callers hand
+// a clean object to serde/the frontend even when the model wraps its JSON in prose
+// or trailing text. Idempotent on already-clean JSON.
+pub(crate) fn clean_model_json(content: &str) -> String {
+    extract_json_object(json_body(content)).to_string()
 }
 
 fn display_point_bounds(bounds: &OverlayDisplayBounds) -> (f64, f64, f64, f64) {
@@ -777,7 +859,7 @@ pub(crate) fn ground_visual_targets(
 // target carrying a valid normalized box. Kept separate from image sampling so it
 // is unit-testable without a screenshot.
 pub(crate) fn boxes_from_content_norm(content: &str) -> Vec<(String, [f64; 4])> {
-    let Ok(parsed) = serde_json::from_str::<Value>(json_body(content)) else {
+    let Ok(parsed) = serde_json::from_str::<Value>(extract_json_object(json_body(content))) else {
         return Vec::new();
     };
     let Some(targets) = parsed.get("visualTargets").and_then(Value::as_array) else {
@@ -873,5 +955,44 @@ mod content_box_tests {
     fn ignores_out_of_range_or_inverted_boxes() {
         let content = r#"{ "visualTargets": [ { "label": "x", "box": [0.9, 0.2, 0.1, 0.4] } ] }"#;
         assert!(boxes_from_content_norm(content).is_empty());
+    }
+
+    #[test]
+    fn extracts_box_despite_prose_preamble_and_trailing_text() {
+        // Opus (no json_object mode) may wrap the object in prose on both sides.
+        let content = "Sure! Here's the guidance:\n{ \"visualTargets\": [ { \"label\": \"New\", \"box\": [0.1, 0.2, 0.3, 0.4] } ] }\nHope that helps!";
+        let boxes = boxes_from_content_norm(content);
+        assert_eq!(boxes.len(), 1);
+        assert_eq!(boxes[0].0, "New");
+        assert_eq!(boxes[0].1, [0.1, 0.2, 0.3, 0.4]);
+    }
+}
+
+#[cfg(test)]
+mod json_extract_tests {
+    use super::extract_json_object;
+
+    #[test]
+    fn strips_prose_preamble() {
+        assert_eq!(
+            extract_json_object("Here's the guidance:\n{\"voiceText\":\"hi\"}"),
+            "{\"voiceText\":\"hi\"}"
+        );
+    }
+
+    #[test]
+    fn strips_trailing_text() {
+        assert_eq!(extract_json_object("{\"a\":1}\nThanks!"), "{\"a\":1}");
+    }
+
+    #[test]
+    fn ignores_braces_and_quotes_inside_strings() {
+        let s = "{\"t\":\"a } b { c \\\" d\"}";
+        assert_eq!(extract_json_object(s), s);
+    }
+
+    #[test]
+    fn returns_input_when_no_object_present() {
+        assert_eq!(extract_json_object("no json here"), "no json here");
     }
 }
