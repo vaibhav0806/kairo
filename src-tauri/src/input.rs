@@ -9,6 +9,25 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
+// Below this hold time, a ⌥⌃ press is a "tap" (→ open typing); at/above it, a
+// "hold" (→ push-to-talk). The 250ms build of the cpal stream overlaps this
+// window, so a confirmed hold already has a live mic.
+pub(crate) const PTT_TAP_MAX_MS: u64 = 250;
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum PttOutcome {
+    Tap,
+    Hold,
+}
+
+pub(crate) fn classify_press(held: Duration, tap_max_ms: u64) -> PttOutcome {
+    if held < Duration::from_millis(tap_max_ms) {
+        PttOutcome::Tap
+    } else {
+        PttOutcome::Hold
+    }
+}
+
 const KAIRO_BUNDLE_ID: &str = "com.kairo.tutor";
 // Ignore activity for the first moment after arming so the reveal itself (or the
 // click/key that triggered the ask) never counts as "the user moved on".
@@ -199,4 +218,26 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
             CFRunLoop::run_current();
         }
     });
+}
+
+#[cfg(test)]
+mod classify_press {
+    use super::{classify_press, PttOutcome, PTT_TAP_MAX_MS};
+    use std::time::Duration;
+
+    #[test]
+    fn quick_press_is_a_tap() {
+        assert_eq!(classify_press(Duration::from_millis(120), PTT_TAP_MAX_MS), PttOutcome::Tap);
+    }
+
+    #[test]
+    fn just_under_threshold_is_a_tap() {
+        assert_eq!(classify_press(Duration::from_millis(249), 250), PttOutcome::Tap);
+    }
+
+    #[test]
+    fn at_or_over_threshold_is_a_hold() {
+        assert_eq!(classify_press(Duration::from_millis(250), 250), PttOutcome::Hold);
+        assert_eq!(classify_press(Duration::from_millis(900), 250), PttOutcome::Hold);
+    }
 }
