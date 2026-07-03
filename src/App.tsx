@@ -382,24 +382,6 @@ export function App() {
     setPermissions(await nativeBridge.getPermissionStatus());
   }, [nativeBridge]);
 
-  const handleActivationShortcut = useCallback(() => {
-    setIsOverlayActive(false);
-    void nativeBridge.hideOverlay();
-    // Show the ready state immediately so voice can start. The screenshot is
-    // captured by the notch at voice-start (no double-capture here); only refresh
-    // active-app + permission context in the background.
-    showActivationState(reduceActivationState('listening', { type: 'capture_complete' }));
-
-    void Promise.all([nativeBridge.getActiveApp(), nativeBridge.getPermissionStatus()])
-      .then(([nextActiveApp, nextPermissions]) => {
-        setActiveApp(nextActiveApp);
-        setPermissions(nextPermissions);
-      })
-      .catch(() => {
-        // Background refresh is best-effort.
-      });
-  }, [nativeBridge, showActivationState]);
-
   async function captureNativeScreen() {
     setScreenCapture(await nativeBridge.captureScreen());
   }
@@ -421,42 +403,8 @@ export function App() {
   }
 
   useEffect(() => {
-    let isMounted = true;
-    let unlisten: (() => void) | undefined;
-
     void refreshNativeContext();
-
-    void listen('activation:shortcut', () => {
-      void handleActivationShortcut();
-    })
-      .then((nextUnlisten) => {
-        unlisten = nextUnlisten;
-        if (isMounted) {
-          setActivationShortcut({
-            registered: true,
-            shortcut: 'CommandOrControl+Shift+Space',
-            reason: 'Registered by native app shell.'
-          });
-        }
-      })
-      .catch((error) => {
-        if (isMounted) {
-          setActivationShortcut({
-            registered: false,
-            shortcut: 'CommandOrControl+Shift+Space',
-            reason:
-              error instanceof Error
-                ? error.message
-                : 'Native activation listener is unavailable in this environment.'
-          });
-        }
-      });
-
-    return () => {
-      isMounted = false;
-      unlisten?.();
-    };
-  }, [handleActivationShortcut, refreshNativeContext]);
+  }, [refreshNativeContext]);
 
   useEffect(() => {
     let isMounted = true;

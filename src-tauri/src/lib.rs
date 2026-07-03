@@ -55,13 +55,12 @@ mod panels;
 use panels::{
     configure_overlay_window, cursor_window, emit_overlay_payload, ensure_cursor_panel,
     ensure_notch_panel, ensure_overlay_panel, overlay_window, show_notch_with_payload,
-    spawn_mouse_tracker, store_notch_payload, store_overlay_payload, typing_notch_payload,
+    spawn_mouse_tracker, store_notch_payload, store_overlay_payload,
 };
 
 mod input;
 use input::{spawn_context_input_tap, spawn_context_poll, spawn_ptt_tap};
 
-const KAIRO_ACTIVATION_SHORTCUT: &str = "CommandOrControl+Shift+Space";
 // Toggle the pen directly without opening the notch first. Avoids ⌥⌃ (the
 // push-to-talk chord) so holding it never starts a recording.
 const KAIRO_PEN_SHORTCUT: &str = "Alt+Shift+P";
@@ -453,32 +452,18 @@ pub fn run() {
     let pen_shortcut: Shortcut = KAIRO_PEN_SHORTCUT
         .parse()
         .expect("failed to parse Kairo pen shortcut");
-    let activation_shortcut: Shortcut = KAIRO_ACTIVATION_SHORTCUT
-        .parse()
-        .expect("failed to parse Kairo activation shortcut");
     let global_shortcut_plugin = tauri_plugin_global_shortcut::Builder::new()
-        .with_shortcuts([activation_shortcut, pen_shortcut.clone()])
+        .with_shortcuts([pen_shortcut.clone()])
         .expect("failed to register Kairo shortcuts")
         .with_handler(move |app, shortcut, event| {
             if event.state != ShortcutState::Pressed {
                 return;
             }
-
-            // ⌥⇧P toggles the pen directly (no notch trip).
+            // ⌥⇧P toggles the pen. (Voice + typing now both live on ⌥⌃: hold to
+            // talk, tap to type — handled by the PTT event tap, not this plugin.)
             if shortcut == &pen_shortcut {
                 let _ = app.emit("pen:toggle", ());
-                return;
             }
-
-            // ⌘⇧Space opens the notch for typing (voice is push-to-talk via ⌥⌃).
-            let notch_state = app.state::<NotchState>();
-            if let Err(error) =
-                show_notch_with_payload(app, notch_state.inner(), Some(typing_notch_payload()))
-            {
-                klog!(activation, error, "shortcut failed to show notch: {error}");
-            }
-
-            let _ = app.emit("activation:shortcut", ());
         })
         .build();
 
