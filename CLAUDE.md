@@ -99,10 +99,29 @@ notch/typing = ⌘⇧Space.
 
 ## Providers & env
 
-Provider selection is runtime env (`KAIRO_AI_PROVIDER`, `KAIRO_STT_PROVIDER`,
-`KAIRO_TTS_PROVIDER`, `KAIRO_GROUNDING_PROVIDER`) with per-provider keys/models in
-`.env` (see `.env.example`). Grounding is swappable: `anthropic` (Opus, default),
-`openrouter` (Qwen, cheaper), or `qwen` (direct DashScope). No Sonnet for grounding.
+Provider selection defaults live in `src-tauri/src/constants.rs` (`AI_PROVIDER`,
+`STT_PROVIDER`, `TTS_PROVIDER`, `GROUNDING_PROVIDER`); the same-named env vars still
+override at runtime but you never need to set them. Grounding is swappable:
+`anthropic` (Opus, default), `openrouter` (Qwen, cheaper), or `qwen` (direct
+DashScope). No Sonnet for grounding.
+
+## Configuration
+
+Non-secret config is centralized — **`.env` holds ONLY API keys.**
+
+- **Native** config lives in `src-tauri/src/constants.rs` (committed, shared):
+  providers, models, base URLs, timeouts, tuning, toggles, logging flags. Edit that
+  file, not env. To change a model or timeout, edit `constants.rs` and rebuild.
+- **Frontend** config lives in the zod defaults in `src/config/env.ts`. Keep the two
+  in sync for values used by both (provider selection, model names).
+- **`.env`** (per-person, git-ignored) holds ONLY the API keys: `OPENROUTER_API_KEY`,
+  `ANTHROPIC_API_KEY`, `SARVAM_API_KEY`, `ELEVENLABS_API_KEY`, `DASHSCOPE_API_KEY`
+  (see `.env.example`). A fresh clone runs with just these five keys — no other env
+  vars needed.
+- The model/URL/provider constants stay env-overridable at runtime (default = the
+  constant); timeouts, toggles, and logging flags are read directly from the constant.
+- Transcript + answer logging is **always on** (`constants::LOG_TRANSCRIPTS = true`) —
+  no env var. Set it to `false` in `constants.rs` to log lengths only.
 
 ## Logging is MANDATORY
 
