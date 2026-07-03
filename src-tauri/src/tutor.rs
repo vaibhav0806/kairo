@@ -4,8 +4,8 @@
 
 use crate::env::{provider_env, provider_env_optional, provider_timeout_ms};
 use crate::grounding::{
-    anthropic_vision_chat, apply_box_targets, boxes_from_content, detect_element_boxes,
-    ground_visual_targets,
+    anthropic_vision_chat, apply_box_targets, boxes_from_content, clean_model_json,
+    detect_element_boxes, ground_visual_targets,
 };
 use crate::ocr::{build_screen_elements_block, ocr_tutor_screenshot};
 use crate::prompts::{build_tutor_system_prompt, gate_system_prompt};
@@ -224,42 +224,62 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
     let has_vision = input.screen.captured && input.screen.image_base64.is_some();
 
     // DEFAULT: one Opus vision call returns the answer AND the primary target box.
+    // On ANY Opus failure (no key, non-2xx, empty, missing bounds) we fall THROUGH
+    // to the legacy OpenRouter answer path below — a transient hiccup must never
+    // zero out the spoken answer; the user still gets an answer, grounded via OCR.
     if has_vision && !separate_grounding {
-        let (Some(image_base64), Some(bounds)) =
-            (&input.screen.image_base64, &input.screen.display_bounds)
-        else {
-            return Err("vision turn missing screenshot or display bounds".to_string());
-        };
-        let tutor_model = provider_env("ANTHROPIC_VISION_MODEL", DEFAULT_TUTOR_VISION_MODEL);
-        let system_prompt = build_tutor_system_prompt(&input);
-        let user_prompt = build_tutor_user_prompt(&input)?;
-        let elements_block = build_screen_elements_block(&ocr_elements);
-        let user_text = if elements_block.is_empty() {
-            user_prompt
+        if let (Some(image_base64), Some(bounds)) = (
+            input.screen.image_base64.as_ref(),
+            input.screen.display_bounds.as_ref(),
+        ) {
+            let tutor_model = provider_env("ANTHROPIC_VISION_MODEL", DEFAULT_TUTOR_VISION_MODEL);
+            let system_prompt = build_tutor_system_prompt(&input);
+            let user_prompt = build_tutor_user_prompt(&input)?;
+            let elements_block = build_screen_elements_block(&ocr_elements);
+            let user_text = if elements_block.is_empty() {
+                user_prompt
+            } else {
+                format!("{user_prompt}\n\n{elements_block}")
+            };
+            let media_type = input
+                .screen
+                .image_mime_type
+                .as_deref()
+                .unwrap_or("image/jpeg");
+            crate::klog!(tutor, info, model = %tutor_model, media_type = media_type, "single-call vision turn (answer + box)");
+            match anthropic_vision_chat(
+                &system_prompt,
+                &user_text,
+                image_base64,
+                media_type,
+                &tutor_model,
+                timeout,
+            )
+            .await
+            {
+                Some(raw) => {
+                    // Sanitize once so the frontend always gets a clean JSON object,
+                    // even if Opus wrapped it in prose/fences (no json_object mode).
+                    let content = clean_model_json(&raw);
+                    let detected = boxes_from_content(&content, image_base64);
+                    return Ok(if detected.is_empty() {
+                        // No explicit box (e.g. text-only target) — ground the model's
+                        // own elementId/screenRegion targets via OCR.
+                        crate::klog!(tutor, info, "single-call: no box in response; OCR-grounding model targets");
+                        ground_visual_targets(content, &ocr_elements, Some(bounds))
+                    } else {
+                        apply_box_targets(content, &detected, bounds)
+                    });
+                }
+                None => {
+                    crate::klog!(tutor, warn, "opus vision turn empty; falling back to OpenRouter answer");
+                    // fall through to the legacy path below.
+                }
+            }
         } else {
-            format!("{user_prompt}\n\n{elements_block}")
-        };
-        crate::klog!(tutor, info, model = %tutor_model, "single-call vision turn (answer + box)");
-        let Some(content) = anthropic_vision_chat(
-            &system_prompt,
-            &user_text,
-            image_base64,
-            &tutor_model,
-            timeout,
-        )
-        .await
-        else {
-            return Err("Opus vision turn returned no content (check ANTHROPIC_API_KEY).".to_string());
-        };
-
-        let detected = boxes_from_content(&content, image_base64);
-        return Ok(if detected.is_empty() {
-            // No explicit box (e.g. text-only target) — ground the model's own
-            // elementId/screenRegion targets via OCR.
-            ground_visual_targets(content, &ocr_elements, Some(bounds))
-        } else {
-            apply_box_targets(content, &detected, bounds)
-        });
+            crate::klog!(tutor, warn, "single-call vision turn missing display bounds; falling back to OpenRouter answer");
+            // fall through to the legacy path below.
+        }
     }
 
     // LEGACY (KAIRO_SEPARATE_GROUNDING=true, or a text-only turn): the OpenRouter
