@@ -1,6 +1,6 @@
 use std::{
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
         mpsc::Sender,
         Arc, Mutex,
     },
@@ -143,6 +143,11 @@ struct ContextWatch {
     armed_at: Arc<Mutex<Option<Instant>>>,
     // Push-to-talk: true while the ⌥⌃ chord is held. Shares the same input tap.
     ptt_active: Arc<AtomicBool>,
+    // Monotonic press id. Bumped on every chord edge so a stale promote timer from
+    // a previous press can't fire against the current one.
+    ptt_generation: Arc<AtomicU64>,
+    // When the current chord went down; used to measure tap-vs-hold duration.
+    ptt_down_at: Arc<Mutex<Option<Instant>>>,
 }
 
 impl Default for ContextWatch {
@@ -152,6 +157,8 @@ impl Default for ContextWatch {
             baseline: Arc::new(Mutex::new(None)),
             armed_at: Arc::new(Mutex::new(None)),
             ptt_active: Arc::new(AtomicBool::new(false)),
+            ptt_generation: Arc::new(AtomicU64::new(0)),
+            ptt_down_at: Arc::new(Mutex::new(None)),
         }
     }
 }

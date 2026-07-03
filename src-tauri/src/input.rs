@@ -2,7 +2,7 @@
 //! stale guidance when the user moves on, and the ⌥⌃ push-to-talk tap.
 
 use crate::audio::send_audio_command;
-use crate::panels::{listening_notch_payload, show_notch_with_payload};
+use crate::panels::{listening_notch_payload, show_notch_with_payload, typing_notch_payload};
 use crate::platform::{frontmost_bundle_id, frontmost_window_title};
 use crate::{AudioCommand, ContextWatch, NotchState};
 use std::sync::atomic::Ordering;
@@ -162,40 +162,85 @@ pub(crate) fn spawn_ptt_tap(app: &tauri::AppHandle, watch: ContextWatch) {
             CGEventTapOptions::ListenOnly,
             vec![CGEventType::FlagsChanged],
             move |_proxy, _event_type, event| {
-                // ⌥⌃ (Option+Control) both held → start recording; released → send.
-                // Pure modifiers can't be a normal global shortcut, so we watch the
-                // held state on this tap instead.
                 let flags = event.get_flags();
                 let both = flags.contains(CGEventFlags::CGEventFlagAlternate)
                     && flags.contains(CGEventFlags::CGEventFlagControl);
                 let was = watch.ptt_active.load(Ordering::SeqCst);
+
                 if both && !was {
+                    // Chord DOWN. Start capturing immediately (the ~200ms cpal build overlaps
+                    // the tap/hold window). Stay visually quiet until the promote timer.
                     watch.ptt_active.store(true, Ordering::SeqCst);
-                    // Start native mic capture immediately (instant; indicator on now).
-                    crate::klog!(ptt, info, "⌥⌃ chord down");
+                    let press_id = watch.ptt_generation.fetch_add(1, Ordering::SeqCst) + 1;
+                    if let Ok(mut guard) = watch.ptt_down_at.lock() {
+                        *guard = Some(Instant::now());
+                    }
+                    crate::klog!(ptt, info, press = press_id, "⌥⌃ down");
                     send_audio_command(&app, AudioCommand::Start(Instant::now()));
-                    // Cursor shows the listening halo (global emit so it lands).
-                    let _ = app.emit("cursor:listening", ());
-                    // Show the notch (listening UI) on the MAIN thread — this also
-                    // wakes its otherwise-suspended webview so it can receive the
-                    // captured audio on release.
-                    let app2 = app.clone();
-                    let _ = app.run_on_main_thread(move || {
-                        let notch_state = app2.state::<NotchState>();
-                        if let Err(error) = show_notch_with_payload(
-                            &app2,
-                            notch_state.inner(),
-                            Some(listening_notch_payload()),
-                        ) {
-                            crate::klog!(ptt, error, "failed to show notch: {error}");
+
+                    // Promote to "listening" only if still held after the tap window AND this is
+                    // still the same press (generation unchanged).
+                    let app_promote = app.clone();
+                    let watch_promote = watch.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(Duration::from_millis(PTT_TAP_MAX_MS));
+                        if watch_promote.ptt_active.load(Ordering::SeqCst)
+                            && watch_promote.ptt_generation.load(Ordering::SeqCst) == press_id
+                        {
+                            crate::klog!(ptt, info, press = press_id, "hold confirmed → listening");
+                            let _ = app_promote.emit("cursor:listening", ());
+                            let _ = app_promote
+                                .emit("ptt:recording", serde_json::json!({ "active": true }));
+                            let app_main = app_promote.clone();
+                            let _ = app_promote.run_on_main_thread(move || {
+                                let notch_state = app_main.state::<NotchState>();
+                                if let Err(error) = show_notch_with_payload(
+                                    &app_main,
+                                    notch_state.inner(),
+                                    Some(listening_notch_payload()),
+                                ) {
+                                    crate::klog!(ptt, error, "failed to show notch: {error}");
+                                }
+                            });
                         }
                     });
                 } else if !both && was {
+                    // Chord UP. Invalidate any pending promote, measure duration, classify.
                     watch.ptt_active.store(false, Ordering::SeqCst);
-                    // Stop capture → the audio thread encodes WAV + emits `ptt:audio`
-                    // to the (now awake) notch, which transcribes + runs the turn.
-                    send_audio_command(&app, AudioCommand::Stop);
-                    let _ = app.emit("cursor:thinking", ());
+                    watch.ptt_generation.fetch_add(1, Ordering::SeqCst);
+                    let held = watch
+                        .ptt_down_at
+                        .lock()
+                        .ok()
+                        .and_then(|guard| *guard)
+                        .map(|at| at.elapsed())
+                        .unwrap_or_default();
+                    // Recording truth is now false regardless of branch.
+                    let _ = app.emit("ptt:recording", serde_json::json!({ "active": false }));
+
+                    match classify_press(held, PTT_TAP_MAX_MS) {
+                        PttOutcome::Tap => {
+                            crate::klog!(ptt, info, ms = held.as_millis(), "tap → typing");
+                            send_audio_command(&app, AudioCommand::Cancel);
+                            let app_main = app.clone();
+                            let _ = app.run_on_main_thread(move || {
+                                let notch_state = app_main.state::<NotchState>();
+                                if let Err(error) = show_notch_with_payload(
+                                    &app_main,
+                                    notch_state.inner(),
+                                    Some(typing_notch_payload()),
+                                ) {
+                                    crate::klog!(ptt, error, "failed to show typing notch: {error}");
+                                }
+                                let _ = app_main.emit("notch:focus-input", ());
+                            });
+                        }
+                        PttOutcome::Hold => {
+                            crate::klog!(ptt, info, ms = held.as_millis(), "hold → send");
+                            send_audio_command(&app, AudioCommand::Stop);
+                            let _ = app.emit("cursor:thinking", ());
+                        }
+                    }
                 }
                 CallbackResult::Keep
             },
