@@ -3,6 +3,7 @@
 //! OCR/box regions.
 
 use crate::color::{sample_background, vibrant_accent};
+use crate::constants;
 use crate::env::{provider_env, provider_env_optional};
 use crate::ocr::build_box_locator_context;
 use crate::prompts::box_locator_prompt;
@@ -11,21 +12,11 @@ use crate::types::{DetectedBox, OcrElement, OverlayDisplayBounds, ScreenRegion};
 use serde_json::{json, Value};
 use std::time::Duration;
 
-// Longest edge (px) we downscale the screenshot to before sending it to Claude
-// vision. Aspect ratio is preserved so returned pixel boxes map back cleanly.
-// Tunable at runtime via KAIRO_VISION_MAX_EDGE (no rebuild) — raise toward 2576
-// for tiny pro-app icons, browser chrome, and dense professional toolbars.
-const DEFAULT_VISION_MAX_EDGE: u32 = 1568;
-
 // Ask the grounding provider for the target boxes as raw JSON text. Both providers
 // receive the SAME prompt + resized JPEG and return the same {"elements":[...]}
 // shape, so the caller parses one format regardless of which provider ran.
 fn grounding_timeout() -> Duration {
-    let timeout_ms = provider_env_optional("KAIRO_GROUNDING_TIMEOUT_MS")
-        .and_then(|value| value.trim().parse::<u64>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(12_000);
-    Duration::from_millis(timeout_ms)
+    Duration::from_millis(constants::GROUNDING_TIMEOUT_MS)
 }
 
 async fn anthropic_vision_text(
@@ -37,8 +28,8 @@ async fn anthropic_vision_text(
     if api_key.trim().is_empty() {
         return None;
     }
-    let model = provider_env("ANTHROPIC_VISION_MODEL", "claude-opus-4-8");
-    let base_url = provider_env("ANTHROPIC_BASE_URL", "https://api.anthropic.com");
+    let model = provider_env("ANTHROPIC_VISION_MODEL", constants::ANTHROPIC_VISION_MODEL);
+    let base_url = provider_env("ANTHROPIC_BASE_URL", constants::ANTHROPIC_BASE_URL);
     let body = json!({
         "model": model,
         "max_tokens": 1024,
@@ -99,7 +90,7 @@ pub(crate) async fn anthropic_vision_chat(
         crate::klog!(grounding, warn, "opus vision chat: ANTHROPIC_API_KEY empty");
         return None;
     }
-    let base_url = provider_env("ANTHROPIC_BASE_URL", "https://api.anthropic.com");
+    let base_url = provider_env("ANTHROPIC_BASE_URL", constants::ANTHROPIC_BASE_URL);
     let body = json!({
         "model": model,
         "max_tokens": 1200,
@@ -233,12 +224,12 @@ pub(crate) async fn detect_element_boxes(
     // (Opus, default), `openrouter` (qwen3.7-plus via the user's OpenRouter key,
     // ~12x cheaper), or `qwen` (direct DashScope). All share this prompt + image.
     let _t = crate::klog::timer("grounding", "detect_boxes");
-    let provider = provider_env("KAIRO_GROUNDING_PROVIDER", "anthropic").to_lowercase();
+    let provider = provider_env("KAIRO_GROUNDING_PROVIDER", constants::GROUNDING_PROVIDER).to_lowercase();
     let timeout = grounding_timeout();
     let max_edge = provider_env_optional("KAIRO_VISION_MAX_EDGE")
         .and_then(|v| v.trim().parse::<u32>().ok())
         .filter(|v| *v >= 256)
-        .unwrap_or(DEFAULT_VISION_MAX_EDGE);
+        .unwrap_or(constants::VISION_MAX_EDGE);
     let bounds_summary = format!(
         "x={:.1} y={:.1} w={:.1} h={:.1} scale={:.3}",
         bounds.x, bounds.y, bounds.width, bounds.height, bounds.scale_factor
@@ -283,8 +274,8 @@ pub(crate) async fn detect_element_boxes(
         // Cheap Qwen grounding via the user's existing OpenRouter key.
         "openrouter" | "open-router" => match provider_env_optional("OPENROUTER_API_KEY") {
             Some(key) if !key.trim().is_empty() => {
-                let base = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
-                let model = provider_env("KAIRO_GROUNDING_MODEL", "qwen/qwen3.7-plus");
+                let base = provider_env("OPENROUTER_BASE_URL", constants::OPENROUTER_BASE_URL);
+                let model = provider_env("KAIRO_GROUNDING_MODEL", constants::OPENROUTER_GROUNDING_MODEL);
                 let text = openai_compatible_vision_text(
                     &base,
                     &key,
@@ -304,11 +295,8 @@ pub(crate) async fn detect_element_boxes(
                 .or_else(|| provider_env_optional("QWEN_API_KEY"))
             {
                 Some(key) if !key.trim().is_empty() => {
-                    let base = provider_env(
-                        "QWEN_BASE_URL",
-                        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-                    );
-                    let model = provider_env("QWEN_VISION_MODEL", "qwen3.7-plus");
+                    let base = provider_env("QWEN_BASE_URL", constants::QWEN_BASE_URL);
+                    let model = provider_env("QWEN_VISION_MODEL", constants::QWEN_VISION_MODEL);
                     let text = openai_compatible_vision_text(
                         &base,
                         &key,
@@ -324,7 +312,7 @@ pub(crate) async fn detect_element_boxes(
             }
         }
         _ => {
-            let model = provider_env("ANTHROPIC_VISION_MODEL", "claude-opus-4-8");
+            let model = provider_env("ANTHROPIC_VISION_MODEL", constants::ANTHROPIC_VISION_MODEL);
             let text = anthropic_vision_text(&prompt, &resized_base64, timeout).await;
             (model, text)
         }

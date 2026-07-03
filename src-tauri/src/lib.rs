@@ -12,6 +12,8 @@ use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 
 mod prompts;
 
+mod constants;
+
 #[macro_use]
 mod klog;
 
@@ -64,9 +66,6 @@ use input::{spawn_context_input_tap, spawn_context_poll, spawn_ptt_tap};
 // Toggle the pen directly without opening the notch first. Avoids ⌥⌃ (the
 // push-to-talk chord) so holding it never starts a recording.
 const KAIRO_PEN_SHORTCUT: &str = "Alt+Shift+P";
-const DEFAULT_OPENROUTER_VISION_MODEL: &str = "google/gemini-2.5-flash";
-// Direct-Anthropic model for the single-call vision tutor turn (answer + box).
-pub(crate) const DEFAULT_TUTOR_VISION_MODEL: &str = "claude-opus-4-8";
 
 // Non-activating NSPanel for the notch. A non-activating panel can receive
 // input without activating the app, so showing it does not pull the user out
@@ -585,7 +584,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::DEFAULT_OPENROUTER_VISION_MODEL;
+    use crate::constants;
     use crate::env::{parse_local_env, provider_timeout_ms};
     use crate::grounding::{apply_box_targets, ground_visual_targets};
     use crate::panels::notch_window_size;
@@ -644,9 +643,18 @@ mod tests {
     #[test]
     fn provider_timeout_ms_uses_positive_values_or_default() {
         assert_eq!(provider_timeout_ms(Some("12000".to_string())), 12000);
-        assert_eq!(provider_timeout_ms(Some("0".to_string())), 30000);
-        assert_eq!(provider_timeout_ms(Some("not-a-number".to_string())), 30000);
-        assert_eq!(provider_timeout_ms(None), 30000);
+        assert_eq!(
+            provider_timeout_ms(Some("0".to_string())),
+            constants::OPENROUTER_REQUEST_TIMEOUT_MS
+        );
+        assert_eq!(
+            provider_timeout_ms(Some("not-a-number".to_string())),
+            constants::OPENROUTER_REQUEST_TIMEOUT_MS
+        );
+        assert_eq!(
+            provider_timeout_ms(None),
+            constants::OPENROUTER_REQUEST_TIMEOUT_MS
+        );
     }
 
     #[test]
@@ -691,10 +699,10 @@ mod tests {
         let (model, include_screenshot) = select_openrouter_request_model(
             &input,
             "qwen/qwen3.6-flash",
-            DEFAULT_OPENROUTER_VISION_MODEL,
+            constants::OPENROUTER_VISION_MODEL,
         );
 
-        assert_eq!(model, DEFAULT_OPENROUTER_VISION_MODEL);
+        assert_eq!(model, constants::OPENROUTER_VISION_MODEL);
         assert!(include_screenshot);
     }
 
@@ -706,7 +714,7 @@ mod tests {
         let (model, include_screenshot) = select_openrouter_request_model(
             &input,
             "qwen/qwen3.6-flash",
-            DEFAULT_OPENROUTER_VISION_MODEL,
+            constants::OPENROUTER_VISION_MODEL,
         );
 
         assert_eq!(model, "qwen/qwen3.6-flash");

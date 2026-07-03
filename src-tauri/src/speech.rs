@@ -1,6 +1,7 @@
 //! Speech-to-text and text-to-speech provider integrations (Sarvam, ElevenLabs)
 //! plus the request/response helpers and the two Tauri commands.
 
+use crate::constants;
 use crate::env::{provider_env, provider_env_optional};
 use crate::tutor::shared_http_client;
 use crate::types::{
@@ -154,7 +155,7 @@ pub(crate) async fn transcribe_audio(
     input: TranscribeAudioInput,
 ) -> Result<TranscriptionResult, String> {
     let _t = crate::klog::timer("stt", "transcribe");
-    let provider = provider_env("KAIRO_STT_PROVIDER", "mock");
+    let provider = provider_env("KAIRO_STT_PROVIDER", constants::STT_PROVIDER);
     if provider == "mock" {
         return Ok(TranscriptionResult {
             text: String::new(),
@@ -178,17 +179,17 @@ pub(crate) async fn transcribe_audio(
     if provider == "sarvam" {
         let api_key = provider_env_optional("SARVAM_API_KEY")
             .ok_or_else(|| "SARVAM_API_KEY is required for Sarvam transcription.".to_string())?;
-        let base_url = provider_env("SARVAM_BASE_URL", "https://api.sarvam.ai");
+        let base_url = provider_env("SARVAM_BASE_URL", constants::SARVAM_BASE_URL);
         // Pin the language so Sarvam doesn't auto-detect the wrong one (it
         // guessed gu-IN on a cold first recording and returned an empty
         // transcript). Set SARVAM_STT_LANGUAGE_CODE=unknown to auto-detect.
         let form = reqwest::multipart::Form::new()
             .part("file", part)
-            .text("model", provider_env("SARVAM_STT_MODEL", "saaras:v3"))
-            .text("mode", provider_env("SARVAM_STT_MODE", "transcribe"))
+            .text("model", provider_env("SARVAM_STT_MODEL", constants::SARVAM_STT_MODEL))
+            .text("mode", provider_env("SARVAM_STT_MODE", constants::SARVAM_STT_MODE))
             .text(
                 "language_code",
-                provider_env("SARVAM_STT_LANGUAGE_CODE", "en-IN"),
+                provider_env("SARVAM_STT_LANGUAGE_CODE", constants::SARVAM_STT_LANGUAGE_CODE),
             );
         let response = client
             .post(format!("{}/speech-to-text", base_url.trim_end_matches('/')))
@@ -215,10 +216,10 @@ pub(crate) async fn transcribe_audio(
         let api_key = provider_env_optional("ELEVENLABS_API_KEY").ok_or_else(|| {
             "ELEVENLABS_API_KEY is required for ElevenLabs transcription.".to_string()
         })?;
-        let base_url = provider_env("ELEVENLABS_BASE_URL", "https://api.elevenlabs.io");
+        let base_url = provider_env("ELEVENLABS_BASE_URL", constants::ELEVENLABS_BASE_URL);
         let form = reqwest::multipart::Form::new().part("file", part).text(
             "model_id",
-            provider_env("ELEVENLABS_STT_MODEL", "scribe_v1"),
+            provider_env("ELEVENLABS_STT_MODEL", constants::ELEVENLABS_STT_MODEL),
         );
         let text = parse_transcription_response(
             client
@@ -248,7 +249,7 @@ pub(crate) async fn synthesize_speech(
     input: SynthesizeSpeechInput,
 ) -> Result<SpeechSynthesisResult, String> {
     let _t = crate::klog::timer("tts", "synthesize");
-    let provider = provider_env("KAIRO_TTS_PROVIDER", "mock");
+    let provider = provider_env("KAIRO_TTS_PROVIDER", constants::TTS_PROVIDER);
     let text = input.text.trim();
     if provider == "mock" || text.is_empty() {
         return Ok(SpeechSynthesisResult {
@@ -263,7 +264,7 @@ pub(crate) async fn synthesize_speech(
     if provider == "sarvam" {
         let api_key = provider_env_optional("SARVAM_API_KEY")
             .ok_or_else(|| "SARVAM_API_KEY is required for Sarvam speech synthesis.".to_string())?;
-        let base_url = provider_env("SARVAM_BASE_URL", "https://api.sarvam.ai");
+        let base_url = provider_env("SARVAM_BASE_URL", constants::SARVAM_BASE_URL);
         let audio_base64 = parse_sarvam_tts_response(
             client
                 .post(format!("{}/text-to-speech", base_url.trim_end_matches('/')))
@@ -271,9 +272,9 @@ pub(crate) async fn synthesize_speech(
                 .header("Content-Type", "application/json")
                 .json(&json!({
                     "text": text,
-                    "target_language_code": provider_env("SARVAM_TTS_LANGUAGE_CODE", "en-IN"),
-                    "speaker": provider_env("SARVAM_TTS_SPEAKER", "anushka"),
-                    "model": provider_env("SARVAM_TTS_MODEL", "bulbul:v3"),
+                    "target_language_code": provider_env("SARVAM_TTS_LANGUAGE_CODE", constants::SARVAM_TTS_LANGUAGE_CODE),
+                    "speaker": provider_env("SARVAM_TTS_SPEAKER", constants::SARVAM_TTS_SPEAKER),
+                    "model": provider_env("SARVAM_TTS_MODEL", constants::SARVAM_TTS_MODEL),
                     "output_audio_codec": "wav",
                     "speech_sample_rate": 24000,
                 }))
@@ -294,8 +295,8 @@ pub(crate) async fn synthesize_speech(
         let api_key = provider_env_optional("ELEVENLABS_API_KEY").ok_or_else(|| {
             "ELEVENLABS_API_KEY is required for ElevenLabs speech synthesis.".to_string()
         })?;
-        let base_url = provider_env("ELEVENLABS_BASE_URL", "https://api.elevenlabs.io");
-        let voice_id = provider_env("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM");
+        let base_url = provider_env("ELEVENLABS_BASE_URL", constants::ELEVENLABS_BASE_URL);
+        let voice_id = provider_env("ELEVENLABS_VOICE_ID", constants::ELEVENLABS_VOICE_ID);
         let (audio_base64, mime_type) = parse_binary_audio_response(
             client
                 .post(format!(
@@ -307,7 +308,7 @@ pub(crate) async fn synthesize_speech(
                 .header("Content-Type", "application/json")
                 .json(&json!({
                     "text": text,
-                    "model_id": provider_env("ELEVENLABS_TTS_MODEL", "eleven_multilingual_v2"),
+                    "model_id": provider_env("ELEVENLABS_TTS_MODEL", constants::ELEVENLABS_TTS_MODEL),
                 }))
                 .send()
                 .await

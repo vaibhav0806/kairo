@@ -7,10 +7,10 @@ use crate::grounding::{
     anthropic_vision_chat, apply_box_targets, boxes_from_content, clean_model_json,
     detect_element_boxes, ground_visual_targets,
 };
+use crate::constants;
 use crate::ocr::{build_screen_elements_block, ocr_tutor_screenshot};
 use crate::prompts::{build_tutor_system_prompt, gate_system_prompt};
 use crate::types::{GateInput, OcrElement, TutorTurnInput};
-use crate::{DEFAULT_OPENROUTER_VISION_MODEL, DEFAULT_TUTOR_VISION_MODEL};
 use serde_json::{json, Value};
 use std::time::Duration;
 
@@ -187,7 +187,7 @@ async fn send_openrouter_chat_request(
 #[tauri::command]
 pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
     let _t = crate::klog::timer("tutor", "tutor_turn");
-    let provider = provider_env("KAIRO_AI_PROVIDER", "mock");
+    let provider = provider_env("KAIRO_AI_PROVIDER", constants::AI_PROVIDER);
     if provider != "openrouter" {
         return Err(
             "Native tutor provider is only configured for KAIRO_AI_PROVIDER=openrouter."
@@ -198,14 +198,17 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
     let api_key = provider_env_optional("OPENROUTER_API_KEY").ok_or_else(|| {
         "OPENROUTER_API_KEY is required for native OpenRouter tutor turns.".to_string()
     })?;
-    let model = provider_env("OPENROUTER_MODEL", "~openai/gpt-latest");
+    let model = provider_env("OPENROUTER_MODEL", constants::OPENROUTER_MODEL);
     let vision_model = provider_env_optional("OPENROUTER_VISION_MODEL")
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| DEFAULT_OPENROUTER_VISION_MODEL.to_string());
-    let base_url = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
-    let site_url = provider_env_optional("OPENROUTER_SITE_URL");
-    let app_title = provider_env("OPENROUTER_APP_TITLE", "Kairo Tutor");
+        .unwrap_or_else(|| constants::OPENROUTER_VISION_MODEL.to_string());
+    let base_url = provider_env("OPENROUTER_BASE_URL", constants::OPENROUTER_BASE_URL);
+    let site_url = Some(provider_env(
+        "OPENROUTER_SITE_URL",
+        constants::OPENROUTER_SITE_URL,
+    ));
+    let app_title = provider_env("OPENROUTER_APP_TITLE", constants::OPENROUTER_APP_TITLE);
     let timeout = Duration::from_millis(provider_timeout_ms(provider_env_optional(
         "OPENROUTER_REQUEST_TIMEOUT_MS",
     )));
@@ -218,9 +221,7 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
     let client = shared_http_client();
     let site_url_ref = site_url.as_deref();
 
-    let separate_grounding = provider_env("KAIRO_SEPARATE_GROUNDING", "false")
-        .trim()
-        .eq_ignore_ascii_case("true");
+    let separate_grounding = constants::SEPARATE_GROUNDING;
     let has_vision = input.screen.captured && input.screen.image_base64.is_some();
 
     // DEFAULT: one Opus vision call returns the answer AND the primary target box.
@@ -232,7 +233,7 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
             input.screen.image_base64.as_ref(),
             input.screen.display_bounds.as_ref(),
         ) {
-            let tutor_model = provider_env("ANTHROPIC_VISION_MODEL", DEFAULT_TUTOR_VISION_MODEL);
+            let tutor_model = provider_env("ANTHROPIC_VISION_MODEL", constants::TUTOR_VISION_MODEL);
             let system_prompt = build_tutor_system_prompt(&input);
             let user_prompt = build_tutor_user_prompt(&input)?;
             let elements_block = build_screen_elements_block(&ocr_elements);
@@ -262,7 +263,7 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
                     // even if Opus wrapped it in prose/fences (no json_object mode).
                     let content = clean_model_json(&raw);
                     // Diagnostic: the exact spoken answer, paired with the question
-                    // logged above. Text shown only under KAIRO_LOG_TRANSCRIPTS.
+                    // logged above (always shown; constants::LOG_TRANSCRIPTS).
                     if let Some(voice) = serde_json::from_str::<Value>(&content)
                         .ok()
                         .as_ref()
@@ -292,7 +293,7 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
         }
     }
 
-    // LEGACY (KAIRO_SEPARATE_GROUNDING=true, or a text-only turn): the OpenRouter
+    // LEGACY (constants::SEPARATE_GROUNDING=true, or a text-only turn): the OpenRouter
     // answer call, plus — for vision — the separate grounding call in parallel.
     let answer_future = async {
         let request_body = {
@@ -353,22 +354,20 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
     // turn then runs), so behaviour degrades to the pre-gate flow.
     let look = || json!({ "needsScreen": true, "voiceText": "" }).to_string();
 
-    if provider_env("KAIRO_AI_PROVIDER", "mock") != "openrouter" {
+    if provider_env("KAIRO_AI_PROVIDER", constants::AI_PROVIDER) != "openrouter" {
         return Ok(look());
     }
     let Some(api_key) = provider_env_optional("OPENROUTER_API_KEY") else {
         return Ok(look());
     };
-    let model = provider_env("OPENROUTER_MODEL", "~openai/gpt-latest");
-    let base_url = provider_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
-    let site_url = provider_env_optional("OPENROUTER_SITE_URL");
-    let app_title = provider_env("OPENROUTER_APP_TITLE", "Kairo Tutor");
-    let timeout = Duration::from_millis(
-        provider_env_optional("OPENROUTER_GATE_TIMEOUT_MS")
-            .and_then(|value| value.trim().parse::<u64>().ok())
-            .filter(|value| *value > 0)
-            .unwrap_or(3_500),
-    );
+    let model = provider_env("OPENROUTER_MODEL", constants::OPENROUTER_MODEL);
+    let base_url = provider_env("OPENROUTER_BASE_URL", constants::OPENROUTER_BASE_URL);
+    let site_url = Some(provider_env(
+        "OPENROUTER_SITE_URL",
+        constants::OPENROUTER_SITE_URL,
+    ));
+    let app_title = provider_env("OPENROUTER_APP_TITLE", constants::OPENROUTER_APP_TITLE);
+    let timeout = Duration::from_millis(constants::GATE_TIMEOUT_MS);
     let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
     let app = input.active_app.unwrap_or_else(|| "unknown".to_string());
@@ -379,7 +378,7 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
         input.user_query
     );
     // Diagnostic: pair the exact question the gate saw with its answer (the "gate
-    // result" line below). Text shown only under KAIRO_LOG_TRANSCRIPTS.
+    // result" line below; always shown, constants::LOG_TRANSCRIPTS).
     crate::klog!(
         gate,
         info,
