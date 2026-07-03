@@ -50,10 +50,7 @@ async fn anthropic_vision_text(prompt: &str, image_jpeg_base64: &str) -> Option<
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
-        eprintln!(
-            "[boxes-diag] anthropic vision {status}: {}",
-            text.chars().take(220).collect::<String>()
-        );
+        crate::klog!(grounding, warn, provider = "anthropic", status = %status, "vision request failed: {}", text.chars().take(220).collect::<String>());
         return None;
     }
     let payload = response.json::<Value>().await.ok()?;
@@ -109,10 +106,7 @@ async fn openai_compatible_vision_text(
     if !response.status().is_success() {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
-        eprintln!(
-            "[boxes-diag] grounding {status}: {}",
-            text.chars().take(220).collect::<String>()
-        );
+        crate::klog!(grounding, warn, provider = "openai_compatible", status = %status, "vision request failed: {}", text.chars().take(220).collect::<String>());
         return None;
     }
     let payload = response.json::<Value>().await.ok()?;
@@ -143,6 +137,7 @@ pub(crate) async fn detect_element_boxes(
     // Swappable at runtime (no rebuild) via KAIRO_GROUNDING_PROVIDER: `anthropic`
     // (Opus, default), `openrouter` (qwen3.7-plus via the user's OpenRouter key,
     // ~12x cheaper), or `qwen` (direct DashScope). All share this prompt + image.
+    let _t = crate::klog::timer("grounding", "detect_boxes");
     let provider = provider_env("KAIRO_GROUNDING_PROVIDER", "anthropic").to_lowercase();
     let max_edge = provider_env_optional("KAIRO_VISION_MAX_EDGE")
         .and_then(|v| v.trim().parse::<u32>().ok())
@@ -283,7 +278,7 @@ pub(crate) async fn detect_element_boxes(
             )
         })
         .collect();
-    eprintln!("[boxes] {} element(s): {}", boxes.len(), summary.join(", "));
+    crate::klog!(grounding, info, count = boxes.len(), elements = %summary.join(", "), "element boxes detected");
 
     boxes
 }

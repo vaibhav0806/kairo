@@ -98,6 +98,7 @@ fn downscale_screenshot(png_bytes: Vec<u8>) -> (Vec<u8>, &'static str) {
 
 #[tauri::command]
 pub(crate) fn capture_screen() -> ScreenCaptureResult {
+    let _t = crate::klog::timer("screen", "capture");
     #[cfg(target_os = "macos")]
     {
         let active_app = get_active_app();

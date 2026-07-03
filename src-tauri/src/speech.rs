@@ -153,6 +153,7 @@ async fn parse_binary_audio_response(
 pub(crate) async fn transcribe_audio(
     input: TranscribeAudioInput,
 ) -> Result<TranscriptionResult, String> {
+    let _t = crate::klog::timer("stt", "transcribe");
     let provider = provider_env("KAIRO_STT_PROVIDER", "mock");
     if provider == "mock" {
         return Ok(TranscriptionResult {
@@ -165,6 +166,7 @@ pub(crate) async fn transcribe_audio(
     if audio_bytes.is_empty() {
         return Err("Voice recording was empty.".to_string());
     }
+    crate::klog!(stt, debug, provider = %provider, audio_bytes = audio_bytes.len(), "audio decoded");
 
     let filename = audio_filename(&input);
     let part = reqwest::multipart::Part::bytes(audio_bytes)
@@ -205,6 +207,7 @@ pub(crate) async fn transcribe_audio(
             .ok_or_else(|| "Sarvam STT response did not include transcript text.".to_string())?
             .to_string();
 
+        crate::klog!(stt, info, provider = %provider, transcript = %crate::klog::transcript_field(&text), "transcribed");
         return Ok(TranscriptionResult { text, provider });
     }
 
@@ -233,6 +236,7 @@ pub(crate) async fn transcribe_audio(
         )
         .await?;
 
+        crate::klog!(stt, info, provider = %provider, transcript = %crate::klog::transcript_field(&text), "transcribed");
         return Ok(TranscriptionResult { text, provider });
     }
 
@@ -243,6 +247,7 @@ pub(crate) async fn transcribe_audio(
 pub(crate) async fn synthesize_speech(
     input: SynthesizeSpeechInput,
 ) -> Result<SpeechSynthesisResult, String> {
+    let _t = crate::klog::timer("tts", "synthesize");
     let provider = provider_env("KAIRO_TTS_PROVIDER", "mock");
     let text = input.text.trim();
     if provider == "mock" || text.is_empty() {

@@ -182,6 +182,7 @@ async fn send_openrouter_chat_request(
 
 #[tauri::command]
 pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, String> {
+    let _t = crate::klog::timer("tutor", "tutor_turn");
     let provider = provider_env("KAIRO_AI_PROVIDER", "mock");
     if provider != "openrouter" {
         return Err(
@@ -243,10 +244,7 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
                     && input.screen.captured
                     && input.screen.image_base64.is_some() =>
             {
-                eprintln!(
-                    "Kairo Tutor OpenRouter screenshot request failed; retrying text-only: {}",
-                    error.message
-                );
+                crate::klog!(tutor, warn, "screenshot request failed; retrying text-only: {}", error.message);
                 send_openrouter_chat_request(
                     client,
                     &endpoint,
@@ -302,6 +300,7 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
 
 #[tauri::command]
 pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
+    let _t = crate::klog::timer("gate", "gate_turn");
     // Safe default when no text provider is configured: always look (the full vision
     // turn then runs), so behaviour degrades to the pre-gate flow.
     let look = || json!({ "needsScreen": true, "voiceText": "" }).to_string();
@@ -349,11 +348,11 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
     .await
     {
         Ok(content) => {
-            eprintln!("[gate] {}", content.chars().take(200).collect::<String>());
+            crate::klog!(gate, debug, "gate result: {}", content.chars().take(200).collect::<String>());
             Ok(content)
         }
         Err(error) => {
-            eprintln!("Kairo Tutor gate turn failed; defaulting to look: {}", error.message);
+            crate::klog!(gate, warn, "turn failed; defaulting to look: {}", error.message);
             Ok(look())
         }
     }

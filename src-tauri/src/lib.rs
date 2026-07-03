@@ -12,6 +12,9 @@ use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
 
 mod prompts;
 
+#[macro_use]
+mod klog;
+
 mod types;
 use types::*;
 
@@ -213,9 +216,29 @@ fn update_overlay(
     emit_overlay_payload(&window, payload)
 }
 
+// One log line pushed up from a frontend WebView. `fields` is already-formatted
+// `key=value` text (or empty); the frontend does its own redaction.
+#[derive(serde::Deserialize)]
+struct FeLogLine {
+    level: String,
+    webview: String,
+    sub: String,
+    message: String,
+}
+
+// Batched frontend logging: the WebViews queue lines and flush a whole batch in a
+// single IPC call (see src/core/logger.ts), so there is no IPC round-trip per log.
+#[tauri::command]
+fn debug_log_batch(lines: Vec<FeLogLine>) {
+    for line in lines {
+        klog::frontend(&line.level, &line.webview, &line.sub, &line.message);
+    }
+}
+
+// Back-compat single-line entry point (older callers). Routes into the same file.
 #[tauri::command]
 fn debug_log(message: String) {
-    eprintln!("[fe-diag] {message}");
+    klog::frontend("info", "unknown", "legacy", &message);
 }
 
 #[tauri::command]
@@ -347,7 +370,6 @@ fn hide_notch(state: State<'_, NotchState>) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(debug_assertions)]
 fn log_window_startup(window: &tauri::WebviewWindow) {
     let visible = window.is_visible().unwrap_or(false);
     let position = window
@@ -358,13 +380,15 @@ fn log_window_startup(window: &tauri::WebviewWindow) {
         .outer_size()
         .map(|size| format!("{}x{}", size.width, size.height))
         .unwrap_or_else(|error| format!("unknown ({error})"));
-    eprintln!(
-        "Kairo Tutor startup: found main window; visible={visible}; position={position}; size={size}"
-    );
+    klog!(app, info, visible = visible, position = %position, size = %size, "startup: main window found");
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // First thing: stand up the universal logger so every subsystem below logs
+    // into ~/Library/Logs/Kairo/. Never panics.
+    klog::init();
+
     let pen_shortcut: Shortcut = KAIRO_PEN_SHORTCUT
         .parse()
         .expect("failed to parse Kairo pen shortcut");
@@ -390,7 +414,7 @@ pub fn run() {
             if let Err(error) =
                 show_notch_with_payload(app, notch_state.inner(), Some(typing_notch_payload()))
             {
-                eprintln!("Kairo Tutor activation shortcut failed to show notch: {error}");
+                klog!(activation, error, "shortcut failed to show notch: {error}");
             }
 
             let _ = app.emit("activation:shortcut", ());
@@ -407,7 +431,6 @@ pub fn run() {
         .plugin(tauri_nspanel::init())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                #[cfg(debug_assertions)]
                 log_window_startup(&window);
                 let _ = window.set_size(LogicalSize::new(1180.0, 820.0));
                 let _ = window.center();
@@ -419,17 +442,16 @@ pub fn run() {
                     let _ = window.hide();
                 }
             } else {
-                #[cfg(debug_assertions)]
-                eprintln!("Kairo Tutor startup: main window was not created");
+                klog!(app, warn, "startup: main window was not created");
             }
             // Pre-create the notch panel + webview at startup so the first
             // shortcut press shows it instantly instead of building it lazily.
             if let Err(error) = ensure_notch_panel(app.handle()) {
-                eprintln!("Kairo Tutor: failed to pre-create notch panel: {error}");
+                klog!(app, error, "failed to pre-create notch panel: {error}");
             }
             // Same for the annotation overlay panel.
             if let Err(error) = ensure_overlay_panel(app.handle()) {
-                eprintln!("Kairo Tutor: failed to pre-create overlay panel: {error}");
+                klog!(app, error, "failed to pre-create overlay panel: {error}");
             }
             // Companion cursor: create it, show it always, and start tracking the
             // real mouse so it shadows the cursor from launch.
@@ -439,7 +461,7 @@ pub fn run() {
                     spawn_mouse_tracker(app.handle());
                 }
                 Err(error) => {
-                    eprintln!("Kairo Tutor: failed to pre-create cursor panel: {error}");
+                    klog!(app, error, "failed to pre-create cursor panel: {error}");
                 }
             }
             // Context watcher: detect app/tab switches + scroll/click so stale
@@ -479,6 +501,7 @@ pub fn run() {
             open_permission_settings,
             restart_app,
             debug_log,
+            debug_log_batch,
             get_display_bounds,
             capture_screen,
             show_overlay,
