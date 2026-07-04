@@ -273,6 +273,10 @@ export function CursorApp() {
         if (arrowPathRef.current) {
           arrowPathRef.current.style.fill = RECORDING_FILL;
         }
+        // Leave any old pointing target: re-engaging supersedes the last turn, so the
+        // halo should show while the cursor follows the mouse, not while frozen at a
+        // stale target. (setFx wakes the loop, which glides back to the mouse.)
+        modeRef.current = 'shadow';
         setFx('listening');
       }),
       listen<{ level: number }>('cursor:level', (event) => {
