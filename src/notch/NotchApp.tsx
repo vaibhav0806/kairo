@@ -162,6 +162,10 @@ export function NotchApp() {
   // Bumped on every stopAnswerPlayback so a queued answer can detect it was
   // superseded by a newer turn while waiting for the filler, and not play stale.
   const playbackEpochRef = useRef(0);
+  // Bumped on every new turn (voice re-engage OR typed submit). A turn captures its
+  // epoch and bails after each await once a newer turn supersedes it, so a stale turn
+  // never mutates shared state (payload/box/context-watch/TTS/voiceCaptureState).
+  const turnEpochRef = useRef(0);
   // The teaching visuals for the current answer, revealed on TTS start (not when
   // the LLM answer arrives), plus the app they point at for the context watcher.
   const revealVisualsRef = useRef<() => Promise<void>>(async () => {});
@@ -188,11 +192,6 @@ export function NotchApp() {
   const audioChunksRef = useRef<Blob[]>([]);
   const voiceCancelledRef = useRef(false);
   const voiceHeardSpeechRef = useRef(false);
-  // Auto-listen: start voice capture as soon as the screen is captured after a
-  // shortcut activation. `started` dedupes repeat captured payloads for one
-  // activation; `suppressed` skips auto-listen when returning from annotating.
-  const autoListenStartedRef = useRef(false);
-  const autoListenSuppressedRef = useRef(false);
   // Call the latest startVoiceCapture without making it an effect dependency
   // (otherwise the payload subscription re-subscribes on every render and loops).
   const startVoiceCaptureRef = useRef<() => void>(() => {});
@@ -281,6 +280,19 @@ export function NotchApp() {
     answerSettledRef.current = true;
     lastNotchActivityAt.current = performance.now();
   }, []);
+
+  // Tear down the PREVIOUS turn's visual + context state on re-engage (a new voice
+  // hold or a tap-to-type), independent of submitQuery — which for voice only runs
+  // after key-release + STT, far too late to stop the old box/watch/TTS lingering.
+  const resetPreviousTurn = useCallback(() => {
+    stopAnswerPlayback();
+    answerSettledRef.current = false;
+    contextBaselineRef.current = null;
+    void nativeBridge.hideOverlay();
+    void nativeBridge.disarmContextWatch();
+    // Fresh activity so the idle-close timer can't fire immediately after re-engage.
+    lastNotchActivityAt.current = performance.now();
+  }, [stopAnswerPlayback, nativeBridge]);
 
   const stopActiveRecording = useCallback(
     (cancelled = false) => {
@@ -504,7 +516,7 @@ export function NotchApp() {
   // Speak the gate's "let me look" filler while the vision turn runs. Guarded so a
   // slow synth never plays over the real answer.
   const speakFiller = useCallback(
-    async (text: string) => {
+    async (text: string, turnEpoch: number) => {
       fillerCancelRef.current = false;
       // Set up the "filler finished" signal the answer will queue behind.
       let resolveDone: () => void = () => {};
@@ -529,7 +541,10 @@ export function NotchApp() {
       if (trimmed) {
         try {
           const result = await nativeBridge.synthesizeSpeech({ text: trimmed });
-          if (fillerCancelRef.current) {
+          // Authoritative supersede check: a newer turn bumped the epoch while we
+          // synthesized → this filler is stale, never play it. (fillerCancelRef kept
+          // for same-turn cancellation, e.g. the real answer arriving first.)
+          if (fillerCancelRef.current || turnEpochRef.current !== turnEpoch) {
             finishFiller();
             return;
           }
@@ -546,7 +561,7 @@ export function NotchApp() {
       }
       // Fallback: a generic pre-synthesized line (gate returned no text / synth failed).
       const cached = fillerAudioUrlsRef.current;
-      if (cached.length > 0 && !fillerCancelRef.current) {
+      if (cached.length > 0 && !fillerCancelRef.current && turnEpochRef.current === turnEpoch) {
         const url = cached[Math.floor(Math.random() * cached.length)];
         const audio = new Audio(url);
         startClip(audio);
@@ -560,11 +575,16 @@ export function NotchApp() {
   );
 
   const submitQuery = useCallback(
-    async (nextQuery: string, source: QuerySource = 'typed') => {
+    async (nextQuery: string, source: QuerySource = 'typed', epoch?: number) => {
       const trimmedQuery = nextQuery.trim();
-      if (!trimmedQuery || isSubmittingRef.current) {
+      if (!trimmedQuery) {
         return;
       }
+      // Turn epoch. Voice passes the epoch stamped in processCapturedAudio (so the
+      // re-engage teardown and this turn share one epoch); the typed path opens a
+      // fresh turn here. A newer turn bumping the epoch supersedes this one — that
+      // REPLACES the old isSubmitting drop-guard (no more silently-dropped turns).
+      const turnEpoch = epoch === undefined ? (turnEpochRef.current += 1) : epoch;
 
       // Diagnostic: which input started this turn (pairs with the native STT
       // transcript + gate question/answer lines in the same log file).
@@ -579,6 +599,9 @@ export function NotchApp() {
       // Release any lingering pointing so the cursor shadows the mouse while the
       // new answer is computed; it flies again only if the answer has a target.
       void nativeBridge.cursorRelease();
+      // Also drop the previous turn's box (covers the typed path; belt-and-suspenders
+      // for voice, where resetPreviousTurn already hid it on re-engage).
+      void nativeBridge.hideOverlay();
       isSubmittingRef.current = true;
       setIsSubmitting(true);
       updateVoiceCaptureState('idle');
@@ -597,6 +620,8 @@ export function NotchApp() {
           source === 'voice' && annotations.length === 0
             ? await runGate(trimmedQuery)
             : { needsScreen: true, voiceText: '' };
+        // A newer turn superseded this one while the gate ran → stop mutating shared state.
+        if (turnEpochRef.current !== turnEpoch) return;
         const needsScreen = source === 'typed' || annotations.length > 0 || gate.needsScreen;
 
         // Diagnostic: which route this turn took and whether the gate actually ran,
@@ -640,7 +665,7 @@ export function NotchApp() {
         // Phase 2: needs the screen. ALWAYS play a "let me look" filler while the
         // vision turn runs (cached → instant), including annotation asks where the
         // gate is skipped and there's no gate voiceText.
-        void speakFiller(gate.voiceText || 'Let me take a look.');
+        void speakFiller(gate.voiceText || 'Let me take a look.', turnEpoch);
 
         const { payload: answerPayload, revealVisuals, context } = await askTutorFromNotch({
           query: trimmedQuery,
@@ -650,6 +675,9 @@ export function NotchApp() {
           annotations,
           screenCapture: capturedScreenRef.current
         });
+        // A newer turn superseded this one while the tutor ran → don't paint a stale
+        // answer, don't play its audio, don't arm a watch for the old target.
+        if (turnEpochRef.current !== turnEpoch) return;
 
         // Hold the box + cursor until speech starts; reveal them together with the
         // text so nothing points at the screen while the notch is still silent.
@@ -680,8 +708,12 @@ export function NotchApp() {
           }
         );
       } finally {
-        isSubmittingRef.current = false;
-        setIsSubmitting(false);
+        // Only the CURRENT turn owns the submitting flag; a superseded turn must not
+        // clear it out from under the newer turn that now owns it.
+        if (turnEpochRef.current === turnEpoch) {
+          isSubmittingRef.current = false;
+          setIsSubmitting(false);
+        }
       }
     },
     [
@@ -762,8 +794,6 @@ export function NotchApp() {
     stopPcmCapture();
     stopVoiceMonitor();
     stopVoiceTracks();
-    // Re-arm auto-listen so the next activation opens the mic again.
-    autoListenStartedRef.current = false;
     capturedScreenRef.current = null;
     isSubmittingRef.current = false;
     setIsSubmitting(false);
@@ -925,6 +955,12 @@ export function NotchApp() {
   // recorder.onstop path and the native push-to-talk `ptt:audio` event.
   const processCapturedAudio = useCallback(
     async (audioBase64: string, mimeType: string) => {
+      // Open a new turn immediately on re-engage (this fires on PTT key-release, but
+      // a fresh hold that started during "thinking" already superseded the old turn).
+      // Bump the epoch + tear down the previous turn's box/watch/TTS right now, so a
+      // 2nd voice turn CANCELS the old one instead of being silently dropped.
+      const epoch = (turnEpochRef.current += 1);
+      resetPreviousTurn();
       updateVoiceCaptureState('transcribing');
       setVoicePayload('transcribing');
       void emit('cursor:thinking', {});
@@ -944,6 +980,11 @@ export function NotchApp() {
           mimeType,
           filename: voiceFilenameForMimeType(mimeType)
         });
+        // A newer turn superseded this one while STT ran → bail without touching
+        // shared state; the newest turn drives voiceCaptureState to completion.
+        if (turnEpochRef.current !== epoch) {
+          return;
+        }
         const transcript = result.text.trim();
         if (!transcript) {
           showVoiceError('No speech was detected. Try again and speak a little louder.');
@@ -951,8 +992,12 @@ export function NotchApp() {
         }
         setQuery(transcript);
         await capturePromise;
-        await submitQuery(transcript, 'voice');
+        await submitQuery(transcript, 'voice', epoch);
       } catch (error) {
+        // A superseded turn's STT failure must not clobber the newer turn's UI.
+        if (turnEpochRef.current !== epoch) {
+          return;
+        }
         const detail =
           error instanceof Error && error.message.trim()
             ? error.message.trim()
@@ -960,7 +1005,7 @@ export function NotchApp() {
         showVoiceError(detail);
       }
     },
-    [nativeBridge, setVoicePayload, showVoiceError, submitQuery, updateVoiceCaptureState]
+    [nativeBridge, resetPreviousTurn, setVoicePayload, showVoiceError, submitQuery, updateVoiceCaptureState]
   );
 
   const startVoiceCapture = useCallback(async () => {
@@ -1186,18 +1231,27 @@ export function NotchApp() {
           setQuery('');
           setIsSubmitting(false);
           updateVoiceCaptureState('idle');
+          // Re-engage (tap → typing): tear down the prior turn's box/watch/TTS, and
+          // return the cursor to mouse-follow (a tap has no listening halo). Also
+          // resets answerSettled + activity so the just-opened typing box can't
+          // auto-close under the user before they type.
+          resetPreviousTurn();
+          void nativeBridge.cursorRelease();
         }
         if (nextPayload.state === 'listening' && !mediaRecorderRef.current) {
           isSubmittingRef.current = false;
           setIsSubmitting(false);
           updateVoiceCaptureState('idle');
+          // Re-engage (PTT promote): tear down the prior turn's box/watch/TTS. Do NOT
+          // release the cursor here — ptt_promote already emitted cursor:listening to
+          // show the halo, and cursorRelease would wipe it (fx='none').
+          resetPreviousTurn();
           // Keep any pen drawing + its annotations through push-to-talk. The marks are
           // already synced into `annotations` (via annotation:sync), so DON'T emit
           // annotation:finish here — that makes the overlay fire annotation:done, which
           // flips the notch to the 'captured' (text) UI instead of the listening
-          // capsule. Just drop the active tool + release the cursor.
+          // capsule. Just drop the active tool.
           setActiveAnnotationTool(null);
-          void nativeBridge.cursorRelease();
         }
         setPayload(nextPayload);
 
@@ -1217,7 +1271,7 @@ export function NotchApp() {
       isMounted = false;
       unlisten?.();
     };
-  }, [nativeBridge, updateVoiceCaptureState]);
+  }, [nativeBridge, resetPreviousTurn, updateVoiceCaptureState]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1248,8 +1302,6 @@ export function NotchApp() {
         setActiveAnnotationTool(null);
         setPayload(capturedPayload);
         setIsSubmitting(false);
-        // Returning from annotating should not re-open the mic.
-        autoListenSuppressedRef.current = true;
         void nativeBridge.showNotch(capturedPayload);
       }),
       listen('voice:start', () => {
