@@ -216,6 +216,9 @@ pub(crate) fn spawn_audio_capture(
                 // Nothing to warm — build-per-press keeps the mic closed when idle.
                 AudioCommand::Warm => {}
                 AudioCommand::Start(chord_down) => {
+                    // Defense-in-depth: tear down any prior stream FIRST so a mic stream
+                    // can never accumulate (N× sample rate) even if a Stop were ever missed.
+                    current.take();
                     if let Ok(mut buf) = samples.lock() {
                         buf.clear();
                     }

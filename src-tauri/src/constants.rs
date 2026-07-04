@@ -81,3 +81,8 @@ pub(crate) const LOG_TRANSCRIPTS: bool = true;
 pub(crate) const LOG_TO_STDERR: bool = false;
 // Default verbosity filter (tracing EnvFilter syntax). KAIRO_LOG still overrides.
 pub(crate) const LOG_FILTER: &str = "info,kairo=debug";
+
+// ---------------------------------------------------------------- PTT (push-to-talk)
+pub(crate) const PTT_TAP_MAX_MS: u64 = 250; // hold < this = tap (→ typing); >= = talk
+pub(crate) const PTT_RELEASE_SETTLE_MS: u64 = 60; // absorb a modifier key-bounce shorter than this
+pub(crate) const PTT_MAX_RECORD_MS: u64 = 30_000; // hard cap: auto-send a runaway hold (keeps WAV under STT limit)

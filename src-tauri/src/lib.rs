@@ -1,6 +1,6 @@
 use std::{
     sync::{
-        atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         mpsc::Sender,
         Arc, Mutex,
     },
@@ -61,7 +61,7 @@ use panels::{
 };
 
 mod input;
-use input::{spawn_context_input_tap, spawn_context_poll, spawn_ptt_tap};
+use input::{spawn_context_input_tap, spawn_context_poll, spawn_ptt};
 
 // Toggle the pen directly without opening the notch first. Avoids ⌥⌃ (the
 // push-to-talk chord) so holding it never starts a recording.
@@ -141,22 +141,6 @@ struct ContextWatch {
     // When arming happened; enforces a short settle window so the reveal's own
     // transient (or the click that opened the notch) never trips an instant reset.
     armed_at: Arc<Mutex<Option<Instant>>>,
-    // Push-to-talk: true for the whole logical press, INCLUDING the 60ms release
-    // grace — so a mid-hold modifier flicker (up→down) finds it still true and is a
-    // no-op instead of restarting capture. Shares the same input tap.
-    ptt_active: Arc<AtomicBool>,
-    // Latest observed chord state (both modifiers down), updated on EVERY FlagsChanged
-    // event. The deferred release commit reads this after the grace to see whether the
-    // chord came back (a flicker/continuation) before it fires.
-    ptt_both: Arc<AtomicBool>,
-    // Monotonic press id. Bumped on every genuine down + on commit so a stale promote
-    // timer from a previous press can't fire against the current one.
-    ptt_generation: Arc<AtomicU64>,
-    // Monotonic release id. Bumped on each up-edge so only the latest scheduled commit
-    // runs (an earlier flicker's deferred commit is superseded).
-    ptt_release_gen: Arc<AtomicU64>,
-    // When the current chord went down; used to measure tap-vs-hold duration.
-    ptt_down_at: Arc<Mutex<Option<Instant>>>,
 }
 
 impl Default for ContextWatch {
@@ -165,11 +149,6 @@ impl Default for ContextWatch {
             armed: Arc::new(AtomicBool::new(false)),
             baseline: Arc::new(Mutex::new(None)),
             armed_at: Arc::new(Mutex::new(None)),
-            ptt_active: Arc::new(AtomicBool::new(false)),
-            ptt_both: Arc::new(AtomicBool::new(false)),
-            ptt_generation: Arc::new(AtomicU64::new(0)),
-            ptt_release_gen: Arc::new(AtomicU64::new(0)),
-            ptt_down_at: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -549,7 +528,7 @@ pub fn run() {
             // keyboard access can't disturb the mouse/scroll reset tap above. Request
             // the grant first so Kairo shows up in the Input Monitoring settings list.
             ensure_input_monitoring_access();
-            spawn_ptt_tap(app.handle(), context_watch);
+            spawn_ptt(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
