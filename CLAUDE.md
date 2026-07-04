@@ -105,8 +105,9 @@ scripts/smoke-providers.mjs  provider smoke test
 
 Subsystems worth knowing: notch = **non-activating** NSPanel; the annotation overlay
 must be a **can-become-key** NSPanel (a borderless window drops clicks); the companion
-cursor lives in its own click-through panel. Shortcuts: PTT = ⌥⌃ (hold), pen = ⌥⇧P,
-notch/typing = ⌘⇧Space.
+cursor lives in its own click-through panel. Shortcuts: ⌥⌃ = **hold to talk / tap to
+type** (one universal key, driven by a single-owner PTT state-machine controller in
+`input.rs`), pen = ⌥⇧P. (⌘⇧Space was removed — typing is a quick ⌥⌃ tap.)
 
 ## Providers & env
 
