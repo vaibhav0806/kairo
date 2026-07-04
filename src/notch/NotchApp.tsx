@@ -285,6 +285,10 @@ export function NotchApp() {
   // hold or a tap-to-type), independent of submitQuery — which for voice only runs
   // after key-release + STT, far too late to stop the old box/watch/TTS lingering.
   const resetPreviousTurn = useCallback(() => {
+    // Supersede any in-flight turn the INSTANT the user re-engages (PTT promote / tap /
+    // typed submit), so a stale in-flight answer can no longer paint over the fresh
+    // listening/typing UI or wipe pen marks. The next turn captures the bumped epoch.
+    turnEpochRef.current += 1;
     stopAnswerPlayback();
     answerSettledRef.current = false;
     contextBaselineRef.current = null;
@@ -955,12 +959,12 @@ export function NotchApp() {
   // recorder.onstop path and the native push-to-talk `ptt:audio` event.
   const processCapturedAudio = useCallback(
     async (audioBase64: string, mimeType: string) => {
-      // Open a new turn immediately on re-engage (this fires on PTT key-release, but
-      // a fresh hold that started during "thinking" already superseded the old turn).
-      // Bump the epoch + tear down the previous turn's box/watch/TTS right now, so a
-      // 2nd voice turn CANCELS the old one instead of being silently dropped.
-      const epoch = (turnEpochRef.current += 1);
+      // Open a new turn on re-engage. resetPreviousTurn() bumps the epoch (superseding
+      // any in-flight turn) AND tears down the old box/watch/TTS, so a 2nd voice turn
+      // CANCELS the old one instead of being silently dropped. Capture the epoch AFTER
+      // the reset's bump — capturing before would make this new turn supersede itself.
       resetPreviousTurn();
+      const epoch = turnEpochRef.current;
       updateVoiceCaptureState('transcribing');
       setVoicePayload('transcribing');
       void emit('cursor:thinking', {});
