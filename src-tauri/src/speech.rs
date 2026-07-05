@@ -266,6 +266,7 @@ pub(crate) async fn synthesize_speech(
 ) -> Result<SpeechSynthesisResult, String> {
     let _t = crate::klog::timer("tts", "synthesize");
     let provider = provider_env("KAIRO_TTS_PROVIDER", constants::TTS_PROVIDER);
+    let timeout = Duration::from_millis(input.timeout_ms.unwrap_or(constants::TTS_TIMEOUT_MS));
     let text = input.text.trim();
     if provider == "mock" || text.is_empty() {
         return Ok(SpeechSynthesisResult {
@@ -286,7 +287,7 @@ pub(crate) async fn synthesize_speech(
                 .post(format!("{}/text-to-speech", base_url.trim_end_matches('/')))
                 .header("api-subscription-key", api_key)
                 .header("Content-Type", "application/json")
-                .timeout(Duration::from_millis(constants::TTS_TIMEOUT_MS))
+                .timeout(timeout)
                 .json(&json!({
                     "text": text,
                     "target_language_code": provider_env("SARVAM_TTS_LANGUAGE_CODE", constants::SARVAM_TTS_LANGUAGE_CODE),
@@ -323,7 +324,7 @@ pub(crate) async fn synthesize_speech(
                 ))
                 .header("xi-api-key", api_key)
                 .header("Content-Type", "application/json")
-                .timeout(Duration::from_millis(constants::TTS_TIMEOUT_MS))
+                .timeout(timeout)
                 .json(&json!({
                     "text": text,
                     "model_id": provider_env("ELEVENLABS_TTS_MODEL", constants::ELEVENLABS_TTS_MODEL),

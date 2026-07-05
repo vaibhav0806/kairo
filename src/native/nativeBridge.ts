@@ -76,6 +76,9 @@ export type NativeTranscriptionResult = {
 
 export type NativeSynthesizeSpeechInput = {
   text: string;
+  // Per-request timeout override (ms). Omit for the generous default (long answers);
+  // walkthrough steps pass a tight value so a stalled synth fails fast and retries.
+  timeoutMs?: number;
 };
 
 export type NativeSpeechSynthesisResult = {

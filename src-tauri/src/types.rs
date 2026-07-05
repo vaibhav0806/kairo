@@ -228,6 +228,11 @@ pub(crate) struct TranscriptionResult {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SynthesizeSpeechInput {
     pub(crate) text: String,
+    // Per-request timeout override (ms). Walkthrough STEP synths pass a tight value
+    // (fail fast → retry); the full direct answer omits it and gets the generous
+    // default (a long paragraph legitimately takes longer).
+    #[serde(default)]
+    pub(crate) timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]

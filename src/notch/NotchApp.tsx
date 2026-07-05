@@ -46,6 +46,9 @@ const VOICE_ERROR_VISIBLE_MS = 2400;
 
 // Breathing pause between spoken steps of a walkthrough, so it doesn't feel rushed.
 const STEP_GAP_MS = 700;
+// Tight per-step TTS timeout: a stalled step synth fails fast → retried, instead of
+// freezing the walkthrough. The full direct answer uses the generous native default.
+const STEP_SYNTH_TIMEOUT_MS = 20_000;
 
 // Recent conversation kept for continuity + analytics. The last HISTORY_TURNS are
 // formatted into `recentContext` and sent to the tutor so a follow-up (or a resumed,
@@ -601,7 +604,9 @@ export function NotchApp() {
         if (!say) return null;
         for (let attempt = 0; attempt < 2; attempt += 1) {
           try {
-            const url = buildAudioDataUrl(await nativeBridge.synthesizeSpeech({ text: say }));
+            const url = buildAudioDataUrl(
+              await nativeBridge.synthesizeSpeech({ text: say, timeoutMs: STEP_SYNTH_TIMEOUT_MS })
+            );
             if (url) return url;
           } catch {
             // fall through to retry

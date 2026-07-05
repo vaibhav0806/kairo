@@ -65,10 +65,12 @@ pub(crate) const OPENROUTER_REQUEST_TIMEOUT_MS: u64 = 45_000;
 // questions. 12s gives the gate model room to answer.
 pub(crate) const GATE_TIMEOUT_MS: u64 = 12_000;
 pub(crate) const GROUNDING_TIMEOUT_MS: u64 = 15_000;
-// Per-request cap on a single TTS synthesis. Overrides the shared client's 60s so a
-// stalled synth fails fast (and is retried by the caller) instead of freezing a
-// walkthrough step for a minute.
-pub(crate) const TTS_TIMEOUT_MS: u64 = 20_000;
+// Default per-request cap on a TTS synthesis (the full direct answer / filler). A
+// long paragraph legitimately takes a while, so this stays generous; walkthrough
+// STEP synths pass a tighter override (they retry on failure).
+pub(crate) const TTS_TIMEOUT_MS: u64 = 45_000;
+// (Walkthrough step synths pass a tighter per-request override from the frontend —
+// see STEP_SYNTH_TIMEOUT_MS in src/notch — so there's no step-specific constant here.)
 
 // ---------------------------------------------------------------- Vision tuning
 pub(crate) const VISION_MAX_EDGE: u32 = 1568; // longest screenshot edge sent to the model
