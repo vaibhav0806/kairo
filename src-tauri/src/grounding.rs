@@ -858,105 +858,222 @@ fn parse_norm_box(value: Option<&Value>) -> Option<[f64; 4]> {
     Some([x1, y1, x2, y2])
 }
 
-pub(crate) fn boxes_from_content_norm(content: &str) -> Vec<(String, [f64; 4])> {
-    let Ok(parsed) = serde_json::from_str::<Value>(extract_json_object(json_body(content))) else {
-        return Vec::new();
-    };
-    // Current contract: a single top-level `box`.
-    if let Some(b) = parse_norm_box(parsed.get("box")) {
-        return vec![("target".to_string(), b)];
-    }
-    // Legacy fallback: first valid visualTargets[].box.
-    let Some(targets) = parsed.get("visualTargets").and_then(Value::as_array) else {
-        return Vec::new();
-    };
-    for target in targets {
-        if let Some(b) = parse_norm_box(target.get("box")) {
-            let label = target
-                .get("label")
-                .and_then(Value::as_str)
-                .unwrap_or("target")
-                .to_string();
-            return vec![(label, b)];
-        }
-    }
-    Vec::new()
+
+// Decode the screenshot once so per-step accent sampling doesn't re-decode the JPEG.
+fn decode_rgb(image_base64: &str) -> Option<image::RgbImage> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(image_base64)
+        .ok()?;
+    Some(image::load_from_memory(&bytes).ok()?.to_rgb8())
 }
 
-// Build a DetectedBox from the tutor's normalized box, sampling the accent colour
-// from the screenshot so the highlight pops (mirrors detect_element_boxes).
-pub(crate) fn boxes_from_content(content: &str, image_base64: &str) -> Vec<DetectedBox> {
-    let norm = boxes_from_content_norm(content);
-    let Some((label, [nx1, ny1, nx2, ny2])) = norm.into_iter().next() else {
-        return Vec::new();
+// Vibrant accent hex sampled from behind a normalized box (default if no image).
+fn sample_accent(rgb: &Option<image::RgbImage>, [nx1, ny1, nx2, ny2]: [f64; 4]) -> String {
+    let Some(rgb) = rgb else {
+        return vibrant_accent(90.0, 90.0, 90.0);
     };
-    // Default accent if the image can't be decoded; sampled below when it can.
-    let mut color = vibrant_accent(90.0, 90.0, 90.0);
-    use base64::Engine;
-    if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(image_base64) {
-        if let Ok(image) = image::load_from_memory(&bytes) {
-            let rgb = image.to_rgb8();
-            let (w, h) = (rgb.width() as f64, rgb.height() as f64);
-            let (ar, ag, ab) = sample_background(
-                &rgb,
-                (nx1 * w) as u32,
-                (ny1 * h) as u32,
-                (nx2 * w) as u32,
-                (ny2 * h) as u32,
-            );
-            color = vibrant_accent(ar, ag, ab);
+    let (w, h) = (rgb.width() as f64, rgb.height() as f64);
+    let (ar, ag, ab) = sample_background(
+        rgb,
+        (nx1 * w) as u32,
+        (ny1 * h) as u32,
+        (nx2 * w) as u32,
+        (ny2 * h) as u32,
+    );
+    vibrant_accent(ar, ag, ab)
+}
+
+// One normalized box → a pointer (companion cursor at the raw center) + a padded
+// highlight rectangle, both in display points. Used per step so the cursor+box
+// move through a walkthrough one step at a time.
+fn map_box_to_targets(b: &DetectedBox, bounds: &OverlayDisplayBounds, step_index: usize) -> Vec<Value> {
+    let (min_x, min_y, max_x, max_y) = display_point_bounds(bounds);
+    let x1 = (bounds.x + b.norm_x1 * bounds.width).clamp(min_x, max_x);
+    let y1 = (bounds.y + b.norm_y1 * bounds.height).clamp(min_y, max_y);
+    let x2 = (bounds.x + b.norm_x2 * bounds.width).clamp(min_x, max_x);
+    let y2 = (bounds.y + b.norm_y2 * bounds.height).clamp(min_y, max_y);
+    let (rx, ry, rw, rh) = (x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0));
+    let (center_x, center_y) = (rx + rw / 2.0, ry + rh / 2.0);
+    let marker_px = 44.0;
+    let raw_region = ScreenRegion { x: rx, y: ry, width: rw, height: rh };
+    let (pad_x_pct, pad_y_pct, pad_x_max, pad_y_max) = highlight_padding(&raw_region);
+    let min_px = env_f64("KAIRO_BOX_PAD_MIN_PX", 6.0);
+    let pad_x = (pad_x_pct * rw).max(min_px).min(pad_x_max);
+    let pad_y = (pad_y_pct * rh).max(min_px).min(pad_y_max);
+    let px1 = (rx - pad_x).max(min_x);
+    let py1 = (ry - pad_y).max(min_y);
+    let px2 = (rx + rw + pad_x).min(max_x);
+    let py2 = (ry + rh + pad_y).min(max_y);
+    vec![
+        json!({
+            "kind": "pointer",
+            "targetId": format!("vision-primary-{step_index}"),
+            "label": b.label,
+            "confidence": 0.95,
+            "color": b.color,
+            "screenRegion": {
+                "x": center_x - marker_px / 2.0,
+                "y": center_y - marker_px / 2.0,
+                "width": marker_px,
+                "height": marker_px,
+            },
+        }),
+        json!({
+            "kind": "highlight_box",
+            "targetId": format!("vision-box-{step_index}"),
+            "label": b.label,
+            "confidence": 0.9,
+            "color": b.color,
+            "screenRegion": {
+                "x": px1,
+                "y": py1,
+                "width": (px2 - px1).max(0.0),
+                "height": (py2 - py1).max(0.0),
+            },
+        }),
+    ]
+}
+
+// Turn the tutor's raw `{ mode, steps:[{say, box?}] }` into a frontend-ready
+// `{ mode, voiceText, steps:[{say, visualTargets}] }`: each step's optional box is
+// mapped to a pointer + highlight in display points. A legacy `{ voiceText, box }`
+// response is wrapped as a single step. `voiceText` is the joined narration (legacy
+// consumers + the answer log).
+pub(crate) fn apply_step_targets(
+    content: &str,
+    image_base64: &str,
+    bounds: &OverlayDisplayBounds,
+) -> String {
+    let Ok(parsed) = serde_json::from_str::<Value>(extract_json_object(json_body(content))) else {
+        return content.to_string();
+    };
+    let raw_steps: Vec<Value> = match parsed.get("steps").and_then(Value::as_array) {
+        Some(arr) => arr.clone(),
+        None => {
+            let say = parsed
+                .get("voiceText")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            vec![json!({ "say": say, "box": parsed.get("box").cloned().unwrap_or(Value::Null) })]
         }
+    };
+    let rgb = decode_rgb(image_base64);
+    let mut out_steps: Vec<Value> = Vec::new();
+    let mut says: Vec<String> = Vec::new();
+    for (i, step) in raw_steps.iter().take(constants::MAX_TUTOR_STEPS).enumerate() {
+        let say = step
+            .get("say")
+            .or_else(|| step.get("voiceText"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let targets = match parse_norm_box(step.get("box")) {
+            Some(nb) => {
+                let color = sample_accent(&rgb, nb);
+                let db = DetectedBox {
+                    norm_x1: nb[0],
+                    norm_y1: nb[1],
+                    norm_x2: nb[2],
+                    norm_y2: nb[3],
+                    label: "target".to_string(),
+                    color,
+                };
+                map_box_to_targets(&db, bounds, i)
+            }
+            None => Vec::new(),
+        };
+        crate::klog!(grounding, debug, step = i, has_box = !targets.is_empty(), say_len = say.len(), "tutor step");
+        if !say.is_empty() {
+            says.push(say.clone());
+        }
+        out_steps.push(json!({ "say": say, "visualTargets": targets }));
     }
-    crate::klog!(grounding, debug, label = %label, norm = %format!("[{nx1:.4},{ny1:.4},{nx2:.4},{ny2:.4}]"), "box from tutor content");
-    vec![DetectedBox {
-        norm_x1: nx1,
-        norm_y1: ny1,
-        norm_x2: nx2,
-        norm_y2: ny2,
-        label,
-        color,
-    }]
+    let mode = parsed
+        .get("mode")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| {
+            if out_steps.len() > 1 {
+                "steps".to_string()
+            } else {
+                "single".to_string()
+            }
+        });
+    json!({ "mode": mode, "voiceText": says.join(" "), "steps": out_steps }).to_string()
 }
 
 #[cfg(test)]
-mod content_box_tests {
-    use super::boxes_from_content_norm;
+mod step_targets_tests {
+    use super::apply_step_targets;
+    use crate::types::OverlayDisplayBounds;
+    use serde_json::Value;
 
-    #[test]
-    fn extracts_first_target_with_a_normalized_box() {
-        let content = r#"{
-          "voiceText": "Click New — I've highlighted it.",
-          "visualTargets": [
-            { "kind": "pointer", "label": "New repo", "box": [0.10, 0.20, 0.30, 0.28] },
-            { "kind": "highlight_box", "label": "Sidebar", "elementId": "screen-3" }
-          ]
-        }"#;
-        let boxes = boxes_from_content_norm(content);
-        assert_eq!(boxes.len(), 1);
-        assert_eq!(boxes[0].0, "New repo");
-        assert_eq!(boxes[0].1, [0.10, 0.20, 0.30, 0.28]);
+    fn bounds() -> OverlayDisplayBounds {
+        OverlayDisplayBounds {
+            x: 0.0,
+            y: 0.0,
+            width: 1000.0,
+            height: 800.0,
+            scale_factor: 1.0,
+        }
     }
 
     #[test]
-    fn returns_empty_when_no_target_has_a_box() {
-        let content = r#"{ "visualTargets": [ { "kind": "underline", "elementId": "screen-1" } ] }"#;
-        assert!(boxes_from_content_norm(content).is_empty());
+    fn single_step_with_box_yields_pointer_and_highlight() {
+        let content = r#"{ "mode":"single", "steps":[ { "say":"Click New — I've highlighted it.", "box":[0.10,0.20,0.30,0.28] } ] }"#;
+        let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
+        assert_eq!(v["mode"], "single");
+        assert_eq!(v["voiceText"], "Click New — I've highlighted it.");
+        let steps = v["steps"].as_array().unwrap();
+        assert_eq!(steps.len(), 1);
+        let targets = steps[0]["visualTargets"].as_array().unwrap();
+        assert_eq!(targets.len(), 2);
+        assert_eq!(targets[0]["kind"], "pointer");
+        assert_eq!(targets[1]["kind"], "highlight_box");
     }
 
     #[test]
-    fn ignores_out_of_range_or_inverted_boxes() {
-        let content = r#"{ "visualTargets": [ { "label": "x", "box": [0.9, 0.2, 0.1, 0.4] } ] }"#;
-        assert!(boxes_from_content_norm(content).is_empty());
+    fn narration_step_without_box_has_no_targets() {
+        let content = r#"{ "mode":"steps", "steps":[ { "say":"This is GitHub." }, { "say":"Your code lives here.", "box":[0.1,0.3,0.7,0.8] } ] }"#;
+        let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
+        let steps = v["steps"].as_array().unwrap();
+        assert_eq!(steps.len(), 2);
+        assert!(steps[0]["visualTargets"].as_array().unwrap().is_empty());
+        assert_eq!(steps[1]["visualTargets"].as_array().unwrap().len(), 2);
+        assert_eq!(v["voiceText"], "This is GitHub. Your code lives here.");
     }
 
     #[test]
-    fn extracts_box_despite_prose_preamble_and_trailing_text() {
-        // Opus (no json_object mode) may wrap the object in prose on both sides.
-        let content = "Sure! Here's the guidance:\n{ \"visualTargets\": [ { \"label\": \"New\", \"box\": [0.1, 0.2, 0.3, 0.4] } ] }\nHope that helps!";
-        let boxes = boxes_from_content_norm(content);
-        assert_eq!(boxes.len(), 1);
-        assert_eq!(boxes[0].0, "New");
-        assert_eq!(boxes[0].1, [0.1, 0.2, 0.3, 0.4]);
+    fn legacy_single_box_is_wrapped_as_one_step() {
+        let content = r#"{ "voiceText":"Click New.", "box":[0.1,0.2,0.3,0.4] }"#;
+        let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
+        assert_eq!(v["mode"], "single");
+        let steps = v["steps"].as_array().unwrap();
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0]["visualTargets"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn out_of_range_box_yields_no_targets() {
+        let content = r#"{ "steps":[ { "say":"x", "box":[0.9,0.2,0.1,0.4] } ] }"#;
+        let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
+        assert!(v["steps"][0]["visualTargets"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn caps_at_max_steps() {
+        let content = r#"{ "steps":[ {"say":"1"},{"say":"2"},{"say":"3"},{"say":"4"},{"say":"5"},{"say":"6"},{"say":"7"} ] }"#;
+        let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
+        assert_eq!(v["steps"].as_array().unwrap().len(), 5);
+    }
+
+    #[test]
+    fn extracts_despite_prose_preamble_and_trailing_text() {
+        let content = "Sure!\n{ \"steps\":[ { \"say\":\"New\", \"box\":[0.1,0.2,0.3,0.4] } ] }\nHope that helps!";
+        let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
+        assert_eq!(v["steps"][0]["visualTargets"].as_array().unwrap().len(), 2);
     }
 }
 

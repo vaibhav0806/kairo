@@ -69,6 +69,12 @@ pub(crate) const GROUNDING_TIMEOUT_MS: u64 = 15_000;
 // ---------------------------------------------------------------- Vision tuning
 pub(crate) const VISION_MAX_EDGE: u32 = 1568; // longest screenshot edge sent to the model
 
+// Max steps in one tutor answer. `single` = 1 step (a direct answer); `steps` = a
+// short narrated walkthrough. Capped so a turn stays snappy and grounding stays
+// accurate (more boxes/call = each less precise). Step gap + history-turns are UI
+// concerns and live on the frontend (src/notch).
+pub(crate) const MAX_TUTOR_STEPS: usize = 5;
+
 // ---------------------------------------------------------------- Toggles
 pub(crate) const SEPARATE_GROUNDING: bool = false; // true = legacy 2-call (OpenRouter answer + Opus box)
 pub(crate) const SHOW_IN_CAPTURE: bool = false; // true = Kairo UI visible in screenshots/recordings (demo)

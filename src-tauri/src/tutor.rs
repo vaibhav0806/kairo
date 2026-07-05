@@ -4,7 +4,7 @@
 
 use crate::env::{provider_env, provider_env_optional, provider_timeout_ms};
 use crate::grounding::{
-    anthropic_vision_chat, apply_box_targets, boxes_from_content, clean_model_json,
+    anthropic_vision_chat, apply_box_targets, apply_step_targets, clean_model_json,
     detect_element_boxes, ground_visual_targets,
 };
 use crate::constants;
@@ -271,27 +271,20 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
             {
                 Some(raw) => {
                     // Sanitize once so the frontend always gets a clean JSON object,
-                    // even if Opus wrapped it in prose/fences (no json_object mode).
+                    // even if the model wrapped it in prose/fences (no json_object mode).
                     let content = clean_model_json(&raw);
-                    // Diagnostic: the exact spoken answer, paired with the question
-                    // logged above (always shown; constants::LOG_TRANSCRIPTS).
-                    if let Some(voice) = serde_json::from_str::<Value>(&content)
-                        .ok()
-                        .as_ref()
-                        .and_then(|value| value.get("voiceText"))
-                        .and_then(Value::as_str)
-                    {
-                        crate::klog!(tutor, info, answer = %crate::klog::transcript_field(voice), "single-call answer");
+                    // Map the raw { mode, steps:[{say, box?}] } into frontend-ready steps
+                    // with per-step pointer + highlight targets in display points.
+                    let grounded = apply_step_targets(&content, image_base64, bounds);
+                    // Diagnostic: the joined spoken answer + step count, paired with the
+                    // question logged above (always shown; constants::LOG_TRANSCRIPTS).
+                    if let Ok(value) = serde_json::from_str::<Value>(&grounded) {
+                        let answer = value.get("voiceText").and_then(Value::as_str).unwrap_or("");
+                        let steps = value.get("steps").and_then(Value::as_array).map(|a| a.len()).unwrap_or(0);
+                        let mode = value.get("mode").and_then(Value::as_str).unwrap_or("");
+                        crate::klog!(tutor, info, mode = mode, steps = steps, answer = %crate::klog::transcript_field(answer), "single-call answer");
                     }
-                    let detected = boxes_from_content(&content, image_base64);
-                    return Ok(if detected.is_empty() {
-                        // No explicit box (e.g. text-only target) — ground the model's
-                        // own elementId/screenRegion targets via OCR.
-                        crate::klog!(tutor, info, "single-call: no box in response; OCR-grounding model targets");
-                        ground_visual_targets(content, &ocr_elements, Some(bounds))
-                    } else {
-                        apply_box_targets(content, &detected, bounds)
-                    });
+                    return Ok(grounded);
                 }
                 None => {
                     crate::klog!(tutor, warn, "opus vision turn empty; falling back to OpenRouter answer");
