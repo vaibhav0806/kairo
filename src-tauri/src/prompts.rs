@@ -57,6 +57,14 @@ pub(crate) fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
     {
         lines.push("recentContext (when present) is the recent back-and-forth, including any walkthrough you were interrupted mid-way through. Use it for continuity — the new question may refer to \"that\", \"the one you just showed\", or where you left off.".to_string());
     }
+    // Hand-off: the gate already spoke `spokenIntro` aloud THIS turn — continue from it.
+    if input
+        .spoken_intro
+        .as_ref()
+        .is_some_and(|s| !s.trim().is_empty())
+    {
+        lines.push("You have ALREADY said `spokenIntro` aloud this turn (a quick greeting/acknowledgment). Continue naturally from it — do NOT greet again, repeat it, or re-answer small talk like \"how are you\". Go straight into the answer or first step.".to_string());
+    }
     // Skill line only when a real, app-specific skill is selected (none today).
     if skill_is_active(&input.skill) {
         lines.push(format!(

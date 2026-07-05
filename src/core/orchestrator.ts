@@ -21,6 +21,8 @@ export type TutorTurnInput = {
   constraints: string[];
   // Preformatted recent conversation for continuity (last N turns). Optional.
   recentContext?: string;
+  // The line the gate already spoke aloud this turn — continue from it, don't re-greet.
+  spokenIntro?: string;
 };
 
 export type TutorPlannerAdapter = (input: TutorTurnInput) => Promise<TutorResponse>;
@@ -29,12 +31,14 @@ export function buildTutorTurnInput({
   request,
   screenCapture,
   skillSlug,
-  recentContext
+  recentContext,
+  spokenIntro
 }: {
   request: TutorRequest;
   screenCapture: NativeScreenCapture | null;
   skillSlug: string;
   recentContext?: string;
+  spokenIntro?: string;
 }): TutorTurnInput {
   const registry = createSkillPackRegistry();
   const skill =
@@ -69,7 +73,8 @@ export function buildTutorTurnInput({
       'Return one short tutor step.',
       'Do not invent app state that is not visible in the provided context.'
     ],
-    ...(recentContext && recentContext.trim() ? { recentContext } : {})
+    ...(recentContext && recentContext.trim() ? { recentContext } : {}),
+    ...(spokenIntro && spokenIntro.trim() ? { spokenIntro } : {})
   };
 }
 
@@ -80,6 +85,7 @@ export function createTutorOrchestrator({ planner }: { planner: TutorPlannerAdap
       screenCapture: NativeScreenCapture | null;
       skillSlug: string;
       recentContext?: string;
+      spokenIntro?: string;
     }) {
       return planner(buildTutorTurnInput(args));
     }

@@ -919,7 +919,9 @@ export function NotchApp() {
           defaultSkill: env.defaultSkill,
           annotations,
           screenCapture: capturedScreenRef.current,
-          recentContext
+          recentContext,
+          // What the gate just spoke aloud, so the tutor continues instead of re-greeting.
+          spokenIntro: gate.voiceText || 'Let me take a look.'
         });
         // A newer turn superseded this one while the tutor ran → don't paint a stale
         // answer, don't play its audio, don't arm a watch for the old target.

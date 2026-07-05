@@ -196,6 +196,10 @@ pub(crate) struct TutorTurnInput {
     // walkthrough) for continuity. Built on the frontend; injected into the prompt.
     #[serde(default)]
     pub(crate) recent_context: Option<String>,
+    // The filler/greeting the gate already spoke aloud THIS turn (needsScreen path),
+    // so the tutor continues from it instead of greeting again. Absent otherwise.
+    #[serde(default)]
+    pub(crate) spoken_intro: Option<String>,
 }
 
 // The notch capsule's bounding rect in CSS px (viewport-relative), reported by the

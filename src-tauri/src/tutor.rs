@@ -51,6 +51,12 @@ fn build_tutor_user_prompt(input: &TutorTurnInput) -> Result<String, String> {
             object.insert("recentContext".to_string(), json!(recent));
         }
     }
+    // The line the gate already spoke aloud this turn — the tutor continues from it.
+    if let Some(intro) = input.spoken_intro.as_ref().filter(|s| !s.trim().is_empty()) {
+        if let Some(object) = context.as_object_mut() {
+            object.insert("spokenIntro".to_string(), json!(intro));
+        }
+    }
     serde_json::to_string_pretty(&context)
         .map_err(|error| format!("Failed to build tutor prompt: {error}"))
 }
