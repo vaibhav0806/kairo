@@ -165,7 +165,9 @@ impl Default for ContextWatch {
 // ---------------------------------------------------------------------------
 
 enum AudioCommand {
-    // Build the armed input stream at launch so the first press is warm.
+    // No-op today: the mic unit is built lazily on the first press (and kept for the
+    // session), so the hardware stays fully closed until the user first talks. Kept as
+    // a seam in case pre-warming is ever wanted again.
     Warm,
     // Carries the chord-down instant so we can log time-to-record-start.
     Start(Instant),
@@ -517,8 +519,10 @@ pub fn run() {
                     level = audio.level.clone();
                 }
                 let tx = spawn_audio_capture(app.handle(), capturing, level);
-                // Warm the mic path at launch (build the armed stream) so the first
-                // push-to-talk press is instant, not cold.
+                // No launch warm-up: the mic unit is built lazily on the first ⌥⌃ press
+                // so the mic hardware is untouched (indicator off) until the user talks.
+                // The first press pays a one-time ~200ms cold build; every later press
+                // reuses the same paused unit (instant, and leak-free).
                 let _ = tx.send(AudioCommand::Warm);
                 if let Ok(mut guard) = app.state::<AudioCapture>().tx.lock() {
                     *guard = Some(tx);
