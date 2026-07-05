@@ -213,3 +213,5 @@ Notes:
 - Rust or frontend code changes → rebuild (command 1).
 - First build after a cargo change is slow (~minutes); later ones are faster.
 - Watch logs: tail -F ~/Library/Logs/Kairo/kairo-latest.log
+
+Also - don't create branches unless i explicity tell u to, work on main branch only.
