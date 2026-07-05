@@ -965,6 +965,11 @@ export function NotchApp() {
       // the reset's bump — capturing before would make this new turn supersede itself.
       resetPreviousTurn();
       const epoch = turnEpochRef.current;
+      // Approx WAV bytes from the base64 length (×3/4), so we can correlate a bad
+      // transcript with what the native mic actually delivered (see the native
+      // `captured audio` / `MIC LEAK` logs for held_s vs audio_s).
+      const approxBytes = Math.floor((audioBase64.length * 3) / 4);
+      klog('notch', 'info', 'ptt audio received', { epoch, mimeType, bytes: approxBytes });
       updateVoiceCaptureState('transcribing');
       setVoicePayload('transcribing');
       void emit('cursor:thinking', {});
@@ -987,13 +992,22 @@ export function NotchApp() {
         // A newer turn superseded this one while STT ran → bail without touching
         // shared state; the newest turn drives voiceCaptureState to completion.
         if (turnEpochRef.current !== epoch) {
+          klog('notch', 'info', 'ptt turn superseded during stt', { epoch });
           return;
         }
         const transcript = result.text.trim();
         if (!transcript) {
+          // Empty transcript is what pops the typing box (showVoiceError → prompt
+          // layout). Log it explicitly so a recurrence is traceable to STT, not the
+          // mic-leak path we fixed.
+          klog('notch', 'warn', 'ptt empty transcript → voice error (typing box)', {
+            epoch,
+            bytes: approxBytes
+          });
           showVoiceError('No speech was detected. Try again and speak a little louder.');
           return;
         }
+        klog('notch', 'info', 'ptt transcript ok', { epoch, transcript_len: transcript.length });
         setQuery(transcript);
         await capturePromise;
         await submitQuery(transcript, 'voice', epoch);
@@ -1006,6 +1020,10 @@ export function NotchApp() {
           error instanceof Error && error.message.trim()
             ? error.message.trim()
             : 'Voice transcription failed. Try again.';
+        klog('notch', 'error', 'ptt transcription failed → voice error (typing box)', {
+          epoch,
+          detail
+        });
         showVoiceError(detail);
       }
     },
