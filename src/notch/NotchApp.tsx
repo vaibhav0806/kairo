@@ -594,16 +594,35 @@ export function NotchApp() {
         return;
       }
 
-      // Fire ALL synthesis now, concurrently. Each clip resolves to a data URL (or
-      // null on empty/failed synth) and is awaited only when its step's turn comes.
-      const clips = steps.map((step) =>
-        step.say.trim()
-          ? nativeBridge
-              .synthesizeSpeech({ text: step.say.trim() })
-              .then((result) => buildAudioDataUrl(result))
-              .catch(() => null)
-          : Promise.resolve<string | null>(null)
-      );
+      // Synthesize a step's audio with ONE retry (a transient failure/timeout must
+      // not leave a step silent). null = empty text or synth failed twice.
+      const synthStep = async (index: number): Promise<string | null> => {
+        const say = steps[index].say.trim();
+        if (!say) return null;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            const url = buildAudioDataUrl(await nativeBridge.synthesizeSpeech({ text: say }));
+            if (url) return url;
+          } catch {
+            // fall through to retry
+          }
+        }
+        klog('notch', 'warn', 'step synth failed after retry', { index });
+        return null;
+      };
+
+      // Prefetch window: keep at most 2 TTS requests in flight. Sarvam's bulbul:v3
+      // stalls several simultaneous REST synths, so we DON'T fire all N at once —
+      // we fire step i+1 and i+2 as each step starts playing, spreading requests
+      // across playback (also keeps us well under the per-minute rate).
+      const clips: Array<Promise<string | null> | undefined> = new Array(steps.length);
+      const prefetch = (index: number) => {
+        if (index < steps.length && clips[index] === undefined) {
+          clips[index] = synthStep(index);
+        }
+      };
+      prefetch(0);
+      prefetch(1);
 
       // Queue behind the "let me look" filler (mirror playAnswerAudio).
       const epoch = playbackEpochRef.current;
@@ -629,10 +648,14 @@ export function NotchApp() {
           onFirstSpeechStart?.();
         }
         void revealStep(steps[index]);
+        // Keep 2 steps ahead prefetched (fires i+2 as i starts; i+1 already in flight).
+        prefetch(index + 1);
+        prefetch(index + 2);
       };
 
       for (let i = 0; i < steps.length; i += 1) {
         if (playbackEpochRef.current !== playEpoch) return; // superseded → stop
+        prefetch(i); // safety: ensure this step's synth was kicked off
         const url = await clips[i];
         if (playbackEpochRef.current !== playEpoch) return;
 

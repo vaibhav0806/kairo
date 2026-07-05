@@ -8,6 +8,7 @@ use crate::types::{
     SpeechSynthesisResult, SynthesizeSpeechInput, TranscribeAudioInput, TranscriptionResult,
 };
 use serde_json::{json, Value};
+use std::time::Duration;
 
 pub(crate) fn audio_filename(input: &TranscribeAudioInput) -> String {
     if let Some(filename) = input
@@ -285,6 +286,7 @@ pub(crate) async fn synthesize_speech(
                 .post(format!("{}/text-to-speech", base_url.trim_end_matches('/')))
                 .header("api-subscription-key", api_key)
                 .header("Content-Type", "application/json")
+                .timeout(Duration::from_millis(constants::TTS_TIMEOUT_MS))
                 .json(&json!({
                     "text": text,
                     "target_language_code": provider_env("SARVAM_TTS_LANGUAGE_CODE", constants::SARVAM_TTS_LANGUAGE_CODE),
@@ -321,6 +323,7 @@ pub(crate) async fn synthesize_speech(
                 ))
                 .header("xi-api-key", api_key)
                 .header("Content-Type", "application/json")
+                .timeout(Duration::from_millis(constants::TTS_TIMEOUT_MS))
                 .json(&json!({
                     "text": text,
                     "model_id": provider_env("ELEVENLABS_TTS_MODEL", constants::ELEVENLABS_TTS_MODEL),

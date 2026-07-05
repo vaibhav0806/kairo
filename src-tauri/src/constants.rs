@@ -65,6 +65,10 @@ pub(crate) const OPENROUTER_REQUEST_TIMEOUT_MS: u64 = 45_000;
 // questions. 12s gives the gate model room to answer.
 pub(crate) const GATE_TIMEOUT_MS: u64 = 12_000;
 pub(crate) const GROUNDING_TIMEOUT_MS: u64 = 15_000;
+// Per-request cap on a single TTS synthesis. Overrides the shared client's 60s so a
+// stalled synth fails fast (and is retried by the caller) instead of freezing a
+// walkthrough step for a minute.
+pub(crate) const TTS_TIMEOUT_MS: u64 = 20_000;
 
 // ---------------------------------------------------------------- Vision tuning
 pub(crate) const VISION_MAX_EDGE: u32 = 1568; // longest screenshot edge sent to the model
@@ -73,7 +77,7 @@ pub(crate) const VISION_MAX_EDGE: u32 = 1568; // longest screenshot edge sent to
 // short narrated walkthrough. Capped so a turn stays snappy and grounding stays
 // accurate (more boxes/call = each less precise). Step gap + history-turns are UI
 // concerns and live on the frontend (src/notch).
-pub(crate) const MAX_TUTOR_STEPS: usize = 5;
+pub(crate) const MAX_TUTOR_STEPS: usize = 7;
 
 // ---------------------------------------------------------------- Toggles
 pub(crate) const SEPARATE_GROUNDING: bool = false; // true = legacy 2-call (OpenRouter answer + Opus box)
