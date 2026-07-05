@@ -614,7 +614,12 @@ export function NotchApp() {
       }
       if (playbackEpochRef.current !== epoch) return;
 
+      // stopAnswerPlayback() bumps playbackEpoch, so capture the epoch to check the
+      // loop against AFTER it — otherwise the first iteration sees epoch+1 and bails
+      // immediately (nothing ever plays). A genuinely newer turn bumps it again,
+      // which still makes every await below bail correctly.
       stopAnswerPlayback();
+      const playEpoch = playbackEpochRef.current;
 
       let firstSpoken = false;
       const startStep = (index: number) => {
@@ -627,9 +632,9 @@ export function NotchApp() {
       };
 
       for (let i = 0; i < steps.length; i += 1) {
-        if (playbackEpochRef.current !== epoch) return; // superseded → stop
+        if (playbackEpochRef.current !== playEpoch) return; // superseded → stop
         const url = await clips[i];
-        if (playbackEpochRef.current !== epoch) return;
+        if (playbackEpochRef.current !== playEpoch) return;
 
         if (!url) {
           // No audio (empty/failed synth): still reveal the step briefly.
@@ -663,14 +668,14 @@ export function NotchApp() {
           });
         }
 
-        if (playbackEpochRef.current !== epoch) return;
+        if (playbackEpochRef.current !== playEpoch) return;
         // Breathing gap between steps (not after the last).
         if (i < steps.length - 1) {
           await new Promise<void>((resolve) => setTimeout(resolve, STEP_GAP_MS));
         }
       }
 
-      if (playbackEpochRef.current !== epoch) return;
+      if (playbackEpochRef.current !== playEpoch) return;
       setIsSpeaking(false);
       void emit('cursor:idle', {});
       onSettled?.();
