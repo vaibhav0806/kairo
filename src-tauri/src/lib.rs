@@ -931,6 +931,7 @@ mod tests {
                 landmarks: json!({}),
             },
             constraints: vec!["Return one short tutor step.".to_string()],
+            recent_context: None,
         }
     }
 }

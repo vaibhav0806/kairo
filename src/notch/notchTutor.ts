@@ -21,6 +21,8 @@ export type AskTutorFromNotchOptions = {
   // Screenshot captured at voice-start; reused here so the ask doesn't wait on a
   // fresh capture. Falls back to capturing now (e.g. typed input, no voice).
   screenCapture?: NativeScreenCapture | null;
+  // Preformatted recent conversation for continuity (last N turns). Optional.
+  recentContext?: string;
 };
 
 export type AskTutorResult = {
@@ -45,7 +47,8 @@ export async function askTutorFromNotch({
   aiProvider,
   defaultSkill,
   annotations = [],
-  screenCapture: providedCapture
+  screenCapture: providedCapture,
+  recentContext
 }: AskTutorFromNotchOptions): Promise<AskTutorResult> {
   try {
     const mockPlanner = createMockTutorPlanner();
@@ -72,7 +75,8 @@ export async function askTutorFromNotch({
         annotations
       },
       screenCapture,
-      skillSlug: defaultSkill
+      skillSlug: defaultSkill,
+      recentContext
     });
 
     const displayBounds = screenCapture.displayBounds;

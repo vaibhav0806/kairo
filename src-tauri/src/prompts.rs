@@ -47,6 +47,15 @@ pub(crate) fn build_tutor_system_prompt(input: &TutorTurnInput) -> String {
         "Answer any question directly. Only name a specific app or tool when the app, window, or question is clearly about it.".to_string(),
         "Annotations are the user's own marks (circles, boxes, arrows, underlines). Acknowledge them naturally — \"the button you circled\", \"the field you underlined\" — so they know you saw the drawing; match the wording to the mark. Don't count strokes or mention IDs like screen-annotation-1. If a mark is ambiguous, say what it may point to and ask briefly.".to_string(),
     ];
+    // Continuity: when recentContext is present, the user's question may follow on
+    // from an earlier answer or a walkthrough that was interrupted mid-way.
+    if input
+        .recent_context
+        .as_ref()
+        .is_some_and(|s| !s.trim().is_empty())
+    {
+        lines.push("recentContext (when present) is the recent back-and-forth, including any walkthrough you were interrupted mid-way through. Use it for continuity — the new question may refer to \"that\", \"the one you just showed\", or where you left off.".to_string());
+    }
     // Skill line only when a real, app-specific skill is selected (none today).
     if skill_is_active(&input.skill) {
         lines.push(format!(

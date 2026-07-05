@@ -47,6 +47,15 @@ const VOICE_ERROR_VISIBLE_MS = 2400;
 // Breathing pause between spoken steps of a walkthrough, so it doesn't feel rushed.
 const STEP_GAP_MS = 700;
 
+// Recent conversation kept for continuity + analytics. The last HISTORY_TURNS are
+// formatted into `recentContext` and sent to the tutor so a follow-up (or a resumed,
+// interrupted walkthrough) has context. A larger buffer is retained for analytics.
+const HISTORY_TURNS = 10;
+const CONVERSATION_BUFFER = 50;
+type ConversationTurn =
+  | { role: 'user'; text: string }
+  | { role: 'assistant'; mode: string; saidSteps: string[]; completed: boolean; interrupted: boolean };
+
 // After the answer finishes speaking, close the notch this long after the user
 // stops interacting with it (also clears the box + companion cursor).
 const NOTCH_IDLE_CLOSE_MS = 3000;
@@ -189,6 +198,13 @@ export function NotchApp() {
   const lastNotchPointerAt = useRef(0);
   // Backstop so the answer always "settles" even if the audio 'ended' event misfires.
   const settleFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Session memory: recent turns for continuity + analytics (what was actually
+  // spoken, and whether a walkthrough was cut off). Never sent as-is beyond the last
+  // HISTORY_TURNS (as `recentContext`).
+  const conversationRef = useRef<ConversationTurn[]>([]);
+  const activeAssistantTurnRef = useRef<Extract<ConversationTurn, { role: 'assistant' }> | null>(
+    null
+  );
   // Mirrors the prompt text so the idle check can tell "typing a follow-up" (block
   // close) from a merely focused-but-empty prompt (the autoFocus default).
   const queryRef = useRef('');
@@ -288,6 +304,71 @@ export function NotchApp() {
     lastNotchActivityAt.current = performance.now();
   }, []);
 
+  // ---- Session memory (continuity + analytics) --------------------------------
+  // Format the last HISTORY_TURNS into the `recentContext` string sent to the tutor.
+  const buildRecentContext = useCallback(() => {
+    const turns = conversationRef.current.slice(-HISTORY_TURNS);
+    if (turns.length === 0) return '';
+    return turns
+      .map((turn) => {
+        if (turn.role === 'user') return `User: ${turn.text}`;
+        const said = turn.saidSteps.map((s) => `"${s}"`).join(' | ');
+        const status = turn.interrupted
+          ? `${turn.mode}, interrupted after ${turn.saidSteps.length} step${turn.saidSteps.length === 1 ? '' : 's'}`
+          : turn.mode;
+        return `Kairo (${status}): ${said || '(no answer)'}`;
+      })
+      .join('\n');
+  }, []);
+
+  const recordUserTurn = useCallback((text: string) => {
+    conversationRef.current.push({ role: 'user', text });
+    if (conversationRef.current.length > CONVERSATION_BUFFER) {
+      conversationRef.current = conversationRef.current.slice(-CONVERSATION_BUFFER);
+    }
+  }, []);
+
+  const beginAssistantTurn = useCallback((mode: string) => {
+    const turn = {
+      role: 'assistant' as const,
+      mode,
+      saidSteps: [] as string[],
+      completed: false,
+      interrupted: false
+    };
+    conversationRef.current.push(turn);
+    activeAssistantTurnRef.current = turn;
+  }, []);
+
+  const recordStepSpoken = useCallback((say: string) => {
+    const turn = activeAssistantTurnRef.current;
+    if (turn && say.trim()) {
+      turn.saidSteps.push(say.trim());
+    }
+  }, []);
+
+  const completeAssistantTurn = useCallback(() => {
+    const turn = activeAssistantTurnRef.current;
+    if (turn) {
+      turn.completed = true;
+    }
+    activeAssistantTurnRef.current = null;
+  }, []);
+
+  // A new turn is starting: if the previous answer never finished (interrupted mid
+  // walkthrough), record that so the next turn's recentContext knows where it stopped.
+  const markTurnInterrupted = useCallback(() => {
+    const turn = activeAssistantTurnRef.current;
+    if (turn && !turn.completed) {
+      turn.interrupted = true;
+      klog('notch', 'info', 'walkthrough interrupted', {
+        mode: turn.mode,
+        spoken: turn.saidSteps.length
+      });
+    }
+    activeAssistantTurnRef.current = null;
+  }, []);
+
   // Tear down the PREVIOUS turn's visual + context state on re-engage (a new voice
   // hold or a tap-to-type), independent of submitQuery — which for voice only runs
   // after key-release + STT, far too late to stop the old box/watch/TTS lingering.
@@ -296,6 +377,8 @@ export function NotchApp() {
     // typed submit), so a stale in-flight answer can no longer paint over the fresh
     // listening/typing UI or wipe pen marks. The next turn captures the bumped epoch.
     turnEpochRef.current += 1;
+    // If a walkthrough was cut off mid-way, record it before the next turn starts.
+    markTurnInterrupted();
     stopAnswerPlayback();
     answerSettledRef.current = false;
     contextBaselineRef.current = null;
@@ -303,7 +386,7 @@ export function NotchApp() {
     void nativeBridge.disarmContextWatch();
     // Fresh activity so the idle-close timer can't fire immediately after re-engage.
     lastNotchActivityAt.current = performance.now();
-  }, [stopAnswerPlayback, nativeBridge]);
+  }, [markTurnInterrupted, stopAnswerPlayback, nativeBridge]);
 
   const stopActiveRecording = useCallback(
     (cancelled = false) => {
@@ -703,6 +786,11 @@ export function NotchApp() {
       // transcript + gate question/answer lines in the same log file).
       klog('notch', 'info', 'ask submit', { source, query_len: trimmedQuery.length });
 
+      // Session memory: capture the recent conversation BEFORE recording this turn,
+      // then record the user's question. `recentContext` gives the tutor continuity.
+      const recentContext = buildRecentContext();
+      recordUserTurn(trimmedQuery);
+
       const thinkingPayload = activationStateToNotchPayload('thinking');
       stopAnswerPlayback();
       // A new turn supersedes the last answer: mark it unsettled (blocks auto-close)
@@ -764,13 +852,18 @@ export function NotchApp() {
           setAnnotations([]);
           setActiveAnnotationTool(null);
           void nativeBridge.showNotch(directPayload);
+          beginAssistantTurn('single');
+          recordStepSpoken(directPayload.detail);
           void playAnswerAudio(
             directPayload.detail,
             () => {
               setDetailHidden(false);
               void nativeBridge.hideOverlay();
             },
-            () => markAnswerSettled()
+            () => {
+              completeAssistantTurn();
+              markAnswerSettled();
+            }
           );
           return;
         }
@@ -792,7 +885,8 @@ export function NotchApp() {
           aiProvider: env.aiProvider,
           defaultSkill: env.defaultSkill,
           annotations,
-          screenCapture: capturedScreenRef.current
+          screenCapture: capturedScreenRef.current,
+          recentContext
         });
         // A newer turn superseded this one while the tutor ran → don't paint a stale
         // answer, don't play its audio, don't arm a watch for the old target.
@@ -819,6 +913,7 @@ export function NotchApp() {
         };
 
         if (steps.length > 0) {
+          beginAssistantTurn(steps.length > 1 ? 'steps' : 'single');
           void playSteps(
             steps,
             revealStep,
@@ -829,9 +924,11 @@ export function NotchApp() {
               void emit('cursor:idle', {});
             },
             () => {
+              completeAssistantTurn();
               armWatch();
               markAnswerSettled();
-            }
+            },
+            (_index, step) => recordStepSpoken(step.say)
           );
         } else {
           void playAnswerAudio(
@@ -861,6 +958,11 @@ export function NotchApp() {
       env.aiProvider,
       env.defaultSkill,
       nativeBridge,
+      beginAssistantTurn,
+      buildRecentContext,
+      completeAssistantTurn,
+      recordStepSpoken,
+      recordUserTurn,
       playAnswerAudio,
       playSteps,
       runGate,

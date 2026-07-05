@@ -192,6 +192,10 @@ pub(crate) struct TutorTurnInput {
     pub(crate) screen: TutorScreenInput,
     pub(crate) skill: TutorSkillPack,
     pub(crate) constraints: Vec<String>,
+    // Preformatted recent conversation (last N turns, incl. any interrupted
+    // walkthrough) for continuity. Built on the frontend; injected into the prompt.
+    #[serde(default)]
+    pub(crate) recent_context: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
