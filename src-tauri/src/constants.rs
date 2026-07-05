@@ -32,8 +32,8 @@ pub(crate) const OPENROUTER_APP_TITLE: &str = "Kairo Tutor";
 
 // ---------------------------------------------------------------- Anthropic
 pub(crate) const ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com";
-pub(crate) const ANTHROPIC_VISION_MODEL: &str = "claude-opus-4-8"; // Opus grounding
-pub(crate) const TUTOR_VISION_MODEL: &str = "claude-opus-4-8"; // single-call answer + box
+pub(crate) const ANTHROPIC_VISION_MODEL: &str = "claude-fable-5"; // Opus grounding
+pub(crate) const TUTOR_VISION_MODEL: &str = "claude-fable-5"; // single-call answer + box
 
 // ------------------------------------------- Alt grounding (when selected)
 pub(crate) const OPENROUTER_GROUNDING_MODEL: &str = "qwen/qwen3.7-plus";
