@@ -1468,6 +1468,16 @@ input {
   letter-spacing: 0.01em;
 }
 
+/* Voice failure (no speech / STT error): a brief, self-dismissing status with a
+   soft amber tint — reads as a gentle "try again", not the typing box. */
+.kairo-capsule[data-mode='error'] {
+  border-color: rgb(255 196 120 / 0.34);
+}
+
+.kairo-capsule-status-error .kairo-capsule-label {
+  color: #ffd7a6;
+}
+
 .kairo-capsule-viz {
   align-items: center;
   display: flex;

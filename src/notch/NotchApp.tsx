@@ -40,6 +40,10 @@ const defaultPayload: NotchPayload = {
   detail: 'Press the shortcut to start'
 };
 
+// A voice failure (no speech / STT error) shows a brief, self-dismissing status
+// capsule instead of the typing box — then auto-closes to idle after this long.
+const VOICE_ERROR_VISIBLE_MS = 2400;
+
 // After the answer finishes speaking, close the notch this long after the user
 // stops interacting with it (also clears the box + companion cursor).
 const NOTCH_IDLE_CLOSE_MS = 3000;
@@ -939,20 +943,39 @@ export function NotchApp() {
     [nativeBridge]
   );
 
+  const voiceErrorTimeoutRef = useRef<number | null>(null);
+
   const showVoiceError = useCallback(
     (detail: string) => {
+      // Voice failures show a brief, self-dismissing status — NOT the typing box.
+      // A voice interaction should never dump the user into a text field. layout is
+      // 'compact' (never 'prompt') so capsuleMode can't become 'typing'; the
+      // voiceCaptureState 'error' drives the transient 'error' capsule, which
+      // auto-closes to idle after VOICE_ERROR_VISIBLE_MS.
+      if (voiceErrorTimeoutRef.current != null) {
+        clearTimeout(voiceErrorTimeoutRef.current);
+        voiceErrorTimeoutRef.current = null;
+      }
       const nextPayload: NotchPayload = {
         state: 'captured',
-        layout: 'prompt',
-        title: 'Voice unavailable',
+        layout: 'compact',
+        title: 'Voice',
         detail
       };
       updateVoiceCaptureState('error');
       setPayload(nextPayload);
       void nativeBridge.showNotch(nextPayload);
       void emit('cursor:idle', {});
+      voiceErrorTimeoutRef.current = window.setTimeout(() => {
+        voiceErrorTimeoutRef.current = null;
+        // Only self-close if still showing THIS error — a new turn (user re-pressed
+        // ⌥⌃) sets voiceCaptureState away from 'error' and drives its own lifecycle.
+        if (voiceCaptureStateRef.current === 'error') {
+          hideNotch();
+        }
+      }, VOICE_ERROR_VISIBLE_MS);
     },
-    [nativeBridge, updateVoiceCaptureState]
+    [hideNotch, nativeBridge, updateVoiceCaptureState]
   );
 
   // Transcribe captured audio and run the tutor turn. Shared by the WebView
@@ -964,6 +987,11 @@ export function NotchApp() {
       // CANCELS the old one instead of being silently dropped. Capture the epoch AFTER
       // the reset's bump — capturing before would make this new turn supersede itself.
       resetPreviousTurn();
+      // A new turn supersedes any lingering voice-error capsule + its auto-close timer.
+      if (voiceErrorTimeoutRef.current != null) {
+        clearTimeout(voiceErrorTimeoutRef.current);
+        voiceErrorTimeoutRef.current = null;
+      }
       const epoch = turnEpochRef.current;
       // Approx WAV bytes from the base64 length (×3/4), so we can correlate a bad
       // transcript with what the native mic actually delivered (see the native
@@ -1389,18 +1417,20 @@ export function NotchApp() {
   // input while typing (⌘⇧Space) / on an error. Idle → hidden.
   // While speaking (TTS) the capsule hides — the cursor carries the speaking state
   // (a calm pulse at the target) instead. So: listening / thinking / typing only.
-  const capsuleMode: 'listening' | 'thinking' | 'typing' | 'idle' =
+  const capsuleMode: 'listening' | 'thinking' | 'typing' | 'error' | 'idle' =
     payload.state === 'listening'
       ? 'listening'
-      : !isSpeaking &&
-          (isSubmitting ||
-            payload.state === 'thinking' ||
-            voiceCaptureState === 'transcribing' ||
-            detailHidden)
-        ? 'thinking'
-        : !isSpeaking && payload.layout === 'prompt'
-          ? 'typing'
-          : 'idle';
+      : !isSpeaking && voiceCaptureState === 'error'
+        ? 'error'
+        : !isSpeaking &&
+            (isSubmitting ||
+              payload.state === 'thinking' ||
+              voiceCaptureState === 'transcribing' ||
+              detailHidden)
+          ? 'thinking'
+          : !isSpeaking && payload.layout === 'prompt'
+            ? 'typing'
+            : 'idle';
 
   const noteCapsulePointer = () => {
     pointerInsideNotchRef.current = true;
@@ -1476,6 +1506,12 @@ export function NotchApp() {
                 <CloseIcon />
               </button>
             </form>
+          ) : capsuleMode === 'error' ? (
+            <div className="kairo-capsule-status kairo-capsule-status-error" role="status">
+              <span className="kairo-capsule-label">
+                {payload.detail || "Didn't catch that — hold ⌥⌃ and speak"}
+              </span>
+            </div>
           ) : (
             <div className="kairo-capsule-status">
               <span className="kairo-capsule-viz" aria-hidden="true">
