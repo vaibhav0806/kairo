@@ -722,10 +722,7 @@ pub(crate) fn ground_visual_targets(
             if let (Some(x), Some(y), Some(width), Some(height)) = coords {
                 if width > 0.0 && height > 0.0 {
                     let kind = match target.get("kind").and_then(Value::as_str) {
-                        Some(
-                            k @ ("pointer" | "highlight_box" | "arrow" | "underline" | "spotlight"
-                            | "ghost_cursor"),
-                        ) => k,
+                        Some(k @ ("pointer" | "highlight_box")) => k,
                         _ => "highlight_box",
                     };
                     let label = target
@@ -749,12 +746,9 @@ pub(crate) fn ground_visual_targets(
                         width,
                         height,
                     };
-                    if matches!(kind, "highlight_box" | "spotlight") {
+                    if kind == "highlight_box" {
                         screen_region =
                             padded_screen_region(&screen_region, bounds, 0.08, 6.0, 24.0);
-                    } else if kind == "underline" {
-                        screen_region =
-                            padded_screen_region(&screen_region, bounds, 0.12, 5.0, 16.0);
                     }
                     crate::klog!(
                         grounding,
@@ -846,35 +840,45 @@ pub(crate) fn ground_visual_targets(
 // Pure: parse the tutor JSON and return (label, [nx1,ny1,nx2,ny2]) for the FIRST
 // target carrying a valid normalized box. Kept separate from image sampling so it
 // is unit-testable without a screenshot.
+// Parse a normalized [x1,y1,x2,y2] box (fractions 0..1, x2>x1, y2>y1) from a JSON
+// value, or None if it isn't a valid box.
+fn parse_norm_box(value: Option<&Value>) -> Option<[f64; 4]> {
+    let arr = value?.as_array()?;
+    if arr.len() != 4 {
+        return None;
+    }
+    let v: Vec<f64> = arr.iter().filter_map(Value::as_f64).collect();
+    if v.len() != 4 {
+        return None;
+    }
+    let [x1, y1, x2, y2] = [v[0], v[1], v[2], v[3]];
+    if ![x1, y1, x2, y2].iter().all(|c| (0.0..=1.0).contains(c)) || x2 <= x1 || y2 <= y1 {
+        return None;
+    }
+    Some([x1, y1, x2, y2])
+}
+
 pub(crate) fn boxes_from_content_norm(content: &str) -> Vec<(String, [f64; 4])> {
     let Ok(parsed) = serde_json::from_str::<Value>(extract_json_object(json_body(content))) else {
         return Vec::new();
     };
+    // Current contract: a single top-level `box`.
+    if let Some(b) = parse_norm_box(parsed.get("box")) {
+        return vec![("target".to_string(), b)];
+    }
+    // Legacy fallback: first valid visualTargets[].box.
     let Some(targets) = parsed.get("visualTargets").and_then(Value::as_array) else {
         return Vec::new();
     };
     for target in targets {
-        let Some(arr) = target.get("box").and_then(Value::as_array) else {
-            continue;
-        };
-        if arr.len() != 4 {
-            continue;
+        if let Some(b) = parse_norm_box(target.get("box")) {
+            let label = target
+                .get("label")
+                .and_then(Value::as_str)
+                .unwrap_or("target")
+                .to_string();
+            return vec![(label, b)];
         }
-        let v: Vec<f64> = arr.iter().filter_map(Value::as_f64).collect();
-        if v.len() != 4 {
-            continue;
-        }
-        let [x1, y1, x2, y2] = [v[0], v[1], v[2], v[3]];
-        let in_range = [x1, y1, x2, y2].iter().all(|c| (0.0..=1.0).contains(c));
-        if !in_range || x2 <= x1 || y2 <= y1 {
-            continue;
-        }
-        let label = target
-            .get("label")
-            .and_then(Value::as_str)
-            .unwrap_or("target")
-            .to_string();
-        return vec![(label, [x1, y1, x2, y2])];
     }
     Vec::new()
 }

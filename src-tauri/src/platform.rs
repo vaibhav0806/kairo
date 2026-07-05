@@ -44,26 +44,14 @@ pub(crate) fn frontmost_window_title() -> Option<String> {
     )
 }
 
-// Disabled by product decision: reading a browser's active-tab URL requires
-// AppleScript automation, which triggers a "Kairo wants to control <Browser>"
-// permission prompt on first use. That prompt is off-putting for new users, so we
-// never read the URL and rely on the window title for context instead. Kept as a
-// stub (always None) so the ActiveApp plumbing still compiles.
-pub(crate) fn frontmost_browser_url(_bundle_id: Option<&str>) -> Option<String> {
-    None
-}
-
 #[tauri::command]
 pub(crate) fn get_active_app() -> ActiveApp {
     #[cfg(target_os = "macos")]
     {
-        let bundle_id = frontmost_bundle_id();
-        let url = frontmost_browser_url(bundle_id.as_deref());
         return ActiveApp {
             active_app: frontmost_app_name().unwrap_or_else(|| "Unknown App".to_string()),
-            bundle_id,
+            bundle_id: frontmost_bundle_id(),
             window_title: frontmost_window_title(),
-            url,
             source: "native".to_string(),
         };
     }
@@ -74,7 +62,6 @@ pub(crate) fn get_active_app() -> ActiveApp {
             active_app: "Unsupported Platform".to_string(),
             bundle_id: None,
             window_title: None,
-            url: None,
             source: "native".to_string(),
         }
     }

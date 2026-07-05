@@ -92,6 +92,9 @@ pub(crate) fn ocr_screenshot(
 
 // OCR the tutor turn's screenshot (the same image the model sees). Empty when no
 // screenshot is available — pointing is then disabled rather than hallucinated.
+// Currently unused: OCR is disabled (the single vision call returns the box
+// directly). Kept as a seam in case Set-of-Mark grounding is wanted again.
+#[allow(dead_code)]
 pub(crate) fn ocr_tutor_screenshot(input: &TutorTurnInput) -> Vec<OcrElement> {
     if !input.screen.captured {
         return Vec::new();

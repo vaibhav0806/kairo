@@ -907,7 +907,6 @@ mod tests {
                 active_app: "Blender".to_string(),
                 bundle_id: Some("org.blenderfoundation.blender".to_string()),
                 window_title: Some("Blender".to_string()),
-                url: None,
             },
             annotations: vec![],
             screen: TutorScreenInput {

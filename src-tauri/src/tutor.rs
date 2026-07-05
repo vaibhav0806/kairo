@@ -8,8 +8,8 @@ use crate::grounding::{
     detect_element_boxes, ground_visual_targets,
 };
 use crate::constants;
-use crate::ocr::{build_screen_elements_block, ocr_tutor_screenshot};
-use crate::prompts::{build_tutor_system_prompt, gate_system_prompt};
+use crate::ocr::build_screen_elements_block;
+use crate::prompts::{build_tutor_system_prompt, gate_system_prompt, skill_is_active};
 use crate::types::{GateInput, OcrElement, TutorTurnInput};
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -23,9 +23,10 @@ fn build_annotation_summary(input: &TutorTurnInput) -> String {
 }
 
 fn build_tutor_user_prompt(input: &TutorTurnInput) -> Result<String, String> {
-    serde_json::to_string_pretty(&json!({
+    let mut context = json!({
         "userQuery": input.user_query,
-        "activeApp": input.active_app,
+        "activeApp": input.active_app.active_app,
+        "windowTitle": input.active_app.window_title,
         "annotationSummary": build_annotation_summary(input),
         "screen": {
             "captured": input.screen.captured,
@@ -35,9 +36,16 @@ fn build_tutor_user_prompt(input: &TutorTurnInput) -> Result<String, String> {
             "displayBounds": input.screen.display_bounds,
             "imageGeometry": input.screen.image_geometry,
         },
-        "skillLandmarks": input.skill.landmarks,
-    }))
-    .map_err(|error| format!("Failed to build tutor prompt: {error}"))
+    });
+    // Only surface skill landmarks when a real, app-specific skill is selected
+    // (slug != "general"). No skills feature today → this stays absent.
+    if skill_is_active(&input.skill) {
+        if let Some(object) = context.as_object_mut() {
+            object.insert("skillLandmarks".to_string(), input.skill.landmarks.clone());
+        }
+    }
+    serde_json::to_string_pretty(&context)
+        .map_err(|error| format!("Failed to build tutor prompt: {error}"))
 }
 
 pub(crate) fn build_openrouter_messages(
@@ -216,7 +224,10 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
 
     // OCR the screenshot (fast, local) for the Set-of-Mark fallback and for
     // snapping the Computer Use point onto a tight text box.
-    let ocr_elements = ocr_tutor_screenshot(&input);
+    // OCR disabled: Set-of-Mark grounding was only a fallback for the (off) separate
+    // grounding path and bloated the single-call prompt every turn. The one vision
+    // call returns the box directly, so we never OCR.
+    let ocr_elements: Vec<OcrElement> = Vec::new();
 
     let client = shared_http_client();
     let site_url_ref = site_url.as_deref();
@@ -372,9 +383,8 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
 
     let app = input.active_app.unwrap_or_else(|| "unknown".to_string());
     let title = input.window_title.unwrap_or_default();
-    let url = input.url.unwrap_or_default();
     let user_message = format!(
-        "Active app: {app}\nWindow title: {title}\nPage URL: {url}\nUser question (spoken): \"{}\"",
+        "Active app: {app}\nWindow title: {title}\nUser question (spoken): \"{}\"",
         input.user_query
     );
     // Diagnostic: pair the exact question the gate saw with its answer (the "gate

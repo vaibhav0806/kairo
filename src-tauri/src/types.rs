@@ -9,8 +9,6 @@ pub(crate) struct ActiveApp {
     pub(crate) active_app: String,
     pub(crate) bundle_id: Option<String>,
     pub(crate) window_title: Option<String>,
-    /// Active-tab URL when the frontmost app is a supported browser (else None).
-    pub(crate) url: Option<String>,
     pub(crate) source: String,
 }
 
@@ -145,8 +143,6 @@ pub(crate) struct TutorActiveAppContext {
     pub(crate) active_app: String,
     pub(crate) bundle_id: Option<String>,
     pub(crate) window_title: Option<String>,
-    #[serde(default)]
-    pub(crate) url: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -261,6 +257,4 @@ pub(crate) struct GateInput {
     pub(crate) active_app: Option<String>,
     #[serde(default)]
     pub(crate) window_title: Option<String>,
-    #[serde(default)]
-    pub(crate) url: Option<String>,
 }
