@@ -82,7 +82,7 @@ describe('parseTutorPlannerResponse', () => {
   test('surfaces provider prose when provider output is not valid JSON', () => {
     const response = parseTutorPlannerResponse('Click around and see what happens.', tutorInput);
 
-    expect(response.mode).toBe('stuck_help');
+    expect(response.mode).toBe('single');
     expect(response.visualTargets).toEqual([]);
     expect(response.providerMetadata?.confidenceState).toBe('low');
     expect(response.screenText).toBe('Click around and see what happens.');
@@ -107,7 +107,7 @@ describe('parseTutorPlannerResponse', () => {
       tutorInput
     );
 
-    expect(response.mode).toBe('stuck_help');
+    expect(response.mode).toBe('single');
     expect(response.voiceText).toBe('Click New — I have highlighted it.');
     expect(response.visualTargets).toEqual([
       expect.objectContaining({ targetId: 'vision-primary', kind: 'pointer' })

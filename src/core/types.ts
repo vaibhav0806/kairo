@@ -54,12 +54,25 @@ export type PercentRegion = {
   height: number;
 };
 
+// One step of a tutor answer: a spoken line + the (optional) targets Kairo points
+// at while it's spoken. `single` answers have one step; walkthroughs have several,
+// played one at a time.
+export type TutorStep = {
+  say: string;
+  visualTargets: VisualTarget[];
+};
+
 export type TutorResponse = {
-  mode: 'idle' | 'stuck_help' | 'guided_lesson';
+  mode: 'single' | 'steps' | 'idle' | 'stuck_help' | 'guided_lesson';
   skillSlug: string;
   voiceText: string;
   screenText: string;
+  // Legacy/first-step targets (main-window preview). The live notch path drives the
+  // overlay from `steps` instead.
   visualTargets: VisualTarget[];
+  // Sequential steps for the notch executor. Absent for mock/legacy responses,
+  // which the notch treats as a single voiceText answer.
+  steps?: TutorStep[];
   expectedNextState: string;
   providerMetadata?: {
     confidenceState: 'high' | 'medium' | 'low';

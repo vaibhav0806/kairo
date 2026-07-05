@@ -15,11 +15,26 @@ const providerVisualTargetSchema = z.object({
   })
 });
 
+const tutorStepSchema = z.object({
+  say: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? ''),
+  visualTargets: z
+    .array(providerVisualTargetSchema)
+    .nullish()
+    .transform((value) => value ?? [])
+});
+
 const tutorResponseSchema = z.object({
-  // The native single-call prompt returns { voiceText, box } only; mode/skillSlug/
-  // screenText/expectedNextState are legacy fields still consumed by the main-window
-  // preview + mock path, so they default here rather than being required.
-  mode: z.enum(['idle', 'stuck_help', 'guided_lesson']).default('stuck_help'),
+  // The native single-call prompt returns { mode, voiceText, steps:[{say, visualTargets}] }.
+  // skillSlug/screenText/expectedNextState are legacy fields still consumed by the
+  // main-window preview + mock path, so they default here rather than being required.
+  mode: z.enum(['single', 'steps', 'idle', 'stuck_help', 'guided_lesson']).default('single'),
+  steps: z
+    .array(tutorStepSchema)
+    .nullish()
+    .transform((value) => value ?? []),
   skillSlug: z
     .string()
     .nullish()
@@ -98,17 +113,27 @@ function fallbackResponse(input: TutorTurnInput, warning: string, rawContent?: s
       : "Sorry, I couldn't read that clearly — could you ask again?";
 
   return {
-    mode: 'stuck_help',
+    mode: 'single',
     skillSlug: input.skill.slug,
     voiceText: visibleText,
     screenText: visibleText,
     visualTargets: [],
+    steps: [{ say: visibleText, visualTargets: [] }],
     expectedNextState: 'user_clarifies_goal',
     providerMetadata: {
       confidenceState: 'low',
       warnings: [warning]
     }
   };
+}
+
+// Normalize + drop unsafe targets, clamping confidence to [0,1].
+function safeTargetsOf(raw: ProviderVisualTarget[]): { targets: VisualTarget[]; dropped: number } {
+  const normalized = raw.map(normalizeTarget);
+  const targets = normalized
+    .filter(isSafeTarget)
+    .map((target) => ({ ...target, confidence: Math.min(Math.max(target.confidence, 0), 1) }));
+  return { targets, dropped: normalized.length - targets.length };
 }
 
 function ordinalLabel(index: number) {
@@ -132,15 +157,21 @@ export function parseTutorPlannerResponse(rawContent: string, input: TutorTurnIn
     return fallbackResponse(input, 'Provider response was not valid tutor JSON.', rawContent);
   }
 
-  const normalizedTargets = parsed.visualTargets.map(normalizeTarget);
-  const safeTargets = normalizedTargets
-    .filter(isSafeTarget)
-    .map((target) => ({
-      ...target,
-      confidence: Math.min(Math.max(target.confidence, 0), 1)
-    }));
-  const droppedTargets = normalizedTargets.length - safeTargets.length;
-  const warnings = droppedTargets > 0 ? [`Dropped ${droppedTargets} unsafe visual target.`] : [];
+  // Normalize each step's targets; sanitize its spoken line.
+  let dropped = 0;
+  const steps = parsed.steps.map((step) => {
+    const { targets, dropped: d } = safeTargetsOf(step.visualTargets);
+    dropped += d;
+    return { say: sanitizeInternalAnnotationIds(step.say, input), visualTargets: targets };
+  });
+
+  // Legacy/first-step targets (main-window preview). Fall back to any top-level
+  // visualTargets for older/mock responses that don't use steps.
+  const top = safeTargetsOf(parsed.visualTargets);
+  dropped += steps.length > 0 ? 0 : top.dropped;
+  const primaryTargets = steps[0]?.visualTargets ?? top.targets;
+  const warnings = dropped > 0 ? [`Dropped ${dropped} unsafe visual target.`] : [];
+
   const voiceText = sanitizeInternalAnnotationIds(parsed.voiceText, input);
   const screenText = sanitizeInternalAnnotationIds(parsed.screenText.trim() || voiceText, input);
 
@@ -149,9 +180,10 @@ export function parseTutorPlannerResponse(rawContent: string, input: TutorTurnIn
     skillSlug: parsed.skillSlug.trim() || input.skill.slug,
     voiceText,
     screenText,
-    visualTargets: safeTargets,
+    visualTargets: primaryTargets,
+    steps,
     providerMetadata: {
-      confidenceState: confidenceState(safeTargets),
+      confidenceState: confidenceState(primaryTargets),
       warnings
     }
   };
