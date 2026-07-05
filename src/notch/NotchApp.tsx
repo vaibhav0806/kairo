@@ -3,7 +3,7 @@ import { emit, listen } from '@tauri-apps/api/event';
 import { activationStateToNotchPayload } from '../activation/activationState';
 import { loadBrowserEnv } from '../config/env';
 import { klog } from '../core/logger';
-import type { UserAnnotation } from '../core/types';
+import type { TutorStep, UserAnnotation } from '../core/types';
 import {
   createNativeBridge,
   type NativeContextBaseline,
@@ -43,6 +43,9 @@ const defaultPayload: NotchPayload = {
 // A voice failure (no speech / STT error) shows a brief, self-dismissing status
 // capsule instead of the typing box — then auto-closes to idle after this long.
 const VOICE_ERROR_VISIBLE_MS = 2400;
+
+// Breathing pause between spoken steps of a walkthrough, so it doesn't feel rushed.
+const STEP_GAP_MS = 700;
 
 // After the answer finishes speaking, close the notch this long after the user
 // stops interacting with it (also clears the box + companion cursor).
@@ -489,6 +492,109 @@ export function NotchApp() {
     [nativeBridge, stopAnswerPlayback]
   );
 
+  // Play a multi-step answer: speak each step's `say` in order while revealing that
+  // step's box/cursor, with a breathing gap between. All step audio is synthesized
+  // in PARALLEL up front, so the next clip is ready before the current ends — the
+  // only pause between steps is the intentional STEP_GAP_MS. Interruptible: a new
+  // turn bumps playbackEpoch (via stopAnswerPlayback) and every await bails.
+  const playSteps = useCallback(
+    async (
+      steps: TutorStep[],
+      revealStep: (step: TutorStep) => Promise<void>,
+      onFirstSpeechStart?: () => void,
+      onSettled?: () => void,
+      onStepStart?: (index: number, step: TutorStep) => void
+    ) => {
+      if (steps.length === 0) {
+        onFirstSpeechStart?.();
+        onSettled?.();
+        return;
+      }
+
+      // Fire ALL synthesis now, concurrently. Each clip resolves to a data URL (or
+      // null on empty/failed synth) and is awaited only when its step's turn comes.
+      const clips = steps.map((step) =>
+        step.say.trim()
+          ? nativeBridge
+              .synthesizeSpeech({ text: step.say.trim() })
+              .then((result) => buildAudioDataUrl(result))
+              .catch(() => null)
+          : Promise.resolve<string | null>(null)
+      );
+
+      // Queue behind the "let me look" filler (mirror playAnswerAudio).
+      const epoch = playbackEpochRef.current;
+      const pendingFiller = fillerDoneRef.current;
+      fillerDoneRef.current = null;
+      if (pendingFiller) {
+        await Promise.race([pendingFiller, new Promise<void>((resolve) => setTimeout(resolve, 12000))]);
+      }
+      if (playbackEpochRef.current !== epoch) return;
+
+      stopAnswerPlayback();
+
+      let firstSpoken = false;
+      const startStep = (index: number) => {
+        onStepStart?.(index, steps[index]);
+        if (!firstSpoken) {
+          firstSpoken = true;
+          onFirstSpeechStart?.();
+        }
+        void revealStep(steps[index]);
+      };
+
+      for (let i = 0; i < steps.length; i += 1) {
+        if (playbackEpochRef.current !== epoch) return; // superseded → stop
+        const url = await clips[i];
+        if (playbackEpochRef.current !== epoch) return;
+
+        if (!url) {
+          // No audio (empty/failed synth): still reveal the step briefly.
+          startStep(i);
+          await new Promise<void>((resolve) => setTimeout(resolve, 900));
+        } else {
+          await new Promise<void>((resolve) => {
+            const audio = new Audio(url);
+            answerAudioRef.current = audio;
+            let done = false;
+            const finish = () => {
+              if (!done) {
+                done = true;
+                resolve();
+              }
+            };
+            audio.onplay = () => {
+              setIsSpeaking(true);
+              startStep(i);
+              void emit('cursor:speaking', {});
+            };
+            audio.onended = () => {
+              setIsSpeaking(false);
+              finish();
+            };
+            // stopAnswerPlayback (a new turn / interruption) pauses + clears the audio,
+            // which fires 'pause' — unblock the loop so the epoch check below bails.
+            audio.onpause = finish;
+            audio.onerror = finish;
+            void audio.play().catch(finish);
+          });
+        }
+
+        if (playbackEpochRef.current !== epoch) return;
+        // Breathing gap between steps (not after the last).
+        if (i < steps.length - 1) {
+          await new Promise<void>((resolve) => setTimeout(resolve, STEP_GAP_MS));
+        }
+      }
+
+      if (playbackEpochRef.current !== epoch) return;
+      setIsSpeaking(false);
+      void emit('cursor:idle', {});
+      onSettled?.();
+    },
+    [nativeBridge, stopAnswerPlayback]
+  );
+
   // Phase 1 gate: text-only "do I need to look at the screen?". Returns the parsed
   // { needsScreen, voiceText }; defaults to looking on any failure.
   const runGate = useCallback(
@@ -674,7 +780,13 @@ export function NotchApp() {
         // gate is skipped and there's no gate voiceText.
         void speakFiller(gate.voiceText || 'Let me take a look.', turnEpoch);
 
-        const { payload: answerPayload, revealVisuals, context } = await askTutorFromNotch({
+        const {
+          payload: answerPayload,
+          steps,
+          revealStep,
+          revealVisuals,
+          context
+        } = await askTutorFromNotch({
           query: trimmedQuery,
           nativeBridge,
           aiProvider: env.aiProvider,
@@ -697,23 +809,43 @@ export function NotchApp() {
         setAnnotations([]);
         setActiveAnnotationTool(null);
         void nativeBridge.showNotch(answerPayload);
-        void playAnswerAudio(
-          answerPayload.detail,
-          () => {
-            // Speech is starting (this stops the filler): reveal text + visuals, then
-            // watch for the user moving on so the box doesn't go stale.
-            setDetailHidden(false);
-            void emit('cursor:idle', {});
-            void revealVisualsRef.current().then(() => {
-              if (contextBaselineRef.current) {
-                void nativeBridge.armContextWatch(contextBaselineRef.current);
-              }
-            });
-          },
-          () => {
-            markAnswerSettled();
+
+        // Arm the context watch once (after the final step reveals its box) so
+        // mid-walkthrough scrolling doesn't tear a step down under the user.
+        const armWatch = () => {
+          if (contextBaselineRef.current) {
+            void nativeBridge.armContextWatch(contextBaselineRef.current);
           }
-        );
+        };
+
+        if (steps.length > 0) {
+          void playSteps(
+            steps,
+            revealStep,
+            () => {
+              // First step speaking: reveal the answer text; per-step visuals are
+              // revealed inside playSteps.
+              setDetailHidden(false);
+              void emit('cursor:idle', {});
+            },
+            () => {
+              armWatch();
+              markAnswerSettled();
+            }
+          );
+        } else {
+          void playAnswerAudio(
+            answerPayload.detail,
+            () => {
+              setDetailHidden(false);
+              void emit('cursor:idle', {});
+              void revealVisualsRef.current().then(armWatch);
+            },
+            () => {
+              markAnswerSettled();
+            }
+          );
+        }
       } finally {
         // Only the CURRENT turn owns the submitting flag; a superseded turn must not
         // clear it out from under the newer turn that now owns it.
@@ -730,6 +862,7 @@ export function NotchApp() {
       env.defaultSkill,
       nativeBridge,
       playAnswerAudio,
+      playSteps,
       runGate,
       speakFiller,
       stopAnswerPlayback,

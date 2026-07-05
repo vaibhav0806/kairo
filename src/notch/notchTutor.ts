@@ -3,7 +3,7 @@ import { createMockTutorPlanner } from '../core/mockTutor';
 import { createTutorOrchestrator } from '../core/orchestrator';
 import { createRuntimeTutorPlanner, type RuntimeTutorProvider } from '../core/runtimePlanner';
 import { createTutorRuntimeErrorResponse } from '../core/tutorErrors';
-import type { UserAnnotation } from '../core/types';
+import type { TutorStep, UserAnnotation } from '../core/types';
 import type {
   NativeBridge,
   NativeContextBaseline,
@@ -25,9 +25,14 @@ export type AskTutorFromNotchOptions = {
 
 export type AskTutorResult = {
   payload: NotchPayload;
-  // Shows the box + companion cursor. Deferred (not run inside this call) so the
-  // notch can reveal the visuals exactly when TTS playback starts — never while
-  // the answer is still being synthesized and the notch is silent.
+  // The answer's steps (1 for a direct answer, more for a walkthrough). The notch
+  // executor plays each step's `say` and reveals `revealStep(step)` as it starts.
+  steps: TutorStep[];
+  // Reveal ONE step's targets (box + companion cursor), or the annotation preview /
+  // nothing when the step has no box. Called per step, exactly when its TTS starts.
+  revealStep: (step: TutorStep) => Promise<void>;
+  // Shows the first/only step's visuals. Deferred so the notch reveals exactly when
+  // TTS begins. Used by the direct (no-screen) path and as a single-step fallback.
   revealVisuals: () => Promise<void>;
   // The app the guidance points at, used to arm the context watcher. null when the
   // answer has no on-screen target to protect from going stale.
@@ -71,17 +76,40 @@ export async function askTutorFromNotch({
     });
 
     const displayBounds = screenCapture.displayBounds;
-    const hasTargets = response.visualTargets.length > 0 && Boolean(displayBounds);
-    const hasAnnotationPreview =
-      !hasTargets && annotations.length > 0 && Boolean(displayBounds);
+    const steps = response.steps ?? [];
+    const anyTargets =
+      Boolean(displayBounds) &&
+      (steps.some((step) => step.visualTargets.length > 0) ||
+        response.visualTargets.length > 0);
 
-    // Built now, run later (on TTS start) so the box/cursor never appear before the
-    // answer is spoken. The companion cursor is released after playback (+grace) or
-    // when the context watcher detects the user moving on.
+    // Reveal ONE step's visuals: its box + cursor, else the user's annotation
+    // preview, else nothing. Built now, run later (on that step's TTS start) so the
+    // box/cursor never appear before the step is spoken.
+    const revealStep = async (step: TutorStep) => {
+      if (step.visualTargets.length > 0 && displayBounds) {
+        await routeVisualTargets(nativeBridge, step.visualTargets, displayBounds);
+      } else if (annotations.length > 0 && displayBounds) {
+        await nativeBridge.showOverlay({
+          mode: 'annotation_preview',
+          displayBounds,
+          targets: [],
+          annotations
+        });
+      } else {
+        await nativeBridge.hideOverlay();
+      }
+    };
+
+    // Single-step / direct fallback: reveal the first step, or top-level targets for
+    // mock/legacy responses that don't use steps.
     const revealVisuals = async () => {
-      if (hasTargets && displayBounds) {
+      if (steps.length > 0) {
+        await revealStep(steps[0]);
+        return;
+      }
+      if (response.visualTargets.length > 0 && displayBounds) {
         await routeVisualTargets(nativeBridge, response.visualTargets, displayBounds);
-      } else if (hasAnnotationPreview && displayBounds) {
+      } else if (annotations.length > 0 && displayBounds) {
         await nativeBridge.showOverlay({
           mode: 'annotation_preview',
           displayBounds,
@@ -96,8 +124,10 @@ export async function askTutorFromNotch({
     return {
       payload:
         tutorResponseToNotchPayload(response) ?? activationStateToNotchPayload('showing_step'),
+      steps,
+      revealStep,
       revealVisuals,
-      context: hasTargets
+      context: anyTargets
         ? { bundleId: activeApp.bundleId, windowTitle: activeApp.windowTitle }
         : null
     };
@@ -106,11 +136,14 @@ export async function askTutorFromNotch({
       skillSlug: defaultSkill,
       error
     });
+    const hideOnly = async () => {
+      await nativeBridge.hideOverlay();
+    };
     return {
       payload: tutorResponseToNotchPayload(response),
-      revealVisuals: async () => {
-        await nativeBridge.hideOverlay();
-      },
+      steps: response.steps ?? [],
+      revealStep: hideOnly,
+      revealVisuals: hideOnly,
       context: null
     };
   }
