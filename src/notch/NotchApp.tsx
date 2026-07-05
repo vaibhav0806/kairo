@@ -962,9 +962,13 @@ export function NotchApp() {
         title: 'Voice',
         detail
       };
+      // Set the payload LOCALLY only. Do NOT round-trip through nativeBridge.showNotch:
+      // a state:'captured' native payload re-enters subscribeToNotchPayload, which resets
+      // voiceCaptureState back to 'idle' (its "re-engage → typing" branch) and would
+      // instantly hide this capsule. The notch panel is already visible from the PTT
+      // promote, so the local capsule renders on its own.
       updateVoiceCaptureState('error');
       setPayload(nextPayload);
-      void nativeBridge.showNotch(nextPayload);
       void emit('cursor:idle', {});
       voiceErrorTimeoutRef.current = window.setTimeout(() => {
         voiceErrorTimeoutRef.current = null;
@@ -975,7 +979,7 @@ export function NotchApp() {
         }
       }, VOICE_ERROR_VISIBLE_MS);
     },
-    [hideNotch, nativeBridge, updateVoiceCaptureState]
+    [hideNotch, updateVoiceCaptureState]
   );
 
   // Transcribe captured audio and run the tutor turn. Shared by the WebView
@@ -1025,10 +1029,9 @@ export function NotchApp() {
         }
         const transcript = result.text.trim();
         if (!transcript) {
-          // Empty transcript is what pops the typing box (showVoiceError → prompt
-          // layout). Log it explicitly so a recurrence is traceable to STT, not the
-          // mic-leak path we fixed.
-          klog('notch', 'warn', 'ptt empty transcript → voice error (typing box)', {
+          // Empty transcript → the brief self-dismissing voice-error capsule. Log it
+          // explicitly so a recurrence is traceable to STT, not the mic-leak path.
+          klog('notch', 'warn', 'ptt empty transcript → voice error capsule', {
             epoch,
             bytes: approxBytes
           });
@@ -1048,7 +1051,7 @@ export function NotchApp() {
           error instanceof Error && error.message.trim()
             ? error.message.trim()
             : 'Voice transcription failed. Try again.';
-        klog('notch', 'error', 'ptt transcription failed → voice error (typing box)', {
+        klog('notch', 'error', 'ptt transcription failed → voice error capsule', {
           epoch,
           detail
         });
