@@ -417,6 +417,61 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
     }
 }
 
+/// One-shot OpenRouter text completion (system + user) → the assistant message
+/// content. Resolves the shared OpenRouter env (key, base/site URL, app title),
+/// builds the request, and posts it via the pooled client. `reasoning.effort` is
+/// always `none` (these are cheap, non-thinking turns on a latency-critical path);
+/// `json_object` toggles the structured `response_format` the gate needs but the
+/// plain-sentence ack must not carry. Shared by `run_gate_turn` + `run_ack_turn`.
+async fn openrouter_text_chat(
+    system: &str,
+    user: &str,
+    model: &str,
+    timeout: Duration,
+    json_object: bool,
+) -> Result<String, String> {
+    let api_key = provider_env_optional("OPENROUTER_API_KEY")
+        .ok_or_else(|| "OPENROUTER_API_KEY is required for OpenRouter text turns.".to_string())?;
+    let base_url = provider_env("OPENROUTER_BASE_URL", constants::OPENROUTER_BASE_URL);
+    let site_url = provider_env("OPENROUTER_SITE_URL", constants::OPENROUTER_SITE_URL);
+    let app_title = provider_env("OPENROUTER_APP_TITLE", constants::OPENROUTER_APP_TITLE);
+    let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+
+    let mut body = json!({
+        "model": model,
+        "messages": [
+            { "role": "system", "content": system },
+            { "role": "user", "content": user },
+        ],
+        // These turns are a cheap needs-screen decision / a short spoken ack;
+        // thinking adds seconds for zero benefit and sits on the critical path.
+        // Disable it (OpenRouter maps effort:none → Gemini's thinkingLevel off).
+        "reasoning": { "effort": "none" },
+    });
+    // The gate parses strict JSON; the ack is a plain sentence and must NOT be
+    // forced into json_object mode.
+    if json_object {
+        if let Some(object) = body.as_object_mut() {
+            object.insert(
+                "response_format".to_string(),
+                json!({ "type": "json_object" }),
+            );
+        }
+    }
+
+    send_openrouter_chat_request(
+        shared_http_client(),
+        &endpoint,
+        &api_key,
+        &app_title,
+        Some(site_url.as_str()),
+        timeout,
+        body,
+    )
+    .await
+    .map_err(|error| error.message)
+}
+
 #[tauri::command]
 pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
     let _t = crate::klog::timer("gate", "gate_turn");
@@ -427,18 +482,14 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
     if provider_env("KAIRO_AI_PROVIDER", constants::AI_PROVIDER) != "openrouter" {
         return Ok(look());
     }
-    let Some(api_key) = provider_env_optional("OPENROUTER_API_KEY") else {
+    // Preserve the original no-key short-circuit: return look() silently (before the
+    // "gate turn" log / any network). openrouter_text_chat re-checks the key, but
+    // keeping the guard here keeps the gate's behaviour byte-identical.
+    if provider_env_optional("OPENROUTER_API_KEY").is_none() {
         return Ok(look());
-    };
+    }
     let model = provider_env("OPENROUTER_MODEL", constants::OPENROUTER_MODEL);
-    let base_url = provider_env("OPENROUTER_BASE_URL", constants::OPENROUTER_BASE_URL);
-    let site_url = Some(provider_env(
-        "OPENROUTER_SITE_URL",
-        constants::OPENROUTER_SITE_URL,
-    ));
-    let app_title = provider_env("OPENROUTER_APP_TITLE", constants::OPENROUTER_APP_TITLE);
     let timeout = Duration::from_millis(constants::GATE_TIMEOUT_MS);
-    let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
     let app = input.active_app.unwrap_or_else(|| "unknown".to_string());
     let title = input.window_title.unwrap_or_default();
@@ -456,30 +507,8 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
         question = %crate::klog::transcript_field(&input.user_query),
         "gate turn"
     );
-    let body = json!({
-        "model": model,
-        "messages": [
-            { "role": "system", "content": gate_system_prompt() },
-            { "role": "user", "content": user_message },
-        ],
-        "response_format": { "type": "json_object" },
-        // The gate is a cheap needs-screen decision + one short spoken line; thinking
-        // adds seconds for zero benefit and sits on the ack's critical path. Disable
-        // it (OpenRouter maps effort:none → Gemini's thinkingLevel off).
-        "reasoning": { "effort": "none" },
-    });
 
-    match send_openrouter_chat_request(
-        shared_http_client(),
-        &endpoint,
-        &api_key,
-        &app_title,
-        site_url.as_deref(),
-        timeout,
-        body,
-    )
-    .await
-    {
+    match openrouter_text_chat(&gate_system_prompt(), &user_message, &model, timeout, true).await {
         Ok(content) => {
             crate::klog!(
                 gate,
@@ -490,12 +519,7 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
             Ok(content)
         }
         Err(error) => {
-            crate::klog!(
-                gate,
-                warn,
-                "turn failed; defaulting to look: {}",
-                error.message
-            );
+            crate::klog!(gate, warn, "turn failed; defaulting to look: {}", error);
             Ok(look())
         }
     }
