@@ -293,21 +293,27 @@ input {
 }
 
 /* Purple to match the companion cursor (gradient #c79bff -> #7c3aed). */
+/* --box-rgb is the on-screen-aware accent (r g b, from color.rs → target.color),
+   set inline per box by VisualOverlay. The default here is the purple fallback for
+   the OCR path / tests. Border, fill, and glow all take the accent; only the
+   full-screen dimming vignette stays neutral so the accent pops. */
 .overlay-target.highlight_box {
-  border: 3px dashed #a78bfa;
+  --box-rgb: 139 92 246;
+  border: 3px dashed rgb(var(--box-rgb));
   border-radius: 14px;
-  background: rgb(167 139 250 / 0.035);
+  background: rgb(var(--box-rgb) / 0.07);
   box-shadow:
     0 0 0 9999px rgb(8 10 15 / 0.1),
-    0 0 0 8px rgb(167 139 250 / 0.12),
-    0 18px 46px rgb(124 58 237 / 0.3),
-    0 0 28px rgb(124 58 237 / 0.38);
-  /* Pen-drag reveal: the box "inks" itself from top-left to bottom-right, welded
-     to the companion cursor's diagonal drag, then the glow + dimming ignite.
-     Duration/easing MUST match src/core/penDraw.ts (DRAW_DURATION_MS=340,
-     DRAW_EASE=cubic-bezier(0.4,0,0.2,1)). Runs once on mount; `both` holds the
-     final state so multi-step glides don't redraw. */
-  animation: kairo-box-draw 340ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    0 0 0 8px rgb(var(--box-rgb) / 0.14),
+    0 18px 46px rgb(var(--box-rgb) / 0.32),
+    0 0 28px rgb(var(--box-rgb) / 0.4);
+  /* First-box reveal: the outline inks itself top-left → bottom-right (welded to the
+     cursor's diagonal drag), THEN the glow + dimming ignite as a soft settle. Total
+     900ms; the clip (the draw) completes at 72% = 650ms = DRAW_DURATION_MS in
+     src/core/penDraw.ts, eased cubic-bezier(0.22,1,0.36,1) — keep in sync. Per-keyframe
+     timing functions drive each segment, so the shorthand easing is `linear`. `both`
+     holds the final state so multi-step glides don't redraw. */
+  animation: kairo-box-draw 900ms linear both;
   /* Multi-step: the same box slides to the next target instead of re-popping.
      GLIDE_MS=480, ease cubic-bezier(0.22,1,0.36,1). */
   transition:
@@ -317,42 +323,91 @@ input {
     height 480ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* The reveal: a clip rectangle grows from the top-left corner out to the
-   bottom-right (its far corner tracks the companion cursor's tip), so the dashed
-   outline writes itself along the diagonal. The purple glow + full-screen dimming
-   start near zero and bloom as the "ink" locks in — sketch first, then ignite. */
+/* Two beats: 0→72% the clip reveals TL→BR (the draw, ease-out, tracking the cursor
+   tip) with fill materializing but glow/dim held at zero; 72→100% the glow blooms and
+   the screen dims — the box lands, then ignites. */
 @keyframes kairo-box-draw {
   0% {
     clip-path: inset(0 100% 100% 0 round 14px);
+    background: rgb(var(--box-rgb) / 0);
     box-shadow:
       0 0 0 9999px rgb(8 10 15 / 0),
-      0 0 0 8px rgb(167 139 250 / 0),
-      0 18px 46px rgb(124 58 237 / 0),
-      0 0 0 rgb(124 58 237 / 0);
+      0 0 0 8px rgb(var(--box-rgb) / 0),
+      0 18px 46px rgb(var(--box-rgb) / 0),
+      0 0 0 rgb(var(--box-rgb) / 0);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
-  62% {
+  72% {
     clip-path: inset(0 0 0 0 round 14px);
+    background: rgb(var(--box-rgb) / 0.07);
     box-shadow:
-      0 0 0 9999px rgb(8 10 15 / 0.04),
-      0 0 0 8px rgb(167 139 250 / 0.05),
-      0 18px 46px rgb(124 58 237 / 0.12),
-      0 0 16px rgb(124 58 237 / 0.18);
+      0 0 0 9999px rgb(8 10 15 / 0),
+      0 0 0 8px rgb(var(--box-rgb) / 0),
+      0 18px 46px rgb(var(--box-rgb) / 0),
+      0 0 0 rgb(var(--box-rgb) / 0);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
   }
   100% {
     clip-path: inset(0 0 0 0 round 14px);
+    background: rgb(var(--box-rgb) / 0.07);
     box-shadow:
       0 0 0 9999px rgb(8 10 15 / 0.1),
-      0 0 0 8px rgb(167 139 250 / 0.12),
-      0 18px 46px rgb(124 58 237 / 0.3),
-      0 0 28px rgb(124 58 237 / 0.38);
+      0 0 0 8px rgb(var(--box-rgb) / 0.14),
+      0 18px 46px rgb(var(--box-rgb) / 0.32),
+      0 0 28px rgb(var(--box-rgb) / 0.4);
   }
 }
 
-/* Reduce Motion: no draw, no glide — the box just appears at full strength. */
+/* Ink-trace: a hot accent spot that rides the pen tip along the diagonal as the
+   outline draws, then dissipates at the far corner. Travels over DRAW_DURATION_MS
+   (650ms) with the SAME ease-out, so it tracks both the clip's leading corner and
+   the companion cursor's tip. Sized to the box rect by VisualOverlay. */
+.overlay-box-ink {
+  --box-rgb: 139 92 246;
+  position: absolute;
+  pointer-events: none;
+}
+.overlay-box-ink::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(var(--box-rgb) / 0.95) 0%, rgb(var(--box-rgb) / 0) 68%);
+  filter: blur(1px);
+  animation: kairo-box-ink 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes kairo-box-ink {
+  0% {
+    left: 0%;
+    top: 0%;
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* Reduce Motion: no draw, no glide, no ink — the box just appears at full strength. */
 @media (prefers-reduced-motion: reduce) {
   .overlay-target.highlight_box {
     animation: none;
     transition: none;
+  }
+  .overlay-box-ink {
+    display: none;
   }
 }
 
