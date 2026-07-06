@@ -10,6 +10,10 @@ export interface FollowCfg {
   sameScreenBits: number;
   clickPadPt: number;
   pointerIdleFadeMs: number;
+  // Interval of the background "armed-watch" poll that runs while a click-step
+  // pointer is shown: each tick re-checks the live screen against referenceHash to
+  // drive pointerFaded (fade-on-scroll-away / re-show-on-return + the click guard).
+  armedPollMs: number;
   waitFloors: WaitFloors;
 }
 
@@ -29,6 +33,9 @@ export interface FollowDeps {
   fadePointer: () => void;
   armFollowClick: () => void;
   disarmFollowClick: () => void;
+  // Signals "Kairo is working" (planning a step / settling after a click) so the UI
+  // can surface a Thinking indicator. Idempotent — called repeatedly, no-op friendly.
+  onThinking: () => void;
   sleep: (ms: number) => Promise<void>;
   log: (level: string, msg: string, fields?: Record<string, unknown>) => void;
   cfg: FollowCfg;
@@ -54,7 +61,54 @@ export function createFollowController(d: FollowDeps): FollowController {
   let clickLatch = false;      // synchronous re-entrancy guard against double-clicks
   let consecutiveObserve = 0;  // capped so observe-only models can't loop forever
   let idleFadeToken = 0;       // bumped to cancel a scheduled idle fade
+  let pointerFaded = false;    // is the box hidden because the live screen no longer matches the reference?
+  let watchToken = 0;          // bumped to supersede/stop the armed-watch poll loop
   let lastCtx: { activeApp?: string; windowTitle?: string } = {};
+
+  // Armed-watch poll: while a click-step pointer is shown and waiting, a background
+  // loop continuously checks "does the live screen still match where I drew the box?"
+  // and maintains pointerFaded. That flag IS the click guard (read synchronously in
+  // onClick — no post-click capture, so a navigating click can't be falsely rejected
+  // by the already-navigated page), and it also drives fade-when-you-scroll-away +
+  // re-show-when-you-scroll-back. Superseded by watchToken/epoch bumps (next step,
+  // valid click, stop). The loop parks on d.sleep(armedPollMs) between ticks.
+  function stopArmedWatch() {
+    watchToken++;
+  }
+
+  function startArmedWatch() {
+    const myEpoch = epoch;
+    const myToken = ++watchToken; // supersede any prior watch
+    pointerFaded = false;         // pointer is currently shown
+    void (async () => {
+      while (true) {
+        await d.sleep(d.cfg.armedPollMs);
+        const step = state.currentStep;
+        if (epoch !== myEpoch || watchToken !== myToken || !state.active || !step) return;
+        let hash: number[];
+        try {
+          hash = await d.captureFrameHash();
+        } catch (e) {
+          d.log('debug', 'armed poll capture failed', { err: String(e) });
+          continue;
+        }
+        if (epoch !== myEpoch || watchToken !== myToken) return;
+        if (!state.referenceHash) continue;
+        const matches = sameScreen(state.referenceHash, hash, d.cfg.sameScreenBits);
+        if (matches && pointerFaded) {
+          // user returned to the right screen → bring the hint back (glide, not draw)
+          d.showPointer(step);
+          pointerFaded = false;
+          d.log('debug', 'armed screen returned → pointer re-shown');
+        } else if (!matches && !pointerFaded) {
+          // screen changed on its own (scroll / nav / tab) → the box is stale
+          d.fadePointer();
+          pointerFaded = true;
+          d.log('debug', 'armed screen changed → pointer faded');
+        }
+      }
+    })().catch((e) => d.log('debug', 'armed watch loop error', { err: String(e) }));
+  }
 
   // Idle fade: when a click-step pointer is shown and nothing happens for
   // cfg.pointerIdleFadeMs, END the follow-along (v1): stop() fades the pointer,
@@ -80,6 +134,7 @@ export function createFollowController(d: FollowDeps): FollowController {
   function stop(reason: string) {
     epoch++;
     clearIdleFade();
+    stopArmedWatch();     // stop the background poll on any teardown
     state.active = false;
     state.currentStep = null;
     state.referenceHash = null;
@@ -90,6 +145,7 @@ export function createFollowController(d: FollowDeps): FollowController {
   }
 
   async function planAndShow(myEpoch: number) {
+    d.onThinking(); // capture + Fable turn are about to run → show a working indicator
     // referenceHash and the model's screenshot are two separate grabs a moment
     // apart; dHash tolerance (sameScreenBits) intentionally absorbs that gap.
     const hash = await d.captureFrameHash();
@@ -116,6 +172,7 @@ export function createFollowController(d: FollowDeps): FollowController {
       consecutiveObserve = 0;
       d.showPointer(step);
       d.armFollowClick();
+      startArmedWatch();       // background poll → pointerFaded (click guard + fade/re-show)
       scheduleIdleFade(myEpoch);
     } else {
       // observe step: no target, nothing to wait for → auto-flow to the next step
@@ -137,6 +194,7 @@ export function createFollowController(d: FollowDeps): FollowController {
   }
 
   async function settleThenPlan(myEpoch: number, wait: FollowWait) {
+    d.onThinking(); // settling the UI before the next plan → show a working indicator
     // wait floor
     await d.sleep(waitFloorMs(wait, d.cfg.waitFloors));
     if (epoch !== myEpoch) return;
@@ -182,25 +240,28 @@ export function createFollowController(d: FollowDeps): FollowController {
         d.log('debug', 'click outside box — ignored');
         return; // passive: do nothing
       }
+      // The click guard: the armed-watch poll has decided the drawn box is stale
+      // (screen scrolled/navigated/switched tabs). Read synchronously — no post-click
+      // capture, so a click that itself navigates can't be falsely rejected. A rejected
+      // click leaves the armed-watch RUNNING (re-show still works) and bumps nothing.
+      if (pointerFaded) {
+        d.log('debug', 'click while screen changed (box faded) — ignored');
+        return;
+      }
       if (clickLatch) {
         d.log('debug', 'click already being processed — ignored');
         return; // a fast double-click: only the first advances
       }
       clickLatch = true;
+      // VALID: supersede the armed-watch + any in-flight plan synchronously, disarm,
+      // fade the old pointer, ack, settle, next step. Stay active.
+      const myEpoch = ++epoch;
+      stopArmedWatch();
+      clearIdleFade();
+      d.disarmFollowClick();
+      d.fadePointer();
+      pointerFaded = true;
       try {
-        // screen-match guard: is the screen still the one we drew the pointer on?
-        const nowHash = await d.captureFrameHash();
-        if (!state.referenceHash || !sameScreen(state.referenceHash, nowHash, d.cfg.sameScreenBits)) {
-          d.log('debug', 'in-box click but screen changed — ignored');
-          return; // they scrolled/navigated then clicked the same coordinate
-        }
-        // VALID: disarm, fade the old pointer, ack, settle, next step.
-        // Bump epoch to supersede any stray in-flight settle/plan; stay active.
-        const myEpoch = ++epoch;
-        clearIdleFade();
-        d.disarmFollowClick();
-        d.fadePointer();
-        consecutiveObserve = 0;
         const completed = step.say;
         state.history.push(completed);
         // ack (screen-blind) speaks immediately; failure → skip, never block
@@ -218,8 +279,9 @@ export function createFollowController(d: FollowDeps): FollowController {
 
     onScreenMoved() {
       if (!state.active || !state.currentStep) return;
-      clearIdleFade();  // we're fading now — cancel the pending idle fade
-      d.fadePointer();  // stale — hide the hint; keep the step + goal
+      clearIdleFade();     // we're fading now — cancel the pending idle fade
+      d.fadePointer();     // stale — hide the hint; keep the step + goal
+      pointerFaded = true; // guard the click + let the armed-watch re-show on return
       d.log('debug', 'screen moved — pointer faded, step kept');
     },
 

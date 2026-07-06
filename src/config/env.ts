@@ -36,6 +36,7 @@ const rawEnvSchema = z.object({
   FOLLOW_SAMESCREEN_BITS: z.coerce.number().default(28), // >this of 256 = different screen
   FOLLOW_CLICK_PAD_PT: z.coerce.number().default(24), // click tolerance in display points
   FOLLOW_POINTER_IDLE_FADE_MS: z.coerce.number().default(30_000),
+  FOLLOW_ARMED_POLL_MS: z.coerce.number().default(800), // armed-watch re-check interval while a pointer waits
   WAIT_INSTANT_MS: z.coerce.number().default(75),
   WAIT_UI_SETTLE_MS: z.coerce.number().default(400),
   WAIT_PAGE_LOAD_MS: z.coerce.number().default(1_500),
@@ -70,6 +71,7 @@ export type KairoEnv = {
   followSamescreenBits: number;
   followClickPadPt: number;
   followPointerIdleFadeMs: number;
+  followArmedPollMs: number;
   waitInstantMs: number;
   waitUiSettleMs: number;
   waitPageLoadMs: number;
@@ -135,6 +137,7 @@ export function loadKairoEnv(
     followSamescreenBits: parsed.FOLLOW_SAMESCREEN_BITS,
     followClickPadPt: parsed.FOLLOW_CLICK_PAD_PT,
     followPointerIdleFadeMs: parsed.FOLLOW_POINTER_IDLE_FADE_MS,
+    followArmedPollMs: parsed.FOLLOW_ARMED_POLL_MS,
     waitInstantMs: parsed.WAIT_INSTANT_MS,
     waitUiSettleMs: parsed.WAIT_UI_SETTLE_MS,
     waitPageLoadMs: parsed.WAIT_PAGE_LOAD_MS,

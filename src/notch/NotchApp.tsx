@@ -357,6 +357,11 @@ export function NotchApp() {
       disarmFollowClick: () => {
         void nativeBridge.disarmFollowClick();
       },
+      // "Kairo is working" signal (planning / settling). Fix FC wires the real Thinking
+      // indicator; for now just log so the transition is observable in the packaged app.
+      onThinking: () => {
+        klog('follow', 'debug', 'thinking');
+      },
       sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
       log: (level, msg, fields) =>
         klog('follow', level as LogLevel, msg, fields as LogFields | undefined),
@@ -367,6 +372,7 @@ export function NotchApp() {
         sameScreenBits: env.followSamescreenBits,
         clickPadPt: env.followClickPadPt,
         pointerIdleFadeMs: env.followPointerIdleFadeMs,
+        armedPollMs: env.followArmedPollMs,
         waitFloors: {
           instant: env.waitInstantMs,
           uiSettle: env.waitUiSettleMs,

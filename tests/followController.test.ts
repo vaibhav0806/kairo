@@ -17,14 +17,19 @@ function deps(overrides: Partial<FollowDeps> = {}): FollowDeps {
     fadePointer: vi.fn(),
     armFollowClick: vi.fn(),
     disarmFollowClick: vi.fn(),
-    // Settle/wait sleeps resolve instantly; the 30s idle-fade timer never resolves
-    // by default (tests that exercise idle-fade override sleep to drive it), so it
-    // can't spuriously end the guide in the other tests.
-    sleep: vi.fn((ms: number) => (ms === 30000 ? new Promise<void>(() => {}) : Promise.resolve())) as any,
+    onThinking: vi.fn(),
+    // Settle/wait sleeps resolve instantly. The two long-lived timers never resolve by
+    // default so they can't spuriously drive the machine: the 30s idle-fade AND the
+    // 800ms armed-watch poll (a while(true) loop that would otherwise spin forever on
+    // an instant sleep and hang the test). Tests that exercise either override sleep to
+    // drive them by hand.
+    sleep: vi.fn((ms: number) =>
+      ms === 30000 || ms === 800 ? new Promise<void>(() => {}) : Promise.resolve()
+    ) as any,
     log: vi.fn(),
     cfg: {
       settlePollMs: 300, settleMaxIterations: 10, settleMovingBits: 6, sameScreenBits: 28,
-      clickPadPt: 24, pointerIdleFadeMs: 30000,
+      clickPadPt: 24, pointerIdleFadeMs: 30000, armedPollMs: 800,
       waitFloors: { instant: 75, uiSettle: 400, pageLoad: 1500, network: 2500 },
     },
     ...overrides,
@@ -40,8 +45,29 @@ function guidingStep(say = 'click this') {
   };
 }
 
+// A terminal step the machine ends on (used to make a valid click resolve cleanly).
+function doneStep(say = 'done!') {
+  return { say, box: null, visualTargets: [], expect: 'observe', wait: 'instant', status: 'done' };
+}
+
 // Flush pending microtasks (the capture awaits) via one macrotask turn.
 const flush = () => new Promise((r) => setTimeout(r, 0));
+
+// Gate BOTH long timers to never-resolve, but capture the armed-watch (800ms) resolver
+// so a test can fire exactly ONE poll tick by hand (the loop re-arms sleep(800) after
+// each tick, overwriting pollRelease.fn, so successive ticks can be fired in turn).
+const gatedPollDeps = (
+  pollRelease: { fn?: () => void },
+  overrides: Partial<FollowDeps> = {},
+): FollowDeps =>
+  deps({
+    sleep: vi.fn((ms: number) => {
+      if (ms === 800) return new Promise<void>((r) => { pollRelease.fn = r; });
+      if (ms === 30000) return new Promise<void>(() => {});
+      return Promise.resolve();
+    }) as any,
+    ...overrides,
+  });
 
 describe('follow controller', () => {
   it('start() plans and shows the first step, arms the click watch', async () => {
@@ -59,27 +85,109 @@ describe('follow controller', () => {
     const d = deps();
     const c = createFollowController(d);
     await c.start('goal', {});
-    d.runFollowTurn = vi.fn(async () => ({
-      say: 'done!', box: null, visualTargets: [], expect: 'observe', wait: 'instant', status: 'done',
-    })) as any;
+    d.runFollowTurn = vi.fn(async () => doneStep()) as any;
     await c.onClick({ x: 120, y: 115 });
     expect(d.runAckTurn).toHaveBeenCalledTimes(1);
     expect(c.state.history.length).toBe(1);
     expect(c.state.active).toBe(false);
   });
 
-  it('an in-box click but the screen CHANGED does nothing', async () => {
-    const d = deps();
-    d.captureFrameHash = vi
-      .fn()
-      .mockResolvedValueOnce([0, 0, 0, 0, 0, 0, 0, 0])
-      .mockResolvedValue([0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0]);
+  it('a click that itself navigates is ACCEPTED (no post-click capture → no false reject)', async () => {
+    // THE BUG FIX. referenceHash = the page the box was drawn on; after the click the
+    // screen has navigated to a new page. The OLD onClick captured a fresh frame AFTER
+    // the click, saw the already-navigated page, and wrongly rejected the valid click.
+    // The new guard is pointerFaded — still false here (the armed poll never ticked) —
+    // so the navigating click is accepted despite captureFrameHash returning a changed
+    // hash for every post-plan grab.
+    const d = deps({
+      captureFrameHash: vi
+        .fn()
+        .mockResolvedValueOnce([0, 0, 0, 0, 0, 0, 0, 0]) // reference (plan time)
+        .mockResolvedValue([0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0]) as any, // navigated page
+    });
     const c = createFollowController(d);
     await c.start('goal', {});
+    d.runFollowTurn = vi.fn(async () => doneStep()) as any;
+    await c.onClick({ x: 120, y: 115 });
+    expect(d.runAckTurn).toHaveBeenCalledTimes(1);
+    expect(c.state.history.length).toBe(1);
+    expect(c.state.active).toBe(false); // advanced to the terminal step
+  });
+
+  it('an in-box click while the screen CHANGED (box faded by the armed-watch poll) does nothing', async () => {
+    // The NEW guard: drive pointerFaded true via a real poll tick (the live screen no
+    // longer matches referenceHash), THEN click in-box — it must be ignored.
+    const poll: { fn?: () => void } = {};
+    const d = gatedPollDeps(poll, {
+      captureFrameHash: vi
+        .fn()
+        .mockResolvedValueOnce([0, 0, 0, 0, 0, 0, 0, 0]) // reference (plan)
+        .mockResolvedValue([0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0]) as any, // poll sees a changed screen
+    });
+    const c = createFollowController(d);
+    await c.start('goal', {});
+    poll.fn?.(); // one armed-poll tick → screen changed → fade → pointerFaded=true
+    await flush();
     const acksBefore = (d.runAckTurn as any).mock.calls.length;
     await c.onClick({ x: 120, y: 115 });
     expect((d.runAckTurn as any).mock.calls.length).toBe(acksBefore);
     expect(c.state.history.length).toBe(0);
+  });
+
+  it('the armed-watch poll fades the pointer when the live screen changes', async () => {
+    const poll: { fn?: () => void } = {};
+    const d = gatedPollDeps(poll, {
+      captureFrameHash: vi
+        .fn()
+        .mockResolvedValueOnce([0, 0, 0, 0, 0, 0, 0, 0])
+        .mockResolvedValue([0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0]) as any,
+    });
+    const c = createFollowController(d);
+    await c.start('goal', {});
+    expect(d.fadePointer).not.toHaveBeenCalled(); // pointer shown; poll hasn't ticked yet
+    poll.fn?.();
+    await flush();
+    expect(d.fadePointer).toHaveBeenCalled(); // poll faded the stale box
+    // and the guard is now active: a subsequent in-box click is ignored
+    const acksBefore = (d.runAckTurn as any).mock.calls.length;
+    await c.onClick({ x: 120, y: 115 });
+    expect((d.runAckTurn as any).mock.calls.length).toBe(acksBefore);
+  });
+
+  it('the armed-watch poll re-shows the pointer when the screen returns, then clicks advance again', async () => {
+    const poll: { fn?: () => void } = {};
+    const d = gatedPollDeps(poll, {
+      captureFrameHash: vi
+        .fn()
+        .mockResolvedValueOnce([0, 0, 0, 0, 0, 0, 0, 0]) // reference
+        .mockResolvedValueOnce([0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0]) // tick 1: changed → fade
+        .mockResolvedValue([0, 0, 0, 0, 0, 0, 0, 0]) as any, // tick 2: back to reference → re-show
+    });
+    const c = createFollowController(d);
+    await c.start('goal', {});
+    const showsAfterStart = (d.showPointer as any).mock.calls.length; // 1
+    poll.fn?.(); // tick 1 → fade
+    await flush();
+    expect(d.fadePointer).toHaveBeenCalled();
+    poll.fn?.(); // tick 2 → re-show (the loop re-armed sleep(800) after tick 1)
+    await flush();
+    expect((d.showPointer as any).mock.calls.length).toBe(showsAfterStart + 1);
+    // pointer is back (pointerFaded=false) → a valid in-box click now advances
+    d.runFollowTurn = vi.fn(async () => doneStep()) as any;
+    await c.onClick({ x: 120, y: 115 });
+    expect(d.runAckTurn).toHaveBeenCalledTimes(1);
+    expect(c.state.history.length).toBe(1);
+  });
+
+  it('onThinking fires when planning a step and when settling after a valid click', async () => {
+    const d = deps();
+    const c = createFollowController(d);
+    await c.start('goal', {});
+    expect(d.onThinking).toHaveBeenCalled(); // planAndShow ran at start
+    const afterStart = (d.onThinking as any).mock.calls.length;
+    d.runFollowTurn = vi.fn(async () => doneStep()) as any;
+    await c.onClick({ x: 120, y: 115 }); // valid → settleThenPlan → onThinking again
+    expect((d.onThinking as any).mock.calls.length).toBeGreaterThan(afterStart);
   });
 
   it('a click outside the box does nothing', async () => {
@@ -160,16 +268,15 @@ describe('follow controller', () => {
   });
 
   // A controllable sleep: the 30s idle-fade wait is a promise the test resolves by
-  // hand, while every other sleep (wait floors, settle poll) resolves instantly.
+  // hand, while every other sleep (wait floors, settle poll) resolves instantly. The
+  // 800ms armed-watch poll is parked (never-resolve) so its while-loop can't spin.
   const gatedFadeDeps = (release: { fn?: () => void }) =>
     deps({
-      sleep: vi.fn((ms: number) =>
-        ms === 30000
-          ? new Promise<void>((r) => {
-              release.fn = r;
-            })
-          : Promise.resolve()
-      ) as any,
+      sleep: vi.fn((ms: number) => {
+        if (ms === 30000) return new Promise<void>((r) => { release.fn = r; });
+        if (ms === 800) return new Promise<void>(() => {}); // park the armed-watch poll
+        return Promise.resolve();
+      }) as any,
     });
 
   it('a shown click-step schedules an idle fade that ENDS the guide when nothing intervenes', async () => {
@@ -191,16 +298,15 @@ describe('follow controller', () => {
 
   it('a valid click cancels the pending idle fade (idle-fade does not end an advanced guide)', async () => {
     // Capture EACH idle-timer resolver so the first (cancelled) one can be fired
-    // independently of the second (scheduled after the click advances).
+    // independently of the second (scheduled after the click advances). The armed-watch
+    // poll (800ms) is parked so its loop can't spin after the click shows step two.
     const fadeResolvers: Array<() => void> = [];
     const d = deps({
-      sleep: vi.fn((ms: number) =>
-        ms === 30000
-          ? new Promise<void>((r) => {
-              fadeResolvers.push(r);
-            })
-          : Promise.resolve()
-      ) as any,
+      sleep: vi.fn((ms: number) => {
+        if (ms === 30000) return new Promise<void>((r) => { fadeResolvers.push(r); });
+        if (ms === 800) return new Promise<void>(() => {});
+        return Promise.resolve();
+      }) as any,
     });
     const c = createFollowController(d);
     await c.start('goal', {}); // step 1 (guiding, box) → schedules idle fade #1
