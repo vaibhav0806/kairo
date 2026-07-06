@@ -1130,9 +1130,13 @@ mod step_targets_tests {
 
     #[test]
     fn caps_at_max_steps() {
-        let content = r#"{ "steps":[ {"say":"1"},{"say":"2"},{"say":"3"},{"say":"4"},{"say":"5"},{"say":"6"},{"say":"7"} ] }"#;
+        // MAX_TUTOR_STEPS was raised to 7; nine input steps must cap to exactly 7.
+        let content = r#"{ "steps":[ {"say":"1"},{"say":"2"},{"say":"3"},{"say":"4"},{"say":"5"},{"say":"6"},{"say":"7"},{"say":"8"},{"say":"9"} ] }"#;
         let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
-        assert_eq!(v["steps"].as_array().unwrap().len(), 5);
+        assert_eq!(
+            v["steps"].as_array().unwrap().len(),
+            crate::constants::MAX_TUTOR_STEPS
+        );
     }
 
     #[test]
