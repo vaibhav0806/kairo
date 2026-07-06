@@ -7,6 +7,7 @@ import type { TutorStep, UserAnnotation } from '../core/types';
 import {
   createNativeBridge,
   type NativeContextBaseline,
+  type NativeOverlayDisplayBounds,
   type NativeScreenCapture
 } from '../native/nativeBridge';
 import { type NotchAnnotationTool } from './annotationActions';
@@ -235,6 +236,9 @@ export function NotchApp() {
   // Mirrors `annotations` so the (dep-stable) annotation-watch arming can read the
   // current count without churning callback identities.
   const annotationsRef = useRef<UserAnnotation[]>([]);
+  // Display bounds last used to show the pen overlay — reused to re-assert the marks
+  // as a click-through preview through the turn (so PTT doesn't wipe them).
+  const displayBoundsRef = useRef<NativeOverlayDisplayBounds | null>(null);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
   const interaction = getNotchInteractionState({
@@ -386,7 +390,26 @@ export function NotchApp() {
     stopAnswerPlayback();
     answerSettledRef.current = false;
     contextBaselineRef.current = null;
-    void nativeBridge.hideOverlay();
+    // The user's FRESH pen marks belong to the UPCOMING turn — keep them on screen
+    // (and in the ask-time screenshot) instead of wiping them. Re-assert them as a
+    // click-through annotation_preview: configure_overlay_window flips it click-through
+    // AND keeps it in the tutor's capture (mode-based include). A plain hideOverlay()
+    // here is what used to erase the marks the instant PTT was pressed. No marks →
+    // clear the previous answer's box as before.
+    const marks = annotationsRef.current;
+    const bounds = displayBoundsRef.current;
+    if (marks.length > 0 && bounds) {
+      klog('notch', 'info', 'reengage: keep pen marks (preview)', { count: marks.length });
+      void nativeBridge.updateOverlay({
+        mode: 'annotation_preview',
+        displayBounds: bounds,
+        targets: [],
+        annotations: marks
+      });
+    } else {
+      klog('notch', 'debug', 'reengage: clear overlay', { marks: marks.length });
+      void nativeBridge.hideOverlay();
+    }
     void nativeBridge.disarmContextWatch();
     // Fresh activity so the idle-close timer can't fire immediately after re-engage.
     lastNotchActivityAt.current = performance.now();
@@ -1047,6 +1070,10 @@ export function NotchApp() {
       // voice-start screenshot's bounds, else fetch the display bounds natively.
       const bounds =
         capturedScreenRef.current?.displayBounds ?? (await nativeBridge.getDisplayBounds());
+      // Cache the bounds so re-engage can re-assert the marks as a preview (see
+      // resetPreviousTurn) without a fresh native round-trip.
+      displayBoundsRef.current = bounds;
+      klog('notch', 'info', 'pen annotation started', { tool });
       await nativeBridge.showAnnotationOverlay(bounds, tool);
     },
     [activeAnnotationTool, armAnnotationWatch, nativeBridge]
@@ -1613,13 +1640,18 @@ export function NotchApp() {
           return;
         }
 
-        setAnnotations((currentAnnotations) => [...currentAnnotations, event.payload]);
+        setAnnotations((currentAnnotations) => {
+          const next = [...currentAnnotations, event.payload];
+          klog('notch', 'debug', 'annotation added', { count: next.length });
+          return next;
+        });
       }),
       listen<UserAnnotation[]>('annotation:sync', (event) => {
         if (!isMounted) {
           return;
         }
 
+        klog('notch', 'debug', 'annotations synced', { count: event.payload.length });
         setAnnotations(event.payload);
       }),
       listen('annotation:done', () => {

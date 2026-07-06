@@ -3,6 +3,7 @@ import { createMockTutorPlanner } from '../core/mockTutor';
 import { createTutorOrchestrator } from '../core/orchestrator';
 import { createRuntimeTutorPlanner, type RuntimeTutorProvider } from '../core/runtimePlanner';
 import { createTutorRuntimeErrorResponse } from '../core/tutorErrors';
+import { klog } from '../core/logger';
 import type { TutorStep, UserAnnotation } from '../core/types';
 import type {
   NativeBridge,
@@ -69,6 +70,13 @@ export async function askTutorFromNotch({
       annotations.length === 0 && providedCapture?.captured
         ? providedCapture
         : await nativeBridge.captureScreen();
+    // Trace whether the user's pen marks made it into the tutor's screenshot: when
+    // there are annotations we re-capture NOW so the (preserved, on-screen) marks land
+    // in the image the AI sees.
+    klog('tutor', 'info', 'ask capture', {
+      annotations: annotations.length,
+      recaptured: !(annotations.length === 0 && providedCapture?.captured)
+    });
     const activeApp = screenCapture.activeApp ?? (await nativeBridge.getActiveApp());
     const response = await orchestrator.runTextTurn({
       request: {
