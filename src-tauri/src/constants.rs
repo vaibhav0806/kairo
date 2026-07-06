@@ -141,3 +141,18 @@ pub(crate) const LOG_FILTER: &str = "info,kairo=debug";
 pub(crate) const PTT_TAP_MAX_MS: u64 = 250; // hold < this = tap (→ typing); >= = talk
 pub(crate) const PTT_RELEASE_SETTLE_MS: u64 = 60; // absorb a modifier key-bounce shorter than this
 pub(crate) const PTT_MAX_RECORD_MS: u64 = 30_000; // hard cap: auto-send a runaway hold (keeps WAV under STT limit)
+
+// ---------------------------------------------------------------- Follow-along
+// The reactive, hands-on guide path. See
+// docs/superpowers/specs/2026-07-06-follow-along-guide-mode-design.md
+pub(crate) const FOLLOW_MODEL: &str = "claude-fable-5"; // vision, next step
+pub(crate) const FOLLOW_TURN_TIMEOUT_MS: u64 = 20_000;
+pub(crate) const ACK_MODEL: &str = "google/gemini-2.5-flash-lite"; // text-only ack
+pub(crate) const ACK_TIMEOUT_MS: u64 = 6_000;
+
+// `wait` enum floors (ms) — the model emits the bucket, we map here. Mirrored in the
+// frontend (src/config/env.ts) — keep the two in sync.
+pub(crate) const WAIT_INSTANT_MS: u64 = 75;
+pub(crate) const WAIT_UI_SETTLE_MS: u64 = 400;
+pub(crate) const WAIT_PAGE_LOAD_MS: u64 = 1_500;
+pub(crate) const WAIT_NETWORK_MS: u64 = 2_500;

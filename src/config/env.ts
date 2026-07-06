@@ -27,7 +27,19 @@ const rawEnvSchema = z.object({
   ELEVENLABS_BASE_URL: z.string().url().default('https://api.elevenlabs.io'),
   ELEVENLABS_STT_MODEL: z.string().default('scribe_v1'),
   ELEVENLABS_TTS_MODEL: z.string().default('eleven_multilingual_v2'),
-  ELEVENLABS_VOICE_ID: z.string().default('EXAVITQu4vr4xnSDxMaL')
+  ELEVENLABS_VOICE_ID: z.string().default('EXAVITQu4vr4xnSDxMaL'),
+  // Follow-along (mirror of src-tauri/src/constants.rs). Non-secret tuning knobs;
+  // no .env entry needed — a fresh clone gets the defaults below.
+  FOLLOW_SETTLE_POLL_MS: z.coerce.number().default(300),
+  FOLLOW_SETTLE_MAX_ITERATIONS: z.coerce.number().default(10),
+  FOLLOW_SETTLE_MOVING_BITS: z.coerce.number().default(6), // >this of 256 = still moving
+  FOLLOW_SAMESCREEN_BITS: z.coerce.number().default(28), // >this of 256 = different screen
+  FOLLOW_CLICK_PAD_PT: z.coerce.number().default(24), // click tolerance in display points
+  FOLLOW_POINTER_IDLE_FADE_MS: z.coerce.number().default(30_000),
+  WAIT_INSTANT_MS: z.coerce.number().default(75),
+  WAIT_UI_SETTLE_MS: z.coerce.number().default(400),
+  WAIT_PAGE_LOAD_MS: z.coerce.number().default(1_500),
+  WAIT_NETWORK_MS: z.coerce.number().default(2_500)
 });
 
 export type KairoEnv = {
@@ -52,6 +64,16 @@ export type KairoEnv = {
   elevenLabsSttModel: string;
   elevenLabsTtsModel: string;
   elevenLabsVoiceId: string;
+  followSettlePollMs: number;
+  followSettleMaxIterations: number;
+  followSettleMovingBits: number;
+  followSamescreenBits: number;
+  followClickPadPt: number;
+  followPointerIdleFadeMs: number;
+  waitInstantMs: number;
+  waitUiSettleMs: number;
+  waitPageLoadMs: number;
+  waitNetworkMs: number;
 };
 
 type LoadKairoEnvOptions = {
@@ -106,7 +128,17 @@ export function loadKairoEnv(
     elevenLabsBaseUrl: parsed.ELEVENLABS_BASE_URL,
     elevenLabsSttModel: parsed.ELEVENLABS_STT_MODEL,
     elevenLabsTtsModel: parsed.ELEVENLABS_TTS_MODEL,
-    elevenLabsVoiceId: parsed.ELEVENLABS_VOICE_ID
+    elevenLabsVoiceId: parsed.ELEVENLABS_VOICE_ID,
+    followSettlePollMs: parsed.FOLLOW_SETTLE_POLL_MS,
+    followSettleMaxIterations: parsed.FOLLOW_SETTLE_MAX_ITERATIONS,
+    followSettleMovingBits: parsed.FOLLOW_SETTLE_MOVING_BITS,
+    followSamescreenBits: parsed.FOLLOW_SAMESCREEN_BITS,
+    followClickPadPt: parsed.FOLLOW_CLICK_PAD_PT,
+    followPointerIdleFadeMs: parsed.FOLLOW_POINTER_IDLE_FADE_MS,
+    waitInstantMs: parsed.WAIT_INSTANT_MS,
+    waitUiSettleMs: parsed.WAIT_UI_SETTLE_MS,
+    waitPageLoadMs: parsed.WAIT_PAGE_LOAD_MS,
+    waitNetworkMs: parsed.WAIT_NETWORK_MS
   };
 }
 
