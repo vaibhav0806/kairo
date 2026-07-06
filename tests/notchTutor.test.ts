@@ -32,6 +32,7 @@ function createBridge(overrides: Partial<NativeBridge> = {}): NativeBridge {
     getCurrentOverlayPayload: vi.fn(),
     hideOverlay: vi.fn(),
     cursorPoint: vi.fn(),
+    cursorDrag: vi.fn(),
     cursorRelease: vi.fn(),
     armContextWatch: vi.fn(),
     disarmContextWatch: vi.fn(),

@@ -1,4 +1,5 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
+import { emit as tauriEmit } from '@tauri-apps/api/event';
 import { register as registerGlobalShortcut } from '@tauri-apps/plugin-global-shortcut';
 import { klog } from '../core/logger';
 import type { ScreenRegion, UserAnnotation, VisualTarget } from '../core/types';
@@ -101,6 +102,19 @@ export type NativeCursorPointInput = {
   color?: string;
 };
 
+// Pen-drag reveal: the pet flies to `fromRegion` (the box's top-left corner) over
+// `approachMs`, then drags to `toRegion` (bottom-right) over `durationMs`, welded
+// to the box "inking" itself along the same diagonal. Corner regions are zero-size
+// so the cursor's pointingTip lands its tip on each corner.
+export type NativeCursorDragInput = {
+  fromRegion: ScreenRegion;
+  toRegion: ScreenRegion;
+  displayBounds: NativeOverlayDisplayBounds;
+  durationMs: number;
+  approachMs: number;
+  color?: string;
+};
+
 // The app a teaching target points at, captured when the box is revealed. A later
 // frontmost/scroll/click change relative to this clears the stale guidance.
 export type NativeContextBaseline = {
@@ -132,6 +146,7 @@ export type NativeBridge = {
   getCurrentOverlayPayload(): Promise<NativeOverlayPayload | null>;
   hideOverlay(): Promise<void>;
   cursorPoint(input: NativeCursorPointInput): Promise<void>;
+  cursorDrag(input: NativeCursorDragInput): Promise<void>;
   cursorRelease(): Promise<void>;
   armContextWatch(baseline: NativeContextBaseline): Promise<void>;
   disarmContextWatch(): Promise<void>;
@@ -392,6 +407,17 @@ export function createNativeBridge(
         await invoke<void>('cursor_point', { payload: input });
       } catch {
         // Browser previews do not have a native cursor window.
+      }
+    },
+
+    async cursorDrag(input) {
+      try {
+        // Broadcast like the notch's cursor FX events (cursor:speaking, etc.) — the
+        // cursor window is already up (it shadows the mouse), so a Rust round-trip
+        // isn't needed just to reach its listener.
+        await tauriEmit('cursor:drag', input);
+      } catch {
+        // Browser previews do not have a native cursor window / event bus.
       }
     },
 
