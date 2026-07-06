@@ -47,6 +47,19 @@ fn capture_screen_with_screencapture() -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+/// Raw PNG bytes of the main display. Used by the follow-along frame-hash;
+/// not sent to any model. Reuses the same `screencapture` path as `capture_screen`.
+pub(crate) fn capture_screen_png_bytes() -> Result<Vec<u8>, String> {
+    #[cfg(target_os = "macos")]
+    {
+        capture_screen_with_screencapture()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("Screen capture is only implemented for macOS.".to_string())
+    }
+}
+
 #[cfg(target_os = "macos")]
 pub(crate) fn main_display_bounds() -> DisplayBounds {
     let display = CGDisplay::main();

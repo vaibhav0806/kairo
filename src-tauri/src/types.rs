@@ -62,6 +62,13 @@ pub(crate) struct CaptureImageGeometry {
     pub(crate) encoded_height: u32,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FrameHash {
+    /// 8 x u32 = 256-bit dHash. JS-safe as number[].
+    pub hash: Vec<u32>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ScreenRegion {

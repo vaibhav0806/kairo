@@ -40,6 +40,19 @@ pub(crate) fn hamming(a: &[u32; HASH_U32S], b: &[u32; HASH_U32S]) -> u32 {
     d
 }
 
+/// Capture the current screen and return its 256-bit dHash fingerprint. The raw
+/// PNG is decoded + downscaled locally for hashing; no pixels leave the machine.
+#[tauri::command]
+pub(crate) fn capture_frame_hash() -> Result<crate::types::FrameHash, String> {
+    let _t = crate::klog::timer("follow", "capture_frame_hash");
+    let png = crate::capture::capture_screen_png_bytes()?;
+    let hash = dhash_from_bytes(&png)?;
+    crate::klog!(follow, debug, bytes = png.len(), "captured frame hash");
+    Ok(crate::types::FrameHash {
+        hash: hash.to_vec(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

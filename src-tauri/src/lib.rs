@@ -569,6 +569,7 @@ pub fn run() {
             debug_log_batch,
             get_display_bounds,
             capture_screen,
+            framehash::capture_frame_hash,
             show_overlay,
             update_overlay,
             get_current_overlay_payload,
