@@ -894,6 +894,7 @@ mod tests {
         let result = tauri::async_runtime::block_on(crate::speech::synthesize_speech(
             SynthesizeSpeechInput {
                 text: "Hello from Kairo.".to_string(),
+                timeout_ms: None,
             },
         ))
         .expect("mock synthesis should not fail");
