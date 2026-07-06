@@ -12,6 +12,14 @@ import {
   type SpringConfig
 } from './spring';
 import { pointingTip, shadowTip, type PointingTip } from './geometry';
+import {
+  DRAW_APPROACH_MS,
+  DRAW_DURATION_MS,
+  clamp01,
+  evalApproachEase,
+  evalDrawEase,
+  lerp
+} from '../core/penDraw';
 
 // Glyph: a clean filled navigation arrowhead pointing up-right (NOT the mac
 // pointer shape). Tip lives at viewBox (28,4); the element is GLYPH_SIZE px wide,
@@ -36,10 +44,38 @@ const RECORDING_FILL = '#ff4d6d';
 
 type CursorFx = 'none' | 'listening' | 'thinking' | 'speaking';
 
-type CursorMode = 'shadow' | 'pointing';
+type CursorMode = 'shadow' | 'pointing' | 'drag';
 
 type MousePayload = { x: number; y: number };
 type PointPayload = { screenRegion: ScreenRegion; displayBounds: DisplayBounds; color?: string };
+type DragPayload = {
+  fromRegion: ScreenRegion;
+  toRegion: ScreenRegion;
+  displayBounds: DisplayBounds;
+  durationMs?: number;
+  approachMs?: number;
+  color?: string;
+};
+
+// In-flight pen-drag: an `approachMs` glide from wherever the pet was to the
+// box's top-left corner, then a `durationMs` tween along the diagonal to the
+// bottom-right corner. `prev*` feeds the comet trail (the spring integrator is
+// bypassed while dragging). All coords are window-local px.
+type DragState = {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  startX: number;
+  startY: number;
+  flipX: boolean;
+  flipY: boolean;
+  startMs: number | null;
+  approachMs: number;
+  durationMs: number;
+  prevX: number;
+  prevY: number;
+};
 
 export function CursorApp() {
   const nativeBridge = useMemo(() => createNativeBridge(), []);
@@ -72,6 +108,9 @@ export function CursorApp() {
   const springY = useRef(createSpring(0));
   const initializedRef = useRef(false);
   const flipRef = useRef({ flipX: false, flipY: false });
+  // Active pen-drag reveal, or null when not dragging.
+  const dragRef = useRef<DragState | null>(null);
+  const reduceMotionRef = useRef(false);
 
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
@@ -83,6 +122,20 @@ export function CursorApp() {
       document.documentElement.classList.remove('cursor-document');
       document.body.classList.remove('cursor-document');
     };
+  }, []);
+
+  // Honor the OS "Reduce Motion" setting: the drag reveal snaps to the corner.
+  useEffect(() => {
+    const query = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!query) {
+      return;
+    }
+    reduceMotionRef.current = query.matches;
+    const onChange = (event: MediaQueryListEvent) => {
+      reduceMotionRef.current = event.matches;
+    };
+    query.addEventListener?.('change', onChange);
+    return () => query.removeEventListener?.('change', onChange);
   }, []);
 
   useEffect(() => {
@@ -129,7 +182,7 @@ export function CursorApp() {
       if (!trail) {
         return;
       }
-      if (modeRef.current !== 'pointing') {
+      if (modeRef.current === 'shadow') {
         trail.style.opacity = '0';
         return;
       }
@@ -156,6 +209,59 @@ export function CursorApp() {
       }
       const dt = lastTimeRef.current === null ? 1 / 60 : (time - lastTimeRef.current) / 1000;
       lastTimeRef.current = time;
+
+      // Pen-drag: drive the tip along the approach → diagonal-draw timeline, welded
+      // to the box inking itself in the overlay window (same easing, same duration).
+      if (modeRef.current === 'drag' && dragRef.current) {
+        const drag = dragRef.current;
+        if (drag.startMs === null) {
+          drag.startMs = time;
+        }
+        const elapsed = time - drag.startMs;
+
+        let x: number;
+        let y: number;
+        let finished = false;
+        if (elapsed < drag.approachMs) {
+          const eased = evalApproachEase(clamp01(elapsed / drag.approachMs));
+          x = lerp(drag.startX, drag.fromX, eased);
+          y = lerp(drag.startY, drag.fromY, eased);
+        } else {
+          const progress = clamp01((elapsed - drag.approachMs) / drag.durationMs);
+          const eased = evalDrawEase(progress);
+          x = lerp(drag.fromX, drag.toX, eased);
+          y = lerp(drag.fromY, drag.toY, eased);
+          finished = progress >= 1;
+        }
+
+        springX.current.velocity = dt > 0 ? (x - drag.prevX) / dt : 0;
+        springY.current.velocity = dt > 0 ? (y - drag.prevY) / dt : 0;
+        drag.prevX = x;
+        drag.prevY = y;
+        springX.current.value = x;
+        springY.current.value = y;
+        flipRef.current = { flipX: drag.flipX, flipY: drag.flipY };
+        writeTransform();
+        writeTrail();
+
+        if (finished) {
+          // Rest at the corner in pointing mode so the speaking pulse takes over.
+          springX.current.velocity = 0;
+          springY.current.velocity = 0;
+          pointRef.current = {
+            tipX: drag.toX,
+            tipY: drag.toY,
+            ringX: drag.toX,
+            ringY: drag.toY,
+            flipX: drag.flipX,
+            flipY: drag.flipY
+          };
+          modeRef.current = 'pointing';
+          dragRef.current = null;
+        }
+        rafRef.current = requestAnimationFrame(frame);
+        return;
+      }
 
       const target = resolveTarget();
       flipRef.current = { flipX: target.flipX, flipY: target.flipY };
@@ -233,6 +339,7 @@ export function CursorApp() {
         if (!isMounted) {
           return;
         }
+        dragRef.current = null;
         const tip = pointingTip(event.payload.screenRegion, event.payload.displayBounds);
         pointRef.current = tip;
         const color = event.payload.color;
@@ -251,10 +358,68 @@ export function CursorApp() {
         }
         wake();
       }),
+      // Pen-drag reveal: fly to the box's top-left corner, then drag to the
+      // bottom-right, welded to the box inking itself in the overlay window.
+      listen<DragPayload>('cursor:drag', (event) => {
+        if (!isMounted) {
+          return;
+        }
+        const payload = event.payload;
+        const from = pointingTip(payload.fromRegion, payload.displayBounds);
+        const to = pointingTip(payload.toRegion, payload.displayBounds);
+        const color = payload.color;
+        if (arrowPathRef.current) {
+          arrowPathRef.current.style.fill = color ?? DEFAULT_ARROW_FILL;
+        }
+        if (trailRef.current) {
+          trailRef.current.style.background = color
+            ? `linear-gradient(to left, ${color}, ${color}00)`
+            : DEFAULT_TRAIL;
+        }
+        // No halo/swirl during the draw, but keep an already-running speaking pulse.
+        if (fxModeRef.current !== 'speaking') {
+          setFx('none');
+        }
+        if (reduceMotionRef.current) {
+          pointRef.current = {
+            tipX: to.tipX,
+            tipY: to.tipY,
+            ringX: to.tipX,
+            ringY: to.tipY,
+            flipX: to.flipX,
+            flipY: to.flipY
+          };
+          modeRef.current = 'pointing';
+          dragRef.current = null;
+          snapTo({ x: to.tipX, y: to.tipY });
+          return;
+        }
+        const startX = springX.current.value;
+        const startY = springY.current.value;
+        dragRef.current = {
+          fromX: from.tipX,
+          fromY: from.tipY,
+          toX: to.tipX,
+          toY: to.tipY,
+          startX,
+          startY,
+          flipX: to.flipX,
+          flipY: to.flipY,
+          startMs: null,
+          approachMs: payload.approachMs ?? DRAW_APPROACH_MS,
+          durationMs: payload.durationMs ?? DRAW_DURATION_MS,
+          prevX: startX,
+          prevY: startY
+        };
+        modeRef.current = 'drag';
+        flipRef.current = { flipX: to.flipX, flipY: to.flipY };
+        wake();
+      }),
       listen('cursor:release', () => {
         if (!isMounted) {
           return;
         }
+        dragRef.current = null;
         if (arrowPathRef.current) {
           arrowPathRef.current.style.fill = DEFAULT_ARROW_FILL;
         }
@@ -270,6 +435,7 @@ export function CursorApp() {
         if (!isMounted) {
           return;
         }
+        dragRef.current = null;
         if (arrowPathRef.current) {
           arrowPathRef.current.style.fill = RECORDING_FILL;
         }
