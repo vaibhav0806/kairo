@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { emit, listen } from '@tauri-apps/api/event';
 import { activationStateToNotchPayload } from '../activation/activationState';
 import { loadBrowserEnv } from '../config/env';
-import { klog } from '../core/logger';
-import type { TutorStep, UserAnnotation } from '../core/types';
+import { klog, type LogFields, type LogLevel } from '../core/logger';
+import type { TutorStep, UserAnnotation, VisualTarget } from '../core/types';
 import {
   createNativeBridge,
   type NativeContextBaseline,
@@ -13,10 +13,12 @@ import {
 import { type NotchAnnotationTool } from './annotationActions';
 import { buildAudioDataUrl } from './audioPlayback';
 import { createBufferedClip, createStreamingClip, type SpeechClip } from './streamingTts';
+import { createFollowController, type FollowController } from './followController';
+import type { FollowStep } from './followAlong';
 import { shouldIdleClose } from './idleClose';
 import { subscribeToNotchPayload } from './notchEvents';
 import { askTutorFromNotch } from './notchTutor';
-import type { RevealTransition } from '../overlay/targetRouting';
+import { routeVisualTargets, type RevealTransition } from '../overlay/targetRouting';
 import {
   getNotchInteractionState,
   isNotchDismissKey,
@@ -240,8 +242,129 @@ export function NotchApp() {
   // Display bounds last used to show the pen overlay — reused to re-assert the marks
   // as a click-through preview through the turn (so PTT doesn't wipe them).
   const displayBoundsRef = useRef<NativeOverlayDisplayBounds | null>(null);
+  // ---- Follow-along (guide mode) ----------------------------------------------
+  // The reactive follow controller is held in a ref so its `followAlong` state
+  // (goal + history + current step) survives across turns and React re-renders; it
+  // is built EXACTLY ONCE (lazy-init below), never recreated.
+  const followRef = useRef<FollowController | null>(null);
+  // A DEDICATED clip slot for follow-along step speech, kept apart from
+  // answerAudioRef so it never collides with the turn's filler/answer clip.
+  const followClipRef = useRef<SpeechClip | null>(null);
+  // Display bounds from the follow controller's OWN capture, reused to place the
+  // pointer overlay/cursor for the step planned on that same frame.
+  const followDisplayBoundsRef = useRef<NativeOverlayDisplayBounds | null>(null);
+  // First pointer of a follow-along session is DRAWN; later ones GLIDE (mirrors
+  // playSteps). Reset to true when a new session starts (submitQuery branch).
+  const followFirstPointerRef = useRef(true);
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
+
+  // Build the follow controller once with real bridges + notch primitives. Lazy-init
+  // in the ref (createFollowController is pure — just closures, no I/O) so a re-render
+  // never rebuilds it and drops live follow state.
+  if (!followRef.current) {
+    followRef.current = createFollowController({
+      captureFrameHash: () => nativeBridge.captureFrameHash(),
+      // Reuse the SAME capture the tutor turn uses (nativeBridge.captureScreen),
+      // returning just the base64 + media type the follow vision turn needs. Cache
+      // the frame's display bounds for showPointer (same frame the step is planned on).
+      captureScreenB64: async () => {
+        const shot = await nativeBridge.captureScreen();
+        if (shot.displayBounds) {
+          followDisplayBoundsRef.current = shot.displayBounds;
+        }
+        return {
+          imageBase64: shot.imageBase64 ?? '',
+          mediaType: shot.imageMimeType ?? 'image/jpeg'
+        };
+      },
+      // The bridge returns a raw JSON string (mirrors runTutorTurn); parse it here.
+      // An empty/invalid string throws — the controller's try/catch handles it.
+      runFollowTurn: async (args) => JSON.parse(await nativeBridge.runFollowTurn(args)),
+      runAckTurn: (completedStep) => nativeBridge.runAckTurn(completedStep),
+      // Follow speech plays on its OWN clip slot; a new line cuts the prior one so
+      // step lines never overlap. Resolves when the clip ends/pauses (mirrors the
+      // step-clip await in playSteps). Never touches answerAudioRef.
+      speak: async (text: string) => {
+        const trimmed = text.trim();
+        if (!trimmed) {
+          return;
+        }
+        if (followClipRef.current) {
+          try {
+            followClipRef.current.pause();
+          } catch {
+            // ignore
+          }
+          followClipRef.current = null;
+        }
+        const clip = createStreamingClip(nativeBridge, trimmed, STEP_SYNTH_TIMEOUT_MS);
+        followClipRef.current = clip;
+        try {
+          await clip.play();
+        } catch {
+          // Best-effort: the guide continues even if a single line fails to speak.
+        } finally {
+          if (followClipRef.current === clip) {
+            followClipRef.current = null;
+          }
+        }
+      },
+      // Route the step's targets to the overlay + cursor EXACTLY as revealStep does,
+      // keeping the cursor in a pointing/drag mode (so the shadow+none auto-hide can't
+      // fire). Draw the first pointer of a session, glide the rest.
+      showPointer: (step: FollowStep) => {
+        const bounds =
+          followDisplayBoundsRef.current ??
+          capturedScreenRef.current?.displayBounds ??
+          displayBoundsRef.current;
+        if (!bounds) {
+          klog('follow', 'warn', 'no display bounds — cannot show pointer');
+          return;
+        }
+        const transition: RevealTransition = followFirstPointerRef.current ? 'draw' : 'glide';
+        followFirstPointerRef.current = false;
+        klog('follow', 'debug', 'show pointer', {
+          transition,
+          targets: step.visualTargets.length
+        });
+        void routeVisualTargets(
+          nativeBridge,
+          step.visualTargets as VisualTarget[],
+          bounds,
+          transition
+        );
+      },
+      fadePointer: () => {
+        void nativeBridge.hideOverlay();
+        void nativeBridge.cursorRelease();
+      },
+      armFollowClick: () => {
+        void nativeBridge.armFollowClick();
+      },
+      disarmFollowClick: () => {
+        void nativeBridge.disarmFollowClick();
+      },
+      sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
+      now: () => Date.now(),
+      log: (level, msg, fields) =>
+        klog('follow', level as LogLevel, msg, fields as LogFields | undefined),
+      cfg: {
+        settlePollMs: env.followSettlePollMs,
+        settleMaxIterations: env.followSettleMaxIterations,
+        settleMovingBits: env.followSettleMovingBits,
+        sameScreenBits: env.followSamescreenBits,
+        clickPadPt: env.followClickPadPt,
+        pointerIdleFadeMs: env.followPointerIdleFadeMs,
+        waitFloors: {
+          instant: env.waitInstantMs,
+          uiSettle: env.waitUiSettleMs,
+          pageLoad: env.waitPageLoadMs,
+          network: env.waitNetworkMs
+        }
+      }
+    });
+  }
   const interaction = getNotchInteractionState({
     payload,
     voiceState: voiceCaptureState,
@@ -278,6 +401,16 @@ export function NotchApp() {
     fillerCancelRef.current = true;
     // Supersede anything queued behind the filler (see playAnswerAudio).
     playbackEpochRef.current += 1;
+    // Also stop any in-flight follow-along step speech so a new turn's audio never
+    // overlaps it. No-op (ref null) outside an active follow-along.
+    if (followClipRef.current) {
+      try {
+        followClipRef.current.pause();
+      } catch {
+        // ignore
+      }
+      followClipRef.current = null;
+    }
     // Stop the filler clip + unblock any answer waiting on it.
     if (fillerAudioRef.current) {
       try {
@@ -932,6 +1065,50 @@ export function NotchApp() {
           return;
         }
 
+        // Follow-along: a hands-on, reactive guided walkthrough. Purely additive —
+        // taken ONLY when the gate flags followAlong. Speak the gate's entry filler
+        // exactly like the vision path, then hand off to the follow controller, which
+        // does its OWN capture + run_follow_turn + pointer loop instead of the
+        // one-shot vision turn. We do NOT also run the normal tutor turn this turn.
+        if (gate.followAlong) {
+          klog('notch', 'info', 'entering follow-along', { query_len: trimmedQuery.length });
+          // Entry ack (unchanged filler path).
+          void speakFiller(gate.voiceText || 'Sure — let me walk you through it.', turnEpoch);
+          const active =
+            capturedScreenRef.current?.activeApp ??
+            (await nativeBridge.getActiveApp().catch(() => null));
+          // A newer turn superseded this one while resolving the active app.
+          if (turnEpochRef.current !== turnEpoch) return;
+          // The controller owns the pointer + step speech from here; show an idle
+          // (hidden) capsule so the notch isn't stuck on "Thinking" while it guides.
+          const followPayload: NotchPayload = {
+            state: 'showing_step',
+            layout: 'answer',
+            title: 'Kairo is guiding',
+            detail: ''
+          };
+          contextBaselineRef.current = null;
+          revealVisualsRef.current = async () => {};
+          setPayload(followPayload);
+          setDetailHidden(false);
+          setQuery('');
+          setAnnotations([]);
+          setActiveAnnotationTool(null);
+          void nativeBridge.showNotch(followPayload);
+          // First pointer of this session is drawn; later ones glide.
+          followFirstPointerRef.current = true;
+          // Fire-and-forget: the controller drives the reactive loop from here. Its
+          // followAlong state lives in the ref, surviving later voice turns.
+          void followRef.current?.start(trimmedQuery, {
+            activeApp: active?.activeApp,
+            windowTitle: active?.windowTitle ?? undefined
+          });
+          // Let the notch idle-close (which skips while the controller is active)
+          // govern the panel once the guide finishes.
+          markAnswerSettled();
+          return;
+        }
+
         // Phase 2: needs the screen. ALWAYS play a "let me look" filler while the
         // vision turn runs (cached → instant), including annotation asks where the
         // gate is skipped and there's no gate voiceText.
@@ -1135,6 +1312,11 @@ export function NotchApp() {
   // never keeps it open or forces it closed.
   useEffect(() => {
     const id = setInterval(() => {
+      // While a follow-along guide is active, never auto-close: the pointer must
+      // stay until the user acts, and hideNotch would wipe the overlay + cursor.
+      if (followRef.current?.state.active) {
+        return;
+      }
       const now = performance.now();
       const pointerHolding =
         pointerInsideNotchRef.current && now - lastNotchPointerAt.current < 4000;
@@ -1209,6 +1391,13 @@ export function NotchApp() {
 
   useEffect(() => {
     const pending = listen('context:changed', () => {
+      // During an active follow-along the controller owns the pointer lifecycle:
+      // fade the stale hint but KEEP the step + goal (do NOT run the full teardown,
+      // which would drop the follow visuals/state under the user).
+      if (followRef.current?.state.active) {
+        followRef.current.onScreenMoved();
+        return;
+      }
       void nativeBridge.hideOverlay();
       void nativeBridge.cursorRelease();
       void nativeBridge.disarmContextWatch();
@@ -1220,6 +1409,18 @@ export function NotchApp() {
       void pending.then((unlisten) => unlisten());
     };
   }, [nativeBridge]);
+
+  // Follow-along: native left-mouse-down coordinates (display points), emitted only
+  // while a follow-along click-step is armed. A no-op unless the controller is active
+  // on a click step — it guards internally (in-box + same-screen checks).
+  useEffect(() => {
+    const pending = listen<{ x: number; y: number }>('input:click', (event) => {
+      void followRef.current?.onClick(event.payload);
+    });
+    return () => {
+      void pending.then((unlisten) => unlisten());
+    };
+  }, []);
 
   // Live mic level (global event) → the capsule's listening waveform.
   useEffect(() => {
