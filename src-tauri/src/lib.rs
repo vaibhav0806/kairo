@@ -508,6 +508,9 @@ pub fn run() {
             if let Err(error) = ensure_overlay_panel(app.handle()) {
                 klog!(app, error, "failed to pre-create overlay panel: {error}");
             }
+            // Warm the TLS handshake to each provider host so the first gate/vision/
+            // STT/TTS request skips the cold negotiation (shaves first-turn latency).
+            crate::tutor::prewarm_http_connections();
             // Companion cursor: create it, show it always, and start tracking the
             // real mouse so it shadows the cursor from launch.
             match ensure_cursor_panel(app.handle()) {

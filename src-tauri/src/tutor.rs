@@ -151,6 +151,59 @@ pub(crate) fn shared_http_client() -> &'static reqwest::Client {
     })
 }
 
+// Reduce a base URL to `scheme://host/`, dropping any path (e.g. `/api/v1`) so the
+// warm-up request is cheap and the TLS session ticket lands on the host root.
+fn root_host_url(base: &str) -> String {
+    match base.find("://") {
+        Some(scheme_end) => {
+            let after = &base[scheme_end + 3..];
+            let host = after.split('/').next().unwrap_or(after);
+            format!("{}://{}/", &base[..scheme_end], host)
+        }
+        None => base.to_string(),
+    }
+}
+
+// Warm the TLS handshake to each provider host at launch so the first real request
+// (gate / vision / STT / TTS) skips the cold negotiation. All four subsystems share
+// `shared_http_client()`, so warming its pool benefits every path. Session tickets
+// are host-scoped, so a cheap HEAD to each root is enough. Best-effort: failures are
+// logged and ignored — never a hard dependency.
+pub(crate) fn prewarm_http_connections() {
+    for base in [
+        constants::OPENROUTER_BASE_URL,
+        constants::ANTHROPIC_BASE_URL,
+        constants::SARVAM_BASE_URL,
+    ] {
+        let url = root_host_url(base);
+        tauri::async_runtime::spawn(async move {
+            let started = std::time::Instant::now();
+            match shared_http_client()
+                .head(&url)
+                .timeout(Duration::from_secs(10))
+                .send()
+                .await
+            {
+                Ok(response) => crate::klog!(
+                    app,
+                    debug,
+                    host = %url,
+                    status = response.status().as_u16(),
+                    ms = started.elapsed().as_millis() as u64,
+                    "tls prewarm ok"
+                ),
+                Err(error) => crate::klog!(
+                    app,
+                    debug,
+                    host = %url,
+                    ms = started.elapsed().as_millis() as u64,
+                    "tls prewarm failed: {error}"
+                ),
+            }
+        });
+    }
+}
+
 async fn send_openrouter_chat_request(
     client: &reqwest::Client,
     endpoint: &str,
@@ -410,6 +463,10 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
             { "role": "user", "content": user_message },
         ],
         "response_format": { "type": "json_object" },
+        // The gate is a cheap needs-screen decision + one short spoken line; thinking
+        // adds seconds for zero benefit and sits on the ack's critical path. Disable
+        // it (OpenRouter maps effort:none → Gemini's thinkingLevel off).
+        "reasoning": { "effort": "none" },
     });
 
     match send_openrouter_chat_request(
