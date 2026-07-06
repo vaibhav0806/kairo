@@ -13,13 +13,16 @@ import type { ScreenRegion } from './types';
 // Pet flies to the box's top-left corner (anticipation) before the drag starts.
 export const DRAW_APPROACH_MS = 200;
 // The diagonal drag: top-left → bottom-right, box "inks" itself over this window.
-export const DRAW_DURATION_MS = 340;
+// Deliberately slow + graceful. NOTE: the CSS box animation runs longer (900ms) —
+// this value is only the DRAW portion; the glow + dimming ignite in the tail *after*
+// the outline lands (see styles.css @keyframes kairo-box-draw, clip completes at 72%).
+export const DRAW_DURATION_MS = 650;
 // Multi-step: the same box slides to the next target over this window.
 export const GLIDE_MS = 480;
 
 // Cubic-bezier control points. MUST equal the cubic-bezier() literals in
 // styles.css for the cursor tip to track the box's growing corner.
-export const DRAW_EASE = [0.4, 0, 0.2, 1] as const; // draw diagonal (ease-in-out)
+export const DRAW_EASE = [0.22, 1, 0.36, 1] as const; // draw diagonal (ease-out, smooth settle)
 export const APPROACH_EASE = [0.22, 1, 0.36, 1] as const; // graceful arrival at TL
 
 export function clamp01(value: number): number {

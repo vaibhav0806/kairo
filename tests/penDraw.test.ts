@@ -43,7 +43,7 @@ describe('penDraw easing', () => {
 
   test('draw ease control points feed the sampler (documents the CSS contract)', () => {
     // If this changes, the cubic-bezier() literal in styles.css must change too.
-    expect([...DRAW_EASE]).toEqual([0.4, 0, 0.2, 1]);
+    expect([...DRAW_EASE]).toEqual([0.22, 1, 0.36, 1]);
   });
 });
 
