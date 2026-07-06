@@ -32,6 +32,10 @@ pub(crate) fn dhash(img: &image::DynamicImage) -> [u32; HASH_U32S] {
     bits
 }
 
+/// Number of differing bits (0..=256). Lower = more similar.
+// Only exercised by tests today; the runtime comparison consumer lands in a
+// later follow-along unit. Kept as the primitive's public "compare" half.
+#[allow(dead_code)]
 pub(crate) fn hamming(a: &[u32; HASH_U32S], b: &[u32; HASH_U32S]) -> u32 {
     let mut d = 0u32;
     for i in 0..HASH_U32S {
