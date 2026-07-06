@@ -147,9 +147,11 @@ describe('askTutorFromNotch', () => {
     // Visuals are deferred until TTS start; reveal them, then assert routing.
     await result.revealVisuals();
 
-    expect(bridge.cursorPoint).toHaveBeenCalledWith(
+    // A box's first reveal is a pen-drag from its top-left to bottom-right corner.
+    expect(bridge.cursorDrag).toHaveBeenCalledWith(
       expect.objectContaining({
-        screenRegion: { x: 100, y: 120, width: 220, height: 90 },
+        fromRegion: { x: 100, y: 120, width: 0, height: 0 },
+        toRegion: { x: 320, y: 210, width: 0, height: 0 },
         displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 }
       })
     );
@@ -231,9 +233,11 @@ describe('askTutorFromNotch', () => {
     });
     await result.revealVisuals();
 
-    expect(bridge.cursorPoint).toHaveBeenCalledWith(
+    // Area (highlight_box) targets are drawn by dragging corner-to-corner.
+    expect(bridge.cursorDrag).toHaveBeenCalledWith(
       expect.objectContaining({
-        screenRegion: { x: 100, y: 120, width: 220, height: 90 },
+        fromRegion: { x: 100, y: 120, width: 0, height: 0 },
+        toRegion: { x: 320, y: 210, width: 0, height: 0 },
         displayBounds: { x: 0, y: 0, width: 1000, height: 700, scaleFactor: 2 }
       })
     );

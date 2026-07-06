@@ -14,6 +14,7 @@ import { buildAudioDataUrl } from './audioPlayback';
 import { shouldIdleClose } from './idleClose';
 import { subscribeToNotchPayload } from './notchEvents';
 import { askTutorFromNotch } from './notchTutor';
+import type { RevealTransition } from '../overlay/targetRouting';
 import {
   getNotchInteractionState,
   isNotchDismissKey,
@@ -586,7 +587,7 @@ export function NotchApp() {
   const playSteps = useCallback(
     async (
       steps: TutorStep[],
-      revealStep: (step: TutorStep) => Promise<void>,
+      revealStep: (step: TutorStep, transition?: RevealTransition) => Promise<void>,
       onFirstSpeechStart?: () => void,
       onSettled?: () => void,
       onStepStart?: (index: number, step: TutorStep) => void
@@ -646,13 +647,20 @@ export function NotchApp() {
       const playEpoch = playbackEpochRef.current;
 
       let firstSpoken = false;
+      // The first box a walkthrough shows is drawn; once it's on screen, later
+      // steps glide the same box to the next target instead of re-popping it.
+      let boxOnScreen = false;
       const startStep = (index: number) => {
-        onStepStart?.(index, steps[index]);
+        const step = steps[index];
+        onStepStart?.(index, step);
         if (!firstSpoken) {
           firstSpoken = true;
           onFirstSpeechStart?.();
         }
-        void revealStep(steps[index]);
+        const hasBox = step.visualTargets.some((target) => target.kind === 'highlight_box');
+        const transition: RevealTransition = hasBox && boxOnScreen ? 'glide' : 'draw';
+        boxOnScreen = hasBox;
+        void revealStep(step, transition);
         // Keep 2 steps ahead prefetched (fires i+2 as i starts; i+1 already in flight).
         prefetch(index + 1);
         prefetch(index + 2);

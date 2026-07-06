@@ -9,7 +9,7 @@ import type {
   NativeContextBaseline,
   NativeScreenCapture
 } from '../native/nativeBridge';
-import { routeVisualTargets } from '../overlay/targetRouting';
+import { routeVisualTargets, type RevealTransition } from '../overlay/targetRouting';
 import type { NotchPayload } from './types';
 
 export type AskTutorFromNotchOptions = {
@@ -34,7 +34,8 @@ export type AskTutorResult = {
   steps: TutorStep[];
   // Reveal ONE step's targets (box + companion cursor), or the annotation preview /
   // nothing when the step has no box. Called per step, exactly when its TTS starts.
-  revealStep: (step: TutorStep) => Promise<void>;
+  // `transition` picks draw (first box) vs glide (box slides to the next step).
+  revealStep: (step: TutorStep, transition?: RevealTransition) => Promise<void>;
   // Shows the first/only step's visuals. Deferred so the notch reveals exactly when
   // TTS begins. Used by the direct (no-screen) path and as a single-step fallback.
   revealVisuals: () => Promise<void>;
@@ -93,9 +94,9 @@ export async function askTutorFromNotch({
     // Reveal ONE step's visuals: its box + cursor, else the user's annotation
     // preview, else nothing. Built now, run later (on that step's TTS start) so the
     // box/cursor never appear before the step is spoken.
-    const revealStep = async (step: TutorStep) => {
+    const revealStep = async (step: TutorStep, transition: RevealTransition = 'draw') => {
       if (step.visualTargets.length > 0 && displayBounds) {
-        await routeVisualTargets(nativeBridge, step.visualTargets, displayBounds);
+        await routeVisualTargets(nativeBridge, step.visualTargets, displayBounds, transition);
       } else if (annotations.length > 0 && displayBounds) {
         await nativeBridge.showOverlay({
           mode: 'annotation_preview',
