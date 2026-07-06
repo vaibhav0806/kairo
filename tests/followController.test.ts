@@ -21,7 +21,6 @@ function deps(overrides: Partial<FollowDeps> = {}): FollowDeps {
     // by default (tests that exercise idle-fade override sleep to drive it), so it
     // can't spuriously end the guide in the other tests.
     sleep: vi.fn((ms: number) => (ms === 30000 ? new Promise<void>(() => {}) : Promise.resolve())) as any,
-    now: (() => { let t = 0; return () => (t += 1000); })(),
     log: vi.fn(),
     cfg: {
       settlePollMs: 300, settleMaxIterations: 10, settleMovingBits: 6, sameScreenBits: 28,

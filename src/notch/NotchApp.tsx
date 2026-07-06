@@ -358,7 +358,6 @@ export function NotchApp() {
         void nativeBridge.disarmFollowClick();
       },
       sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
-      now: () => Date.now(),
       log: (level, msg, fields) =>
         klog('follow', level as LogLevel, msg, fields as LogFields | undefined),
       cfg: {
@@ -1041,7 +1040,8 @@ export function NotchApp() {
         if (!gate.followAlong && followRef.current?.state.active) {
           followRef.current.stop('superseded by new turn');
         }
-        const needsScreen = source === 'typed' || annotations.length > 0 || gate.needsScreen;
+        const needsScreen =
+          source === 'typed' || annotations.length > 0 || gate.needsScreen || gate.followAlong;
 
         // Diagnostic: which route this turn took and whether the gate actually ran,
         // so an "unrelated answer" can be traced to the gate vs the vision turn.

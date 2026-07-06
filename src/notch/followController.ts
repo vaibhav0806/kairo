@@ -30,7 +30,6 @@ export interface FollowDeps {
   armFollowClick: () => void;
   disarmFollowClick: () => void;
   sleep: (ms: number) => Promise<void>;
-  now: () => number;
   log: (level: string, msg: string, fields?: Record<string, unknown>) => void;
   cfg: FollowCfg;
 }
