@@ -310,6 +310,18 @@ export function NotchApp() {
           }
         }
       },
+      // Cut any in-flight follow speech (called by the controller's stop()). Same
+      // teardown as stopAnswerPlayback's follow-clip branch; no-op when nothing plays.
+      stopSpeech: () => {
+        if (followClipRef.current) {
+          try {
+            followClipRef.current.pause();
+          } catch {
+            // ignore
+          }
+          followClipRef.current = null;
+        }
+      },
       // Route the step's targets to the overlay + cursor EXACTLY as revealStep does,
       // keeping the cursor in a pointing/drag mode (so the shadow+none auto-hide can't
       // fire). Draw the first pointer of a session, glide the rest.

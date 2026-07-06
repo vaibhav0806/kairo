@@ -12,11 +12,15 @@ function deps(overrides: Partial<FollowDeps> = {}): FollowDeps {
     })),
     runAckTurn: vi.fn(async () => 'nice, next step'),
     speak: vi.fn(async () => {}),
+    stopSpeech: vi.fn(),
     showPointer: vi.fn(),
     fadePointer: vi.fn(),
     armFollowClick: vi.fn(),
     disarmFollowClick: vi.fn(),
-    sleep: vi.fn(async () => {}),
+    // Settle/wait sleeps resolve instantly; the 30s idle-fade timer never resolves
+    // by default (tests that exercise idle-fade override sleep to drive it), so it
+    // can't spuriously end the guide in the other tests.
+    sleep: vi.fn((ms: number) => (ms === 30000 ? new Promise<void>(() => {}) : Promise.resolve())) as any,
     now: (() => { let t = 0; return () => (t += 1000); })(),
     log: vi.fn(),
     cfg: {
@@ -169,7 +173,7 @@ describe('follow controller', () => {
       ) as any,
     });
 
-  it('a shown click-step schedules an idle fade that fires when nothing intervenes', async () => {
+  it('a shown click-step schedules an idle fade that ENDS the guide when nothing intervenes', async () => {
     const release: { fn?: () => void } = {};
     const d = gatedFadeDeps(release);
     const c = createFollowController(d);
@@ -177,26 +181,42 @@ describe('follow controller', () => {
     expect(d.fadePointer).not.toHaveBeenCalled(); // pointer shown, fade still pending
     release.fn?.();                               // the idle timer elapses
     await flush();
+    // v1: idle-fade ENDS the follow-along (stop) — fades the pointer, cuts speech,
+    // clears state. Not dormant/resumable; the user re-asks to restart.
     expect(d.fadePointer).toHaveBeenCalled();
     expect(d.disarmFollowClick).toHaveBeenCalled();
-    expect(c.state.active).toBe(true);            // dormant — goal + step kept
-    expect(c.state.currentStep).not.toBeNull();
+    expect(d.stopSpeech).toHaveBeenCalled();
+    expect(c.state.active).toBe(false);
+    expect(c.state.currentStep).toBeNull();
   });
 
-  it('a valid click before the idle timer cancels the scheduled fade', async () => {
-    const release: { fn?: () => void } = {};
-    const d = gatedFadeDeps(release);
+  it('a valid click cancels the pending idle fade (idle-fade does not end an advanced guide)', async () => {
+    // Capture EACH idle-timer resolver so the first (cancelled) one can be fired
+    // independently of the second (scheduled after the click advances).
+    const fadeResolvers: Array<() => void> = [];
+    const d = deps({
+      sleep: vi.fn((ms: number) =>
+        ms === 30000
+          ? new Promise<void>((r) => {
+              fadeResolvers.push(r);
+            })
+          : Promise.resolve()
+      ) as any,
+    });
     const c = createFollowController(d);
-    await c.start('goal', {});
-    // Next plan is a terminal step so the click resolves cleanly.
-    d.runFollowTurn = vi.fn(async () => ({
-      say: 'done', box: null, visualTargets: [], expect: 'observe', wait: 'instant', status: 'done',
-    })) as any;
-    await c.onClick({ x: 120, y: 115 }); // valid → cancels the pending idle fade
-    const fadesAfterClick = (d.fadePointer as any).mock.calls.length;
-    release.fn?.();                       // the (now-cancelled) idle timer elapses
+    await c.start('goal', {}); // step 1 (guiding, box) → schedules idle fade #1
+    expect(fadeResolvers.length).toBe(1);
+    // The next plan is ANOTHER guiding step, so a valid click advances and stays active.
+    d.runFollowTurn = vi.fn(async () => guidingStep('step two')) as any;
+    await c.onClick({ x: 120, y: 115 }); // valid → advances; cancels idle fade #1
+    expect(c.state.history.length).toBe(1);
+    expect(c.state.active).toBe(true);
+    expect(c.state.currentStep?.say).toBe('step two');
+    // Now fire the FIRST (cancelled) idle timer — it must be a no-op, NOT end the
+    // guide. If it had fired, stop('idle-fade') would clear active + currentStep.
+    fadeResolvers[0]();
     await flush();
-    // The cancelled fade must NOT fire again.
-    expect((d.fadePointer as any).mock.calls.length).toBe(fadesAfterClick);
+    expect(c.state.active).toBe(true);
+    expect(c.state.currentStep?.say).toBe('step two');
   });
 });

@@ -22,6 +22,9 @@ export interface FollowDeps {
   }) => Promise<any>;
   runAckTurn: (completedStep: string) => Promise<string>;
   speak: (text: string) => Promise<void>;
+  // Cut any in-flight follow speech immediately. Called by stop() so EVERY teardown
+  // path (done/error/idle/dismiss/supersede) leaves no clip playing over a new turn.
+  stopSpeech: () => void;
   showPointer: (step: FollowStep) => void;
   fadePointer: () => void;
   armFollowClick: () => void;
@@ -55,18 +58,19 @@ export function createFollowController(d: FollowDeps): FollowController {
   let lastCtx: { activeApp?: string; windowTitle?: string } = {};
 
   // Idle fade: when a click-step pointer is shown and nothing happens for
-  // cfg.pointerIdleFadeMs, hide the hint but keep the goal + step DORMANT (state
-  // stays active) so a later click/turn can resume. Uses the injected sleep + an
-  // epoch/token guard so it is cancellable and unit-testable. Cancelled by: a valid
-  // click, stop, onScreenMoved, and by the next scheduleIdleFade (token bump) when
-  // the next pointer is shown.
+  // cfg.pointerIdleFadeMs, END the follow-along (v1): stop() fades the pointer,
+  // disarms the click watch, cuts speech, and clears state. It does NOT stay
+  // dormant/resumable — the user simply re-asks to restart (persist-in-background
+  // across idle is deferred; it needs the goal-injection we're not doing in v1).
+  // Uses the injected sleep + an epoch/token guard so it is cancellable and
+  // unit-testable. Cancelled by: a valid click, stop, onScreenMoved, and by the next
+  // scheduleIdleFade (token bump) when the next pointer is shown.
   function scheduleIdleFade(myEpoch: number) {
     const token = ++idleFadeToken;
     void d.sleep(d.cfg.pointerIdleFadeMs).then(() => {
       if (epoch !== myEpoch || token !== idleFadeToken || !state.active) return;
-      d.fadePointer();
-      d.disarmFollowClick();
       d.log('info', 'idle fade');
+      stop('idle-fade');
     });
   }
 
@@ -80,6 +84,7 @@ export function createFollowController(d: FollowDeps): FollowController {
     state.active = false;
     state.currentStep = null;
     state.referenceHash = null;
+    d.stopSpeech();       // cut any in-flight follow speech (no-op if none playing)
     d.disarmFollowClick();
     d.fadePointer();
     d.log('info', 'follow stopped', { reason });
