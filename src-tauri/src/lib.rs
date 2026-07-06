@@ -38,6 +38,8 @@ use capture::capture_screen;
 #[cfg(target_os = "macos")]
 use capture::main_display_bounds;
 
+mod framehash;
+
 mod ocr;
 
 mod color;
