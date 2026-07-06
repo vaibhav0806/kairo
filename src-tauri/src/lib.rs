@@ -63,7 +63,7 @@ use panels::{
 };
 
 mod input;
-use input::{spawn_context_input_tap, spawn_context_poll, spawn_ptt};
+use input::{spawn_context_input_tap, spawn_context_poll, spawn_ptt, FollowClickWatch};
 
 // Toggle the pen directly without opening the notch first. Avoids ⌥⌃ (the
 // push-to-talk chord) so holding it never starts a recording.
@@ -390,6 +390,20 @@ fn disarm_context_watch(watch: State<'_, ContextWatch>) {
     watch.armed.store(false, Ordering::SeqCst);
 }
 
+// Follow-along mode: while armed, the input tap emits `input:click { x, y }` for
+// every left mouse-down. Independent of the context watch above.
+#[tauri::command]
+fn arm_follow_click(watch: State<'_, FollowClickWatch>) {
+    watch.armed.store(true, Ordering::SeqCst);
+    klog!(follow, debug, "follow-click armed");
+}
+
+#[tauri::command]
+fn disarm_follow_click(watch: State<'_, FollowClickWatch>) {
+    watch.armed.store(false, Ordering::SeqCst);
+    klog!(follow, debug, "follow-click disarmed");
+}
+
 // macOS caches Screen Recording (and accessibility) authorization per process,
 // so a grant made while running is only observed after a relaunch. Restarting
 // is the reliable way to re-read permissions during onboarding.
@@ -483,6 +497,7 @@ pub fn run() {
         .manage(NotchState::default())
         .manage(CursorState::default())
         .manage(ContextWatch::default())
+        .manage(FollowClickWatch::default())
         .manage(AudioCapture::default())
         .plugin(global_shortcut_plugin)
         .plugin(tauri_nspanel::init())
@@ -578,6 +593,8 @@ pub fn run() {
             cursor_release,
             arm_context_watch,
             disarm_context_watch,
+            arm_follow_click,
+            disarm_follow_click,
             show_notch,
             get_current_notch_payload,
             set_notch_hit_rect,

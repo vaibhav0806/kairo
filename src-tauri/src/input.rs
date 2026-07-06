@@ -8,6 +8,7 @@ use crate::platform::{frontmost_bundle_id, frontmost_window_title};
 use crate::{AudioCommand, ContextWatch, NotchState};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
@@ -51,6 +52,23 @@ fn context_watch_settled(watch: &ContextWatch) -> bool {
 fn fire_context_reset(app: &tauri::AppHandle, watch: &ContextWatch, reason: &str) {
     if watch.armed.swap(false, Ordering::SeqCst) {
         let _ = app.emit("context:changed", reason.to_string());
+    }
+}
+
+/// While armed, the mouse-down tap emits `input:click { x, y }` (display points).
+/// Independent of ContextWatch (which is a one-shot teardown signal). Clone with an
+/// internal `Arc` so the background tap thread and the Tauri commands share one flag,
+/// mirroring how ContextWatch is managed (a bare struct, not `Arc<…>`).
+#[derive(Clone)]
+pub(crate) struct FollowClickWatch {
+    pub armed: Arc<AtomicBool>,
+}
+
+impl Default for FollowClickWatch {
+    fn default() -> Self {
+        Self {
+            armed: Arc::new(AtomicBool::new(false)),
+        }
     }
 }
 
