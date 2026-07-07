@@ -1054,73 +1054,9 @@ pub(crate) fn apply_step_targets(
     .to_string()
 }
 
-// Reshape a raw follow-along step `{say, box?, expect, wait, status}` into a
-// frontend-ready `{say, visualTargets, expect, wait, status}`. `box` is normalized
-// fractions; when present it becomes a pointer + highlight_box in display points,
-// built the same way `apply_step_targets` builds each step's targets (same accent
-// sampling, same shape) so the frontend receives an identical `visualTargets`
-// array. The passthrough fields (`expect`/`wait`/`status`) drive the reactive loop.
-pub(crate) fn apply_follow_step(
-    raw: &str,
-    image_base64: Option<&str>,
-    bounds: &OverlayDisplayBounds,
-) -> Result<String, String> {
-    let parsed: Value = serde_json::from_str(extract_json_object(json_body(raw))).map_err(|e| {
-        crate::klog!(follow, warn, "apply_follow_step parse failed: {e}");
-        format!("follow json: {e}")
-    })?;
-    let say = parsed
-        .get("say")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let expect = parsed
-        .get("expect")
-        .and_then(Value::as_str)
-        .unwrap_or("observe")
-        .to_string();
-    let wait = parsed
-        .get("wait")
-        .and_then(Value::as_str)
-        .unwrap_or("ui-settle")
-        .to_string();
-    let status = parsed
-        .get("status")
-        .and_then(Value::as_str)
-        .unwrap_or("guiding")
-        .to_string();
-
-    let targets = match parse_norm_box(parsed.get("box")) {
-        Some(nb) => {
-            let rgb = image_base64.and_then(decode_rgb);
-            let color = sample_accent(&rgb, nb);
-            let db = DetectedBox {
-                norm_x1: nb[0],
-                norm_y1: nb[1],
-                norm_x2: nb[2],
-                norm_y2: nb[3],
-                label: "target".to_string(),
-                color,
-            };
-            map_box_to_targets(&db, bounds, 0)
-        }
-        None => Vec::new(),
-    };
-    crate::klog!(follow, debug, has_box = !targets.is_empty(), expect = %expect, wait = %wait, status = %status, "follow step shaped");
-
-    Ok(json!({
-        "say": say,
-        "visualTargets": targets,
-        "expect": expect,
-        "wait": wait,
-        "status": status,
-    })
-    .to_string())
-}
-
 #[cfg(test)]
 mod step_targets_tests {
-    use super::{apply_follow_step, apply_step_targets};
+    use super::apply_step_targets;
     use crate::types::OverlayDisplayBounds;
     use serde_json::Value;
 
@@ -1185,28 +1121,6 @@ mod step_targets_tests {
             v["steps"].as_array().unwrap().len(),
             crate::constants::MAX_TUTOR_STEPS
         );
-    }
-
-    #[test]
-    fn apply_follow_step_passes_through_fields_and_makes_targets() {
-        let raw = r#"{"say":"click this","box":[0.1,0.1,0.2,0.2],"expect":"click","wait":"page-load","status":"guiding"}"#;
-        let out = apply_follow_step(raw, None, &bounds()).unwrap();
-        let v: Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(v["expect"], "click");
-        assert_eq!(v["wait"], "page-load");
-        assert_eq!(v["status"], "guiding");
-        assert!(
-            v["visualTargets"].as_array().unwrap().len() >= 1,
-            "box → at least a highlight/pointer"
-        );
-    }
-
-    #[test]
-    fn apply_follow_step_null_box_is_observe_with_no_targets() {
-        let raw = r#"{"say":"look here","box":null,"expect":"observe","wait":"instant","status":"guiding"}"#;
-        let out = apply_follow_step(raw, None, &bounds()).unwrap();
-        let v: Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(v["visualTargets"].as_array().unwrap().len(), 0);
     }
 
     #[test]

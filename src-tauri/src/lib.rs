@@ -47,7 +47,7 @@ mod color;
 mod grounding;
 
 mod tutor;
-use tutor::{run_ack_turn, run_follow_turn, run_gate_turn, run_tutor_turn};
+use tutor::{run_ack_turn, run_gate_turn, run_tutor_turn};
 
 mod speech;
 use speech::{synthesize_speech, synthesize_speech_stream, transcribe_audio};
@@ -602,7 +602,6 @@ pub fn run() {
             hide_notch,
             run_tutor_turn,
             run_gate_turn,
-            run_follow_turn,
             run_ack_turn,
             transcribe_audio,
             synthesize_speech,

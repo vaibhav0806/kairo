@@ -305,20 +305,6 @@ pub(crate) struct GateInput {
     pub(crate) pointer_pending: bool,
 }
 
-// One follow-along vision turn: the goal + steps already done + one settled
-// screenshot → exactly one next step. Display bounds are read natively (the
-// frontend controller does not pass them).
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct FollowTurnInput {
-    pub(crate) goal: String,
-    pub(crate) history: Vec<String>,
-    pub(crate) image_base64: Option<String>,
-    pub(crate) media_type: Option<String>,
-    pub(crate) active_app: Option<String>,
-    pub(crate) window_title: Option<String>,
-}
-
 // The cheap text-only ack: the instruction the user just completed, spoken back
 // while the vision model plans the next step. Screen-blind by design.
 #[derive(Debug, Deserialize)]

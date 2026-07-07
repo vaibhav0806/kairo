@@ -145,8 +145,6 @@ pub(crate) const PTT_MAX_RECORD_MS: u64 = 30_000; // hard cap: auto-send a runaw
 // ---------------------------------------------------------------- Follow-along
 // The reactive, hands-on guide path. See
 // docs/superpowers/specs/2026-07-06-follow-along-guide-mode-design.md
-pub(crate) const FOLLOW_MODEL: &str = "claude-fable-5"; // vision, next step
-pub(crate) const FOLLOW_TURN_TIMEOUT_MS: u64 = 20_000;
 pub(crate) const ACK_MODEL: &str = "google/gemini-2.5-flash-lite"; // text-only ack
 pub(crate) const ACK_TIMEOUT_MS: u64 = 6_000;
 

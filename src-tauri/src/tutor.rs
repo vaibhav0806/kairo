@@ -4,16 +4,15 @@
 
 use crate::env::{provider_env, provider_env_optional, provider_timeout_ms};
 use crate::grounding::{
-    anthropic_vision_chat, apply_box_targets, apply_follow_step, apply_step_targets,
-    clean_model_json, detect_element_boxes, ground_visual_targets,
+    anthropic_vision_chat, apply_box_targets, apply_step_targets, clean_model_json,
+    detect_element_boxes, ground_visual_targets,
 };
 use crate::constants;
 use crate::ocr::build_screen_elements_block;
 use crate::prompts::{
-    ack_system_prompt, build_tutor_system_prompt, follow_turn_system_prompt, gate_system_prompt,
-    skill_is_active,
+    ack_system_prompt, build_tutor_system_prompt, gate_system_prompt, skill_is_active,
 };
-use crate::types::{AckInput, FollowTurnInput, GateInput, OcrElement, TutorTurnInput};
+use crate::types::{AckInput, GateInput, OcrElement, TutorTurnInput};
 use serde_json::{json, Value};
 use std::time::Duration;
 
@@ -551,64 +550,6 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
             Ok(look())
         }
     }
-}
-
-/// Main display bounds as `OverlayDisplayBounds` for follow-along grounding. The
-/// follow-along controller never passes bounds, so they are read natively here.
-/// macOS-only (mirrors `get_display_bounds`); other platforms error out.
-#[cfg(target_os = "macos")]
-fn follow_display_bounds() -> Result<crate::types::OverlayDisplayBounds, String> {
-    let b = crate::capture::main_display_bounds();
-    Ok(crate::types::OverlayDisplayBounds {
-        x: b.x,
-        y: b.y,
-        width: b.width,
-        height: b.height,
-        scale_factor: b.scale_factor,
-    })
-}
-
-#[cfg(not(target_os = "macos"))]
-fn follow_display_bounds() -> Result<crate::types::OverlayDisplayBounds, String> {
-    Err("Follow-along display bounds are only implemented for macOS.".to_string())
-}
-
-/// One reactive follow-along step: goal + steps-done + one settled screenshot →
-/// exactly one next step (say + optional box + expect/wait/status). Mirrors the
-/// single-call vision path of `run_tutor_turn` (Fable vision → clean JSON →
-/// reshape), then shapes the box into display-point targets via `apply_follow_step`.
-#[tauri::command]
-pub(crate) async fn run_follow_turn(input: FollowTurnInput) -> Result<String, String> {
-    let _t = crate::klog::timer("follow", "run_follow_turn");
-    let bounds = follow_display_bounds()?;
-    let image = input
-        .image_base64
-        .as_deref()
-        .ok_or("follow turn needs a screenshot")?;
-    let media = input.media_type.as_deref().unwrap_or("image/jpeg");
-    let system = follow_turn_system_prompt(&input.goal, &input.history);
-    let user = format!(
-        "App: {}. Window: {}.",
-        input.active_app.as_deref().unwrap_or("?"),
-        input.window_title.as_deref().unwrap_or("?"),
-    );
-    let timeout = Duration::from_millis(constants::FOLLOW_TURN_TIMEOUT_MS);
-    let raw = anthropic_vision_chat(
-        &system,
-        &user,
-        image,
-        media,
-        constants::FOLLOW_MODEL,
-        timeout,
-    )
-    .await
-    .ok_or("follow vision call returned no content")?;
-    let cleaned = clean_model_json(&raw);
-    let shaped = apply_follow_step(&cleaned, Some(image), &bounds)?;
-    // Metadata only — never log `say`. apply_follow_step already logged
-    // has_box/expect/wait/status at debug, so this is just a completion marker.
-    crate::klog!(follow, info, "follow step ready");
-    Ok(shaped)
 }
 
 /// The cheap text-only ack spoken immediately after a valid click, while the

@@ -26,38 +26,6 @@ pub(crate) fn gate_system_prompt() -> String {
     .join("\n")
 }
 
-/// System prompt for one follow-along step. The model sees ONE settled
-/// screenshot plus the goal and the steps already done, and returns exactly ONE
-/// next step. It NEVER pre-plans the whole task.
-pub(crate) fn follow_turn_system_prompt(goal: &str, history: &[String]) -> String {
-    let done = if history.is_empty() {
-        "Nothing done yet — this is the first step.".to_string()
-    } else {
-        format!("Steps already completed:\n- {}", history.join("\n- "))
-    };
-    format!(
-        "You are guiding the user hands-on toward a goal, ONE step at a time, on \
-their real screen. GOAL: {goal}\n{done}\n\n\
-Look at the screenshot (the user's CURRENT screen). Return ONLY JSON: \
-{{ \"say\": string, \"box\": [x1,y1,x2,y2] | null, \"expect\": \"click\"|\"observe\", \
-\"wait\": \"instant\"|\"ui-settle\"|\"page-load\"|\"network\", \"status\": \"guiding\"|\"done\" }}.\n\
-Rules:\n\
-- Exactly ONE next action. If the goal is already achieved on this screen, set \
-status \"done\" and say a short congratulations; box null.\n\
-- `box` = normalized fractions 0..1, tight around the single control to act on. \
-Use null only for a pure explanation/observe step.\n\
-- `expect`: \"click\" when the user must click the boxed control; \"observe\" for a \
-pure explanation with no action.\n\
-- `wait`: how long the screen will take to settle AFTER this action — \"instant\" \
-(focus/toggle), \"ui-settle\" (menu/panel opens), \"page-load\" (open file / switch \
-tab), \"network\" (submit / merge / server round-trip).\n\
-- No positional words (no \"top-right\"/\"left\"). The box shows WHERE; your words say \
-WHAT and WHY. Refer to the target as \"this\" / \"the one I've highlighted\".\n\
-- Do NOT claim what will happen after the click; describe the action to take.\n\
-Output ONLY the JSON object."
-    )
-}
-
 /// Text-only ack spoken immediately after a valid click, while the vision model
 /// plans the next step. MUST NOT claim any on-screen result — only acknowledge
 /// the action and bridge to the next step.
