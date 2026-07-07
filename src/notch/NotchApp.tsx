@@ -993,6 +993,16 @@ export function NotchApp() {
       };
       const hasAwaitClick = Boolean(awaitClick && awaitClick.visualTargets.length > 0);
 
+      // Arm the await_click pointer at the ACTION step's speech-START (same timing as a
+      // normal step's box reveal), not after all narration completes. Idempotent + guarded
+      // so it fires exactly once; onSettled is a fallback for edge cases (no step fired it).
+      let awaitArmed = false;
+      const armAwaitClick = () => {
+        if (awaitArmed || !hasAwaitClick || !awaitClick) return;
+        awaitArmed = true;
+        void armPointerFromAwaitClick(awaitClick, turnEpoch, displayBounds);
+      };
+
       if (steps.length > 0) {
         void playSteps(
           steps,
@@ -1002,14 +1012,20 @@ export function NotchApp() {
             void emit('cursor:idle', {});
           },
           () => {
-            // AFTER narration: arm the pointer (await_click) instead of idle-closing;
-            // otherwise arm the context watch + idle-close exactly as today.
-            if (hasAwaitClick && awaitClick) {
-              void armPointerFromAwaitClick(awaitClick, turnEpoch, displayBounds);
+            // After narration: fallback-arm the pointer if a step-start didn't; otherwise
+            // arm the context watch + idle-close exactly as today.
+            if (hasAwaitClick) {
+              armAwaitClick();
             } else {
               armCtxWatch();
             }
             markAnswerSettled();
+          },
+          (index) => {
+            // At the ACTION (last) step's speech-start, draw + arm the await_click pointer.
+            if (index === steps.length - 1) {
+              armAwaitClick();
+            }
           }
         );
       } else {
@@ -1025,9 +1041,8 @@ export function NotchApp() {
             });
           },
           () => {
-            if (hasAwaitClick && awaitClick) {
-              void armPointerFromAwaitClick(awaitClick, turnEpoch, displayBounds);
-            }
+            // No narration steps → arm here (nothing to interrupt/reveal-early anyway).
+            armAwaitClick();
             markAnswerSettled();
           }
         );
@@ -1299,6 +1314,9 @@ export function NotchApp() {
       // A click-turn is a new turn: bump the epoch so a voice hold during it supersedes.
       const turnEpoch = (turnEpochRef.current += 1);
       klog('follow', 'info', 'click turn', { wait });
+      // Barge in: a click mid-narration cuts the current step's speech and advances
+      // (playSteps loops on playbackEpoch, which stopAnswerPlayback bumps).
+      stopAnswerPlayback();
       const userSide = '[clicked the highlighted target]';
 
       // 1. Fade the old pointer (the watch already cleared its pending state) + disarm
