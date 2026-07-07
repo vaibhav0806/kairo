@@ -296,6 +296,13 @@ pub(crate) struct GateInput {
     pub(crate) active_app: Option<String>,
     #[serde(default)]
     pub(crate) window_title: Option<String>,
+    // Unified turn (RU5): the last ~6 rolling turn-triples as text, for continuity.
+    #[serde(default)]
+    pub(crate) history: Option<String>,
+    // True when a guide pointer is currently on screen waiting for a click — biases
+    // the gate toward needsScreen=true for continuations ("what next", "ok done").
+    #[serde(default)]
+    pub(crate) pointer_pending: bool,
 }
 
 // One follow-along vision turn: the goal + steps already done + one settled

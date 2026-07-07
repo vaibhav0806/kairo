@@ -19,8 +19,9 @@ pub(crate) fn gate_system_prompt() -> String {
         "needsScreen=true — you must look. Use this when the answer is about their screen: where something is, how to do something in the app they're using, or finding/clicking/showing something. Put a SHORT spoken filler in voiceText that references what they asked — one brief phrase of about 3 to 6 words, not a full sentence: e.g. \"Sure, let me find that.\", \"On it, one sec.\", \"Let me take a look.\" Snappy but natural — it plays instantly while Kairo looks.",
         "Greetings and chit-chat are NEVER needsScreen=true — only look when there is something on their screen to point at, or if the user seems to be talking about something on their screen.",
         "The app and window title are context, not a reason to look.",
-        "Set followAlong=true ONLY when the user wants to be guided hands-on through DOING a multi-step task on their screen (\"walk me through…\", \"guide me to…\", \"help me do…\", \"teach me to <perform action>\"). For \"explain / what is this / orient me\" set followAlong=false. followAlong=true implies needsScreen=true.",
-        "Return ONLY JSON: { \"needsScreen\": boolean, \"voiceText\": string, \"followAlong\": boolean }.",
+        "recentHistory (when present) is the recent back-and-forth. Use it to resolve a follow-up that refers to \"that\", \"the one you showed\", or where you left off.",
+        "IMPORTANT: when \"A guide pointer is currently on screen\" is stated, Kairo is mid-guide and pointing at something for the user to click. A short continuation like \"what next\", \"ok done\", \"now what\", \"how do I…\", or a new step question almost always needs the screen — set needsScreen=true.",
+        "Return ONLY JSON: { \"needsScreen\": boolean, \"voiceText\": string }.",
     ]
     .join("\n")
 }

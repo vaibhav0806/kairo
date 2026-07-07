@@ -134,6 +134,10 @@ export type NativeGateInput = {
   userQuery: string;
   activeApp?: string;
   windowTitle?: string;
+  // Unified turn (RU5): the last ~6 rolling turn-triples as text, for continuity.
+  history?: string;
+  // True when a guide pointer is on screen waiting for a click (biases needsScreen).
+  pointerPending?: boolean;
 };
 
 // One follow-along guide step: the goal + step history + one settled frame → the
@@ -177,7 +181,7 @@ export type NativeBridge = {
   hideNotch(): Promise<void>;
   runTutorTurn(input: TutorTurnInput): Promise<string>;
   // Text-only "do I need to look at the screen?" gate. Returns raw JSON
-  // { needsScreen: boolean, voiceText: string, followAlong: boolean }.
+  // { needsScreen: boolean, voiceText: string }.
   runGateTurn(input: NativeGateInput): Promise<string>;
   // --- Follow-along guide mode ---
   // Perceptual dHash of the current screen (8×u32) for cheap, model-free "did the
@@ -526,7 +530,7 @@ export function createNativeBridge(
         return await invoke<string>('run_gate_turn', { input });
       } catch {
         // No native runtime / failure → default to looking at the screen.
-        return JSON.stringify({ needsScreen: true, voiceText: '', followAlong: false });
+        return JSON.stringify({ needsScreen: true, voiceText: '' });
       }
     },
 

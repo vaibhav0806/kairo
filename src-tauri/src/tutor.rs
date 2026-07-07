@@ -510,8 +510,19 @@ pub(crate) async fn run_gate_turn(input: GateInput) -> Result<String, String> {
 
     let app = input.active_app.unwrap_or_else(|| "unknown".to_string());
     let title = input.window_title.unwrap_or_default();
+    // Unified turn (RU5): recent turn-triples (continuity) + a "pointer on screen"
+    // hint (mid-guide → bias needsScreen). Both are optional context lines.
+    let history_line = match input.history.as_deref().map(str::trim) {
+        Some(h) if !h.is_empty() => format!("\nrecentHistory:\n{h}"),
+        _ => String::new(),
+    };
+    let pointer_line = if input.pointer_pending {
+        "\nA guide pointer is currently on screen, waiting for the user to click it."
+    } else {
+        ""
+    };
     let user_message = format!(
-        "Active app: {app}\nWindow title: {title}\nUser question (spoken): \"{}\"",
+        "Active app: {app}\nWindow title: {title}{history_line}{pointer_line}\nUser question (spoken): \"{}\"",
         input.user_query
     );
     // Diagnostic: pair the exact question the gate saw with its answer (the "gate
