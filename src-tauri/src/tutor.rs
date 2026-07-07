@@ -148,7 +148,21 @@ pub(crate) fn shared_http_client() -> &'static reqwest::Client {
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .timeout(Duration::from_secs(60))
-            .pool_idle_timeout(Duration::from_secs(90))
+            // Keep provider connections warm across intermittent turns so a voice
+            // turn after a lull skips the cold TCP+TLS handshake:
+            // - tcp_keepalive: OS-level probes stop NAT/firewalls reaping an idle
+            //   socket (and surface a dead peer instead of hanging).
+            // - pool_idle_timeout 5 min: hold an idle keep-alive connection far
+            //   longer than the old 90s default (the common gap between turns).
+            // - pool_max_idle_per_host: cap idle sockets so memory stays trivial
+            //   (~tens of KB each across 3 hosts).
+            // Best-effort: a long lull or a server-side close still reconnects, but
+            // rustls TLS session resumption keeps that cheap. Staying on HTTP/1.1
+            // keep-alive — h2 PING keepalive would need the extra `http2` feature,
+            // not worth it here.
+            .tcp_keepalive(Duration::from_secs(30))
+            .pool_idle_timeout(Duration::from_secs(300))
+            .pool_max_idle_per_host(4)
             .build()
             .expect("failed to build shared HTTP client")
     })
