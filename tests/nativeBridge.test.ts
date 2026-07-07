@@ -303,9 +303,6 @@ describe('createNativeBridge', () => {
       if (command === 'capture_frame_hash') {
         return { hash: [1, 2, 3, 4, 5, 6, 7, 8] };
       }
-      if (command === 'run_follow_turn') {
-        return '{"say":"Click the File menu.","expect":"click"}';
-      }
       if (command === 'run_ack_turn') {
         return 'Nice, moving on.';
       }
@@ -315,17 +312,6 @@ describe('createNativeBridge', () => {
 
     await expect(bridge.captureFrameHash()).resolves.toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(invoke).toHaveBeenCalledWith('capture_frame_hash');
-
-    const followInput = {
-      goal: 'Export the model',
-      history: ['Opened the file'],
-      imageBase64: 'abc123',
-      mediaType: 'image/jpeg'
-    };
-    await expect(bridge.runFollowTurn(followInput)).resolves.toBe(
-      '{"say":"Click the File menu.","expect":"click"}'
-    );
-    expect(invoke).toHaveBeenCalledWith('run_follow_turn', { input: followInput });
 
     await expect(bridge.runAckTurn('Clicked the File menu')).resolves.toBe('Nice, moving on.');
     expect(invoke).toHaveBeenCalledWith('run_ack_turn', {

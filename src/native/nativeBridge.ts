@@ -140,17 +140,6 @@ export type NativeGateInput = {
   pointerPending?: boolean;
 };
 
-// One follow-along guide step: the goal + step history + one settled frame → the
-// next step. Mirrors the Rust `FollowTurnInput` (camelCase over the wire).
-export type NativeFollowTurnInput = {
-  goal: string;
-  history: string[];
-  imageBase64: string;
-  mediaType: string;
-  activeApp?: string;
-  windowTitle?: string;
-};
-
 export type NativeBridge = {
   getActiveApp(): Promise<NativeActiveApp>;
   getPermissionStatus(): Promise<NativePermissionStatus>;
@@ -187,9 +176,6 @@ export type NativeBridge = {
   // Perceptual dHash of the current screen (8×u32) for cheap, model-free "did the
   // screen change?" checks. Returns a zero hash if no native runtime is available.
   captureFrameHash(): Promise<number[]>;
-  // One follow-along step (vision). Returns raw JSON for the caller to JSON.parse,
-  // mirroring runTutorTurn; provider/runtime errors propagate to the caller.
-  runFollowTurn(input: NativeFollowTurnInput): Promise<string>;
   // Cheap text-only ack after a completed step. Returns the ack sentence (may be
   // empty); mirrors runTutorTurn (errors propagate — the caller's ack is best-effort).
   runAckTurn(completedStep: string): Promise<string>;
@@ -542,12 +528,6 @@ export function createNativeBridge(
         // No native runtime → a zero hash (every comparison reads as "unchanged").
         return [0, 0, 0, 0, 0, 0, 0, 0];
       }
-    },
-
-    async runFollowTurn(input) {
-      // Mirrors runTutorTurn: raw JSON string for the caller to JSON.parse; lets
-      // provider/runtime errors propagate (the follow controller catches them).
-      return invoke<string>('run_follow_turn', { input });
     },
 
     async runAckTurn(completedStep) {
