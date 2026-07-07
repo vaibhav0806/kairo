@@ -60,6 +60,7 @@ use panels::{
     configure_overlay_window, cursor_window, emit_overlay_payload, ensure_cursor_panel,
     ensure_notch_panel, ensure_overlay_panel, overlay_window, show_notch_with_payload,
     spawn_mouse_tracker, spawn_notch_hit_tracker, store_notch_payload, store_overlay_payload,
+    typing_notch_payload,
 };
 
 mod input;
@@ -412,6 +413,57 @@ fn restart_app(app: tauri::AppHandle) {
     app.restart();
 }
 
+/// Create the macOS menu-bar (status-item) icon. Kairo runs as an `Accessory`
+/// app (no Dock icon), so this is the only always-visible affordance a user has
+/// to quit/restart the app or reopen the notch. Not gated to macOS — the tray is
+/// cross-platform, so a future Windows build gets the same menu for free.
+fn create_menu_bar_tray(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+    use tauri::tray::TrayIconBuilder;
+
+    let show_item = MenuItem::with_id(app, "tray_show_notch", "Show Notch", true, None::<&str>)?;
+    let restart_item =
+        MenuItem::with_id(app, "tray_restart", "Restart Kairo", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "tray_quit", "Quit Kairo", true, None::<&str>)?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let menu = Menu::with_items(app, &[&show_item, &restart_item, &separator, &quit_item])?;
+
+    let mut builder = TrayIconBuilder::with_id("kairo-menu-bar")
+        .tooltip("Kairo Tutor")
+        .menu(&menu)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "tray_quit" => {
+                klog!(app, info, "menu bar: quit selected");
+                app.exit(0);
+            }
+            "tray_restart" => {
+                klog!(app, info, "menu bar: restart selected");
+                app.restart();
+            }
+            "tray_show_notch" => {
+                klog!(app, info, "menu bar: show notch selected");
+                let state = app.state::<NotchState>();
+                if let Err(error) =
+                    show_notch_with_payload(app, state.inner(), Some(typing_notch_payload()))
+                {
+                    klog!(app, error, "menu bar: show notch failed: {error}");
+                }
+            }
+            other => klog!(app, warn, id = other, "menu bar: unknown menu event"),
+        });
+
+    // Reuse the app icon for the status item. It is a colored icon (not a
+    // monochrome template), so leave `icon_as_template` off — template mode would
+    // render a colored icon as a solid blob in the menu bar.
+    if let Some(icon) = app.default_window_icon().cloned() {
+        builder = builder.icon(icon);
+    }
+
+    builder.build(app)?;
+    klog!(app, info, "menu bar tray icon created");
+    Ok(())
+}
+
 #[tauri::command]
 fn show_notch(
     app: tauri::AppHandle,
@@ -589,6 +641,11 @@ pub fn run() {
             // the grant first so Kairo shows up in the Input Monitoring settings list.
             ensure_input_monitoring_access();
             spawn_ptt(app.handle());
+            // Menu-bar status item: the only always-visible way to quit/restart
+            // Kairo or reopen the notch, since we run Dock-less (Accessory).
+            if let Err(error) = create_menu_bar_tray(app) {
+                klog!(app, error, "failed to create menu bar tray: {error}");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
