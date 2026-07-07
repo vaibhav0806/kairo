@@ -13,9 +13,10 @@ import {
 import { type NotchAnnotationTool } from './annotationActions';
 import { buildAudioDataUrl } from './audioPlayback';
 import { createBufferedClip, createStreamingClip, type SpeechClip } from './streamingTts';
-import { createFollowController, type FollowController } from './followController';
-import type { FollowStep } from './followAlong';
+import { createPointerWatch, type PointerWatch } from './pointerWatch';
+import { stillMoving, waitFloorMs, type FollowWait, type ScreenRegion } from './followAlong';
 import { shouldIdleClose } from './idleClose';
+import type { AskTutorResult } from './notchTutor';
 import { subscribeToNotchPayload } from './notchEvents';
 import { askTutorFromNotch } from './notchTutor';
 import { routeVisualTargets, type RevealTransition } from '../overlay/targetRouting';
@@ -55,14 +56,15 @@ const STEP_GAP_MS = 700;
 // freezing the walkthrough. The full direct answer uses the generous native default.
 const STEP_SYNTH_TIMEOUT_MS = 20_000;
 
-// Recent conversation kept for continuity + analytics. The last HISTORY_TURNS are
-// formatted into `recentContext` and sent to the tutor so a follow-up (or a resumed,
-// interrupted walkthrough) has context. A larger buffer is retained for analytics.
-const HISTORY_TURNS = 10;
-const CONVERSATION_BUFFER = 50;
-type ConversationTurn =
-  | { role: 'user'; text: string }
-  | { role: 'assistant'; mode: string; saidSteps: string[]; completed: boolean; interrupted: boolean };
+// Rolling turn-triples (unified turn). Each turn (voice OR click) records one:
+// { user: <utterance> | "[clicked the highlighted target]", gateFiller: the spoken
+// filler/ack, kairo: the response's step says + a note of what was highlighted }.
+// The last TUTOR_HISTORY_TRIPLES go to the tutor (via `recentContext`), the last
+// GATE_HISTORY_TRIPLES to the gate. A larger buffer is retained.
+const TUTOR_HISTORY_TRIPLES = 20;
+const GATE_HISTORY_TRIPLES = 6;
+const TRIPLE_BUFFER = 50;
+type TurnTriple = { user: string; gateFiller: string; kairo: string };
 
 // After the answer finishes speaking, close the notch this long after the user
 // stops interacting with it (also clears the box + companion cursor).
@@ -206,13 +208,8 @@ export function NotchApp() {
   const lastNotchPointerAt = useRef(0);
   // Backstop so the answer always "settles" even if the audio 'ended' event misfires.
   const settleFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Session memory: recent turns for continuity + analytics (what was actually
-  // spoken, and whether a walkthrough was cut off). Never sent as-is beyond the last
-  // HISTORY_TURNS (as `recentContext`).
-  const conversationRef = useRef<ConversationTurn[]>([]);
-  const activeAssistantTurnRef = useRef<Extract<ConversationTurn, { role: 'assistant' }> | null>(
-    null
-  );
+  // Session memory: rolling turn-triples for continuity (last N → tutor/gate).
+  const triplesRef = useRef<TurnTriple[]>([]);
   // Mirrors the prompt text so the idle check can tell "typing a follow-up" (block
   // close) from a merely focused-but-empty prompt (the autoFocus default).
   const queryRef = useRef('');
@@ -242,188 +239,74 @@ export function NotchApp() {
   // Display bounds last used to show the pen overlay — reused to re-assert the marks
   // as a click-through preview through the turn (so PTT doesn't wipe them).
   const displayBoundsRef = useRef<NativeOverlayDisplayBounds | null>(null);
-  // ---- Follow-along (guide mode) ----------------------------------------------
-  // The reactive follow controller is held in a ref so its `followAlong` state
-  // (goal + history + current step) survives across turns and React re-renders; it
-  // is built EXACTLY ONCE (lazy-init below), never recreated.
-  const followRef = useRef<FollowController | null>(null);
-  // A DEDICATED clip slot for follow-along step speech, kept apart from
-  // answerAudioRef so it never collides with the turn's filler/answer clip.
+  // ---- Unified turn: pointer-watch (guide, emergent) --------------------------
+  // No state machine / no `active` flag. After a Fable answer whose await_click is
+  // present, we DRAW that one target and hand it to a thin pointer-watch that owns
+  // the fade-on-scroll poll + the valid-click detection + a 30s idle. A valid click
+  // just triggers another turn. Built EXACTLY ONCE (lazy-init below).
+  const pointerWatchRef = useRef<PointerWatch | null>(null);
+  // The visualTargets + bounds of the CURRENTLY pending await_click pointer, stored
+  // so the watch's reshowPointer dep can re-route (glide) the same hint on return.
+  const pendingAwaitClickRef = useRef<{ visualTargets: VisualTarget[]; bounds: NativeOverlayDisplayBounds } | null>(
+    null
+  );
+  // A DEDICATED clip slot for the mid-guide ack ("nice, one sec") so it never
+  // collides with the turn's filler/answer clip. Cut by stopAnswerPlayback.
   const followClipRef = useRef<SpeechClip | null>(null);
-  // Display bounds from the follow controller's OWN capture, reused to place the
-  // pointer overlay/cursor for the step planned on that same frame.
-  const followDisplayBoundsRef = useRef<NativeOverlayDisplayBounds | null>(null);
-  // First pointer of a follow-along session is DRAWN; later ones GLIDE (mirrors
-  // playSteps). Reset to true when a new session starts (submitQuery branch).
+  // First pointer of a fresh voice/typed turn is DRAWN; a click-turn's next pointer
+  // GLIDES (mirrors playSteps). Reset to true at the top of submitQuery.
   const followFirstPointerRef = useRef(true);
-  // True while the follow controller currently has the notch/cursor in the Thinking
-  // state. onThinking() can fire repeatedly (once per observe-flow step + at both
-  // planAndShow and settleThenPlan starts), so this coalesces consecutive calls to a
-  // single notch/cursor round-trip. Cleared when speak/showPointer transitions away.
-  const followThinkingRef = useRef(false);
+  // A valid click fires the pointer-watch's onValidClick synchronously; it routes
+  // into runClickTurn via this ref so the watch can be built before runClickTurn.
+  const runClickTurnRef = useRef<(wait: FollowWait) => void>(() => {});
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
 
-  // Build the follow controller once with real bridges + notch primitives. Lazy-init
-  // in the ref (createFollowController is pure — just closures, no I/O) so a re-render
-  // never rebuilds it and drops live follow state.
-  if (!followRef.current) {
-    followRef.current = createFollowController({
+  // Coerce a raw wait string (from await_click) to a known FollowWait bucket.
+  const asFollowWait = (w: string): FollowWait =>
+    (['instant', 'ui-settle', 'page-load', 'network'] as const).includes(w as FollowWait)
+      ? (w as FollowWait)
+      : 'ui-settle';
+
+  // Build the pointer-watch once with real bridges. Lazy-init in the ref (the module
+  // is pure — just closures, no I/O) so a re-render never rebuilds it and drops a
+  // live pending pointer. onValidClick routes into runClickTurn via runClickTurnRef,
+  // set below once runClickTurn exists.
+  if (!pointerWatchRef.current) {
+    pointerWatchRef.current = createPointerWatch({
       captureFrameHash: () => nativeBridge.captureFrameHash(),
-      // Reuse the SAME capture the tutor turn uses (nativeBridge.captureScreen),
-      // returning just the base64 + media type the follow vision turn needs. Cache
-      // the frame's display bounds for showPointer (same frame the step is planned on).
-      captureScreenB64: async () => {
-        const shot = await nativeBridge.captureScreen();
-        if (shot.displayBounds) {
-          followDisplayBoundsRef.current = shot.displayBounds;
-        }
-        return {
-          imageBase64: shot.imageBase64 ?? '',
-          mediaType: shot.imageMimeType ?? 'image/jpeg'
-        };
-      },
-      // The bridge returns a raw JSON string (mirrors runTutorTurn); parse it here.
-      // An empty/invalid string throws — the controller's try/catch handles it.
-      runFollowTurn: async (args) => JSON.parse(await nativeBridge.runFollowTurn(args)),
-      runAckTurn: (completedStep) => nativeBridge.runAckTurn(completedStep),
-      // Follow speech plays on its OWN clip slot; a new line cuts the prior one so
-      // step lines never overlap. Resolves when the clip ends/pauses (mirrors the
-      // step-clip await in playSteps). Never touches answerAudioRef.
-      speak: async (text: string) => {
-        const trimmed = text.trim();
-        if (!trimmed) {
-          return;
-        }
-        if (followClipRef.current) {
-          try {
-            followClipRef.current.pause();
-          } catch {
-            // ignore
-          }
-          followClipRef.current = null;
-        }
-        const clip = createStreamingClip(nativeBridge, trimmed, STEP_SYNTH_TIMEOUT_MS);
-        followClipRef.current = clip;
-        // Drive the speaking status EXACTLY like the normal path (playSteps /
-        // playAnswerAudio): show the speaking indicator + cursor speaking pulse on
-        // play, and clear it on ANY terminal event (end/pause/error) so a failed or
-        // barged-in clip never leaves the capsule stuck in "speaking".
-        const clearSpeaking = () => setIsSpeaking(false);
-        clip.onplay = () => {
-          // Speaking supersedes the Thinking card — leave the thinking coalesced state.
-          followThinkingRef.current = false;
-          setIsSpeaking(true);
-          void emit('cursor:speaking', {});
-        };
-        clip.onended = clearSpeaking;
-        clip.onpause = clearSpeaking;
-        clip.onerror = clearSpeaking;
-        try {
-          await clip.play();
-        } catch {
-          // Best-effort: the guide continues even if a single line fails to speak.
-          setIsSpeaking(false);
-        } finally {
-          if (followClipRef.current === clip) {
-            followClipRef.current = null;
-          }
-        }
-      },
-      // Cut any in-flight follow speech (called by the controller's stop()). Same
-      // teardown as stopAnswerPlayback's follow-clip branch; no-op when nothing plays.
-      stopSpeech: () => {
-        if (followClipRef.current) {
-          try {
-            followClipRef.current.pause();
-          } catch {
-            // ignore
-          }
-          followClipRef.current = null;
-        }
-      },
-      // Route the step's targets to the overlay + cursor EXACTLY as revealStep does,
-      // keeping the cursor in a pointing/drag mode (so the shadow+none auto-hide can't
-      // fire). Draw the first pointer of a session, glide the rest.
-      showPointer: (step: FollowStep) => {
-        // A step is ready to point at (waiting for the user's click): leave the
-        // Thinking state so the Thinking card clears while the pointer is up (mirrors
-        // the normal path, where the box shows on a showing_step card, not "Thinking").
-        // Also clear the thinking coalescing guard so the next plan re-arms onThinking.
-        followThinkingRef.current = false;
-        const stepPayload: NotchPayload = {
-          state: 'showing_step',
-          layout: 'answer',
-          title: 'Kairo is guiding',
-          detail: ''
-        };
-        setPayload(stepPayload);
-        setDetailHidden(false);
-        void nativeBridge.showNotch(stepPayload);
-        const bounds =
-          followDisplayBoundsRef.current ??
-          capturedScreenRef.current?.displayBounds ??
-          displayBoundsRef.current;
-        if (!bounds) {
-          klog('follow', 'warn', 'no display bounds — cannot show pointer');
-          return;
-        }
-        const transition: RevealTransition = followFirstPointerRef.current ? 'draw' : 'glide';
-        followFirstPointerRef.current = false;
-        klog('follow', 'debug', 'show pointer', {
-          transition,
-          targets: step.visualTargets.length
-        });
-        void routeVisualTargets(
-          nativeBridge,
-          step.visualTargets as VisualTarget[],
-          bounds,
-          transition
-        );
-      },
+      // Fade the pending pointer visually (screen drifted away, or teardown).
       fadePointer: () => {
         void nativeBridge.hideOverlay();
         void nativeBridge.cursorRelease();
       },
-      armFollowClick: () => {
-        void nativeBridge.armFollowClick();
-      },
-      disarmFollowClick: () => {
-        void nativeBridge.disarmFollowClick();
-      },
-      // "Kairo is working" signal (planning / settling): show the SAME Thinking card +
-      // cursor swirl as the normal path. Coalesced via followThinkingRef so the repeated
-      // calls (per observe step + at planAndShow/settleThenPlan starts) don't thrash the
-      // notch panel / cursor — a redundant call while already thinking is a cheap no-op.
-      onThinking: () => {
-        if (followThinkingRef.current) {
+      // Re-show the SAME pending pointer (glide back) when the screen returns.
+      reshowPointer: () => {
+        const p = pendingAwaitClickRef.current;
+        if (!p) {
           return;
         }
-        followThinkingRef.current = true;
-        klog('follow', 'debug', 'thinking');
-        const thinkingPayload = activationStateToNotchPayload('thinking');
-        setPayload(thinkingPayload);
-        setDetailHidden(false);
-        void nativeBridge.showNotch(thinkingPayload);
-        void emit('cursor:thinking', {});
+        void routeVisualTargets(nativeBridge, p.visualTargets, p.bounds, 'glide');
+      },
+      // A valid in-box click landed → run the next (click-triggered) turn.
+      onValidClick: (wait) => runClickTurnRef.current(wait),
+      // The pointer sat untouched for the idle window: it already faded + cleared
+      // pending. Drop the native click watch and let the notch idle-close run.
+      onIdleFade: () => {
+        klog('follow', 'info', 'pointer idle fade → notch may close');
+        pendingAwaitClickRef.current = null;
+        void nativeBridge.disarmFollowClick();
+        answerSettledRef.current = true;
+        lastNotchActivityAt.current = performance.now();
       },
       sleep: (ms: number) => new Promise((resolve) => setTimeout(resolve, ms)),
       log: (level, msg, fields) =>
         klog('follow', level as LogLevel, msg, fields as LogFields | undefined),
       cfg: {
-        settlePollMs: env.followSettlePollMs,
-        settleMaxIterations: env.followSettleMaxIterations,
-        settleMovingBits: env.followSettleMovingBits,
+        armedPollMs: env.followArmedPollMs,
         sameScreenBits: env.followSamescreenBits,
         clickPadPt: env.followClickPadPt,
-        pointerIdleFadeMs: env.followPointerIdleFadeMs,
-        armedPollMs: env.followArmedPollMs,
-        waitFloors: {
-          instant: env.waitInstantMs,
-          uiSettle: env.waitUiSettleMs,
-          pageLoad: env.waitPageLoadMs,
-          network: env.waitNetworkMs
-        }
+        idleFadeMs: env.followPointerIdleFadeMs
       }
     });
   }
@@ -508,69 +391,35 @@ export function NotchApp() {
     lastNotchActivityAt.current = performance.now();
   }, []);
 
-  // ---- Session memory (continuity + analytics) --------------------------------
-  // Format the last HISTORY_TURNS into the `recentContext` string sent to the tutor.
-  const buildRecentContext = useCallback(() => {
-    const turns = conversationRef.current.slice(-HISTORY_TURNS);
-    if (turns.length === 0) return '';
-    return turns
-      .map((turn) => {
-        if (turn.role === 'user') return `User: ${turn.text}`;
-        const said = turn.saidSteps.map((s) => `"${s}"`).join(' | ');
-        const status = turn.interrupted
-          ? `${turn.mode}, interrupted after ${turn.saidSteps.length} step${turn.saidSteps.length === 1 ? '' : 's'}`
-          : turn.mode;
-        return `Kairo (${status}): ${said || '(no answer)'}`;
+  // ---- Session memory: rolling turn-triples -----------------------------------
+  // Record ONE triple per turn (voice OR click). The kairo side is the response's
+  // step says + a short note of what was highlighted/awaited.
+  const recordTriple = useCallback((triple: TurnTriple) => {
+    triplesRef.current.push(triple);
+    if (triplesRef.current.length > TRIPLE_BUFFER) {
+      triplesRef.current = triplesRef.current.slice(-TRIPLE_BUFFER);
+    }
+    klog('notch', 'debug', 'turn triple recorded', { total: triplesRef.current.length });
+  }, []);
+
+  const formatTriples = (triples: TurnTriple[]) =>
+    triples
+      .map((t) => {
+        const filler = t.gateFiller.trim() ? ` filler="${t.gateFiller.trim()}"` : '';
+        return `Turn: user="${t.user.trim()}"${filler} kairo="${t.kairo.trim()}"`;
       })
       .join('\n');
+
+  // Last 20 triples → the tutor's `recentContext`.
+  const buildRecentContext = useCallback(() => {
+    const t = triplesRef.current.slice(-TUTOR_HISTORY_TRIPLES);
+    return t.length ? formatTriples(t) : '';
   }, []);
 
-  const recordUserTurn = useCallback((text: string) => {
-    conversationRef.current.push({ role: 'user', text });
-    if (conversationRef.current.length > CONVERSATION_BUFFER) {
-      conversationRef.current = conversationRef.current.slice(-CONVERSATION_BUFFER);
-    }
-  }, []);
-
-  const beginAssistantTurn = useCallback((mode: string) => {
-    const turn = {
-      role: 'assistant' as const,
-      mode,
-      saidSteps: [] as string[],
-      completed: false,
-      interrupted: false
-    };
-    conversationRef.current.push(turn);
-    activeAssistantTurnRef.current = turn;
-  }, []);
-
-  const recordStepSpoken = useCallback((say: string) => {
-    const turn = activeAssistantTurnRef.current;
-    if (turn && say.trim()) {
-      turn.saidSteps.push(say.trim());
-    }
-  }, []);
-
-  const completeAssistantTurn = useCallback(() => {
-    const turn = activeAssistantTurnRef.current;
-    if (turn) {
-      turn.completed = true;
-    }
-    activeAssistantTurnRef.current = null;
-  }, []);
-
-  // A new turn is starting: if the previous answer never finished (interrupted mid
-  // walkthrough), record that so the next turn's recentContext knows where it stopped.
-  const markTurnInterrupted = useCallback(() => {
-    const turn = activeAssistantTurnRef.current;
-    if (turn && !turn.completed) {
-      turn.interrupted = true;
-      klog('notch', 'info', 'walkthrough interrupted', {
-        mode: turn.mode,
-        spoken: turn.saidSteps.length
-      });
-    }
-    activeAssistantTurnRef.current = null;
+  // Last 6 triples → the gate.
+  const buildGateHistory = useCallback(() => {
+    const t = triplesRef.current.slice(-GATE_HISTORY_TRIPLES);
+    return t.length ? formatTriples(t) : '';
   }, []);
 
   // Tear down the PREVIOUS turn's visual + context state on re-engage (a new voice
@@ -581,9 +430,12 @@ export function NotchApp() {
     // typed submit), so a stale in-flight answer can no longer paint over the fresh
     // listening/typing UI or wipe pen marks. The next turn captures the bumped epoch.
     turnEpochRef.current += 1;
-    // If a walkthrough was cut off mid-way, record it before the next turn starts.
-    markTurnInterrupted();
     stopAnswerPlayback();
+    // A re-engage supersedes any pending guide pointer: clear the watch + native
+    // click arm so the next turn starts clean (it re-arms if it points again).
+    pointerWatchRef.current?.clear();
+    pendingAwaitClickRef.current = null;
+    void nativeBridge.disarmFollowClick();
     answerSettledRef.current = false;
     contextBaselineRef.current = null;
     // The user's FRESH pen marks belong to the UPCOMING turn — keep them on screen
@@ -609,7 +461,7 @@ export function NotchApp() {
     void nativeBridge.disarmContextWatch();
     // Fresh activity so the idle-close timer can't fire immediately after re-engage.
     lastNotchActivityAt.current = performance.now();
-  }, [markTurnInterrupted, stopAnswerPlayback, nativeBridge]);
+  }, [stopAnswerPlayback, nativeBridge]);
 
   const stopActiveRecording = useCallback(
     (cancelled = false) => {
@@ -935,15 +787,237 @@ export function NotchApp() {
     [nativeBridge, stopAnswerPlayback]
   );
 
-  // Phase 1 gate: text-only "do I need to look at the screen?". Returns the parsed
-  // { needsScreen, voiceText, followAlong }; defaults to looking on any failure.
-  // `followAlong` marks a hands-on guide request (implies needsScreen); Task 5.3
-  // reads `gate.followAlong` in submitQuery to route into the follow controller.
-  const runGate = useCallback(
+  // Speak the mid-guide ack ("nice, one sec") on the DEDICATED follow clip slot so it
+  // never collides with the turn's filler/answer clip. A new line cuts the prior one;
+  // stopAnswerPlayback (a new turn / the answer starting) also cuts it. Drives the
+  // speaking status exactly like the normal path.
+  const speakFollowClip = useCallback(
+    async (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        return;
+      }
+      if (followClipRef.current) {
+        try {
+          followClipRef.current.pause();
+        } catch {
+          // ignore
+        }
+        followClipRef.current = null;
+      }
+      const clip = createStreamingClip(nativeBridge, trimmed, STEP_SYNTH_TIMEOUT_MS);
+      followClipRef.current = clip;
+      const clearSpeaking = () => setIsSpeaking(false);
+      clip.onplay = () => {
+        setIsSpeaking(true);
+        void emit('cursor:speaking', {});
+      };
+      clip.onended = clearSpeaking;
+      clip.onpause = clearSpeaking;
+      clip.onerror = clearSpeaking;
+      try {
+        await clip.play();
+      } catch {
+        setIsSpeaking(false);
+      } finally {
+        if (followClipRef.current === clip) {
+          followClipRef.current = null;
+        }
+      }
+    },
+    [nativeBridge]
+  );
+
+  // Settle after a click: wait the completed target's `wait` floor, then the
+  // settle-diff loop (capture every settlePollMs, break when the frame stops moving,
+  // capped) so we never screenshot a loading page. Lifted from the old controller's
+  // settleThenPlan. Bails if a newer turn supersedes this one.
+  const settleAfterClick = useCallback(
+    async (wait: FollowWait, turnEpoch: number) => {
+      const floors = {
+        instant: env.waitInstantMs,
+        uiSettle: env.waitUiSettleMs,
+        pageLoad: env.waitPageLoadMs,
+        network: env.waitNetworkMs
+      };
+      const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+      await sleep(waitFloorMs(wait, floors));
+      if (turnEpochRef.current !== turnEpoch) {
+        return;
+      }
+      let prev = await nativeBridge.captureFrameHash();
+      for (let i = 0; i < env.followSettleMaxIterations; i += 1) {
+        await sleep(env.followSettlePollMs);
+        if (turnEpochRef.current !== turnEpoch) {
+          return;
+        }
+        const cur = await nativeBridge.captureFrameHash();
+        if (!stillMoving(prev, cur, env.followSettleMovingBits)) {
+          break;
+        }
+        prev = cur;
+        if (i === env.followSettleMaxIterations - 1) {
+          klog('follow', 'warn', 'settle cap hit — sending slightly-moving frame');
+        }
+      }
+    },
+    [
+      nativeBridge,
+      env.waitInstantMs,
+      env.waitUiSettleMs,
+      env.waitPageLoadMs,
+      env.waitNetworkMs,
+      env.followSettleMaxIterations,
+      env.followSettlePollMs,
+      env.followSettleMovingBits
+    ]
+  );
+
+  // Draw a Fable response's await_click pointer + arm the pointer-watch on it. Routes
+  // the target to overlay+cursor (draw the first pointer of a turn, glide after),
+  // stores it for reshow, reads the box region from the highlight_box target, captures
+  // the current frame as the reference hash, and hands it to the watch + native click
+  // arm. Does NOT idle-close — the watch owns the pointer + its 30s idle.
+  const armPointerFromAwaitClick = useCallback(
     async (
-      query: string
-    ): Promise<{ needsScreen: boolean; voiceText: string; followAlong: boolean }> => {
-      const fallback = { needsScreen: true, voiceText: '', followAlong: false };
+      awaitClick: { visualTargets: VisualTarget[]; wait: string },
+      boundsOverride?: NativeOverlayDisplayBounds | null
+    ) => {
+      const bounds =
+        boundsOverride ??
+        capturedScreenRef.current?.displayBounds ??
+        displayBoundsRef.current ??
+        null;
+      if (!bounds) {
+        klog('follow', 'warn', 'no display bounds — cannot arm pointer');
+        return;
+      }
+      pendingAwaitClickRef.current = { visualTargets: awaitClick.visualTargets, bounds };
+      const transition: RevealTransition = followFirstPointerRef.current ? 'draw' : 'glide';
+      followFirstPointerRef.current = false;
+      klog('follow', 'debug', 'arm pointer', {
+        transition,
+        targets: awaitClick.visualTargets.length,
+        wait: awaitClick.wait
+      });
+      await routeVisualTargets(nativeBridge, awaitClick.visualTargets, bounds, transition);
+      const boxTarget = awaitClick.visualTargets.find((t) => t.kind === 'highlight_box');
+      const region = boxTarget?.screenRegion;
+      if (!region) {
+        klog('follow', 'warn', 'await_click has no box — not arming watch');
+        return;
+      }
+      const refHash = await nativeBridge.captureFrameHash();
+      pointerWatchRef.current?.setPending(
+        region as ScreenRegion,
+        refHash,
+        asFollowWait(awaitClick.wait)
+      );
+      void nativeBridge.armFollowClick();
+    },
+    [nativeBridge]
+  );
+
+  // The unified render, shared by the initial voice/typed turn AND the click-turn:
+  // set the answer card, record the turn-triple, play the steps (or the single
+  // answer), and — AFTER narration — arm the pointer-watch if await_click is present,
+  // celebrate + idle-close if done, or idle-close exactly as today when await_click is
+  // null. Golden rule: with await_click null this is byte-identical to the old path.
+  const playResponseAndArm = useCallback(
+    (
+      result: AskTutorResult,
+      _turnEpoch: number,
+      meta: { userSide: string; gateFiller: string }
+    ) => {
+      const {
+        payload: answerPayload,
+        steps,
+        revealStep,
+        revealVisuals,
+        awaitClick,
+        done,
+        displayBounds,
+        context
+      } = result;
+
+      revealVisualsRef.current = revealVisuals;
+      contextBaselineRef.current = context;
+      setPayload(answerPayload);
+      setDetailHidden(true);
+      setQuery('');
+      setAnnotations([]);
+      setActiveAnnotationTool(null);
+      void nativeBridge.showNotch(answerPayload);
+
+      // Record ONE triple for this turn — the kairo side is the joined step says plus a
+      // short note of what was highlighted / awaited / finished.
+      const said = steps
+        .map((s) => s.say)
+        .filter((s) => s.trim())
+        .join(' ');
+      const note = awaitClick ? ' [highlighted a target to click]' : done ? ' [done]' : '';
+      recordTriple({
+        user: meta.userSide,
+        gateFiller: meta.gateFiller,
+        kairo: (said || answerPayload.detail || '') + note
+      });
+
+      const armCtxWatch = () => {
+        if (contextBaselineRef.current) {
+          void nativeBridge.armContextWatch(contextBaselineRef.current);
+        }
+      };
+      const hasAwaitClick = Boolean(awaitClick && awaitClick.visualTargets.length > 0);
+
+      if (steps.length > 0) {
+        void playSteps(
+          steps,
+          revealStep,
+          () => {
+            setDetailHidden(false);
+            void emit('cursor:idle', {});
+          },
+          () => {
+            // AFTER narration: arm the pointer (await_click) instead of idle-closing;
+            // otherwise arm the context watch + idle-close exactly as today.
+            if (hasAwaitClick && awaitClick) {
+              void armPointerFromAwaitClick(awaitClick, displayBounds);
+            } else {
+              armCtxWatch();
+            }
+            markAnswerSettled();
+          }
+        );
+      } else {
+        void playAnswerAudio(
+          answerPayload.detail,
+          () => {
+            setDetailHidden(false);
+            void emit('cursor:idle', {});
+            void revealVisualsRef.current().then(() => {
+              if (!hasAwaitClick) {
+                armCtxWatch();
+              }
+            });
+          },
+          () => {
+            if (hasAwaitClick && awaitClick) {
+              void armPointerFromAwaitClick(awaitClick, displayBounds);
+            }
+            markAnswerSettled();
+          }
+        );
+      }
+    },
+    [nativeBridge, playSteps, playAnswerAudio, armPointerFromAwaitClick, markAnswerSettled, recordTriple]
+  );
+
+  // Phase 1 gate: text-only "do I need to look at the screen?". Returns the parsed
+  // { needsScreen, voiceText }; defaults to looking on any failure. Sees the last 6
+  // turn-triples + a `pointerPending` hint (mid-guide → bias needsScreen=true).
+  const runGate = useCallback(
+    async (query: string): Promise<{ needsScreen: boolean; voiceText: string }> => {
+      const fallback = { needsScreen: true, voiceText: '' };
       try {
         const active =
           capturedScreenRef.current?.activeApp ??
@@ -951,7 +1025,9 @@ export function NotchApp() {
         const raw = await nativeBridge.runGateTurn({
           userQuery: query,
           activeApp: active?.activeApp,
-          windowTitle: active?.windowTitle ?? undefined
+          windowTitle: active?.windowTitle ?? undefined,
+          history: buildGateHistory(),
+          pointerPending: pointerWatchRef.current?.pending ?? false
         });
         const start = raw.indexOf('{');
         const end = raw.lastIndexOf('}');
@@ -961,14 +1037,13 @@ export function NotchApp() {
         const parsed = JSON.parse(raw.slice(start, end + 1));
         return {
           needsScreen: Boolean(parsed.needsScreen),
-          voiceText: typeof parsed.voiceText === 'string' ? parsed.voiceText : '',
-          followAlong: parsed.followAlong === true
+          voiceText: typeof parsed.voiceText === 'string' ? parsed.voiceText : ''
         };
       } catch {
         return fallback;
       }
     },
-    [nativeBridge]
+    [nativeBridge, buildGateHistory]
   );
 
   // Speak the gate's "let me look" filler while the vision turn runs. Guarded so a
@@ -1045,16 +1120,20 @@ export function NotchApp() {
       // transcript + gate question/answer lines in the same log file).
       klog('notch', 'info', 'ask submit', { source, query_len: trimmedQuery.length });
 
-      // Session memory: capture the recent conversation BEFORE recording this turn,
-      // then record the user's question. `recentContext` gives the tutor continuity.
+      // Session memory: the last 20 triples give the tutor continuity. The triple for
+      // THIS turn is recorded once its response arrives (in playResponseAndArm).
       const recentContext = buildRecentContext();
-      recordUserTurn(trimmedQuery);
+      // A fresh voice/typed turn draws its first pointer; a click-turn glides.
+      followFirstPointerRef.current = true;
 
       const thinkingPayload = activationStateToNotchPayload('thinking');
       stopAnswerPlayback();
-      // A new turn supersedes the last answer: mark it unsettled (blocks auto-close)
-      // and stop watching the old target.
+      // A new turn supersedes the last answer: mark it unsettled (blocks auto-close),
+      // clear any pending guide pointer, and stop watching the old target.
       answerSettledRef.current = false;
+      pointerWatchRef.current?.clear();
+      pendingAwaitClickRef.current = null;
+      void nativeBridge.disarmFollowClick();
       void nativeBridge.disarmContextWatch();
       // Release any lingering pointing so the cursor shadows the mouse while the
       // new answer is computed; it flies again only if the answer has a target.
@@ -1079,20 +1158,11 @@ export function NotchApp() {
         const gate =
           source === 'voice' && annotations.length === 0
             ? await runGate(trimmedQuery)
-            : { needsScreen: true, voiceText: '', followAlong: false };
+            : { needsScreen: true, voiceText: '' };
         // A newer turn superseded this one while the gate ran → stop mutating shared state.
         if (turnEpochRef.current !== turnEpoch) return;
-        // A genuinely new, unrelated turn ENDS any active follow-along (v1: no
-        // persist-in-background across tangents). Runs at the single point where the
-        // gate is known for EVERY entry type (voice/typed/annotation), before any
-        // branching, so a normal answer's auto-close + context teardown are never
-        // blocked by leaked follow state. A new follow request (gate.followAlong) is
-        // NOT stopped here — the controller's own start() supersedes its prior session.
-        if (!gate.followAlong && followRef.current?.state.active) {
-          followRef.current.stop('superseded by new turn');
-        }
         const needsScreen =
-          source === 'typed' || annotations.length > 0 || gate.needsScreen || gate.followAlong;
+          source === 'typed' || annotations.length > 0 || gate.needsScreen;
 
         // Diagnostic: which route this turn took and whether the gate actually ran,
         // so an "unrelated answer" can be traced to the gate vs the vision turn.
@@ -1121,8 +1191,7 @@ export function NotchApp() {
           setAnnotations([]);
           setActiveAnnotationTool(null);
           void nativeBridge.showNotch(directPayload);
-          beginAssistantTurn('single');
-          recordStepSpoken(directPayload.detail);
+          recordTriple({ user: trimmedQuery, gateFiller: '', kairo: directPayload.detail });
           void playAnswerAudio(
             directPayload.detail,
             () => {
@@ -1130,70 +1199,19 @@ export function NotchApp() {
               void nativeBridge.hideOverlay();
             },
             () => {
-              completeAssistantTurn();
               markAnswerSettled();
             }
           );
           return;
         }
 
-        // Follow-along: a hands-on, reactive guided walkthrough. Purely additive —
-        // taken ONLY when the gate flags followAlong. Speak the gate's entry filler
-        // exactly like the vision path, then hand off to the follow controller, which
-        // does its OWN capture + run_follow_turn + pointer loop instead of the
-        // one-shot vision turn. We do NOT also run the normal tutor turn this turn.
-        if (gate.followAlong) {
-          klog('notch', 'info', 'entering follow-along', { query_len: trimmedQuery.length });
-          // Entry ack (unchanged filler path).
-          void speakFiller(gate.voiceText || 'Sure — let me walk you through it.', turnEpoch);
-          const active =
-            capturedScreenRef.current?.activeApp ??
-            (await nativeBridge.getActiveApp().catch(() => null));
-          // A newer turn superseded this one while resolving the active app.
-          if (turnEpochRef.current !== turnEpoch) return;
-          // The controller drives the notch card from here (thinking → speaking →
-          // showing_step) via its onThinking/speak/showPointer deps. Enter on the
-          // Thinking state — we're about to plan the first step — and let start() →
-          // planAndShow() → onThinking() take over immediately (it fires synchronously
-          // as start() runs, emitting the cursor swirl for typed + voice follows alike).
-          const thinkingPayload = activationStateToNotchPayload('thinking');
-          contextBaselineRef.current = null;
-          revealVisualsRef.current = async () => {};
-          setPayload(thinkingPayload);
-          setDetailHidden(false);
-          setQuery('');
-          setAnnotations([]);
-          setActiveAnnotationTool(null);
-          void nativeBridge.showNotch(thinkingPayload);
-          // First pointer of this session is drawn; later ones glide.
-          followFirstPointerRef.current = true;
-          // Fresh session: let the controller's first onThinking do the full round-trip
-          // (a stale-true guard from a prior session would otherwise no-op it).
-          followThinkingRef.current = false;
-          // Fire-and-forget: the controller drives the reactive loop from here. Its
-          // followAlong state lives in the ref, surviving later voice turns.
-          void followRef.current?.start(trimmedQuery, {
-            activeApp: active?.activeApp,
-            windowTitle: active?.windowTitle ?? undefined
-          });
-          // Let the notch idle-close (which skips while the controller is active)
-          // govern the panel once the guide finishes.
-          markAnswerSettled();
-          return;
-        }
-
         // Phase 2: needs the screen. ALWAYS play a "let me look" filler while the
         // vision turn runs (cached → instant), including annotation asks where the
         // gate is skipped and there's no gate voiceText.
-        void speakFiller(gate.voiceText || 'Let me take a look.', turnEpoch);
+        const filler = gate.voiceText || 'Let me take a look.';
+        void speakFiller(filler, turnEpoch);
 
-        const {
-          payload: answerPayload,
-          steps,
-          revealStep,
-          revealVisuals,
-          context
-        } = await askTutorFromNotch({
+        const result = await askTutorFromNotch({
           query: trimmedQuery,
           nativeBridge,
           aiProvider: env.aiProvider,
@@ -1202,63 +1220,15 @@ export function NotchApp() {
           screenCapture: capturedScreenRef.current,
           recentContext,
           // What the gate just spoke aloud, so the tutor continues instead of re-greeting.
-          spokenIntro: gate.voiceText || 'Let me take a look.'
+          spokenIntro: filler
         });
         // A newer turn superseded this one while the tutor ran → don't paint a stale
         // answer, don't play its audio, don't arm a watch for the old target.
         if (turnEpochRef.current !== turnEpoch) return;
 
-        // Hold the box + cursor until speech starts; reveal them together with the
-        // text so nothing points at the screen while the notch is still silent.
-        revealVisualsRef.current = revealVisuals;
-        contextBaselineRef.current = context;
-
-        setPayload(answerPayload);
-        setDetailHidden(true);
-        setQuery('');
-        setAnnotations([]);
-        setActiveAnnotationTool(null);
-        void nativeBridge.showNotch(answerPayload);
-
-        // Arm the context watch once (after the final step reveals its box) so
-        // mid-walkthrough scrolling doesn't tear a step down under the user.
-        const armWatch = () => {
-          if (contextBaselineRef.current) {
-            void nativeBridge.armContextWatch(contextBaselineRef.current);
-          }
-        };
-
-        if (steps.length > 0) {
-          beginAssistantTurn(steps.length > 1 ? 'steps' : 'single');
-          void playSteps(
-            steps,
-            revealStep,
-            () => {
-              // First step speaking: reveal the answer text; per-step visuals are
-              // revealed inside playSteps.
-              setDetailHidden(false);
-              void emit('cursor:idle', {});
-            },
-            () => {
-              completeAssistantTurn();
-              armWatch();
-              markAnswerSettled();
-            },
-            (_index, step) => recordStepSpoken(step.say)
-          );
-        } else {
-          void playAnswerAudio(
-            answerPayload.detail,
-            () => {
-              setDetailHidden(false);
-              void emit('cursor:idle', {});
-              void revealVisualsRef.current().then(armWatch);
-            },
-            () => {
-              markAnswerSettled();
-            }
-          );
-        }
+        // The unified render: play the steps (or the single answer), then arm the
+        // pointer-watch if await_click is present — else idle-close exactly as today.
+        playResponseAndArm(result, turnEpoch, { userSide: trimmedQuery, gateFiller: filler });
       } finally {
         // Only the CURRENT turn owns the submitting flag; a superseded turn must not
         // clear it out from under the newer turn that now owns it.
@@ -1274,19 +1244,113 @@ export function NotchApp() {
       env.aiProvider,
       env.defaultSkill,
       nativeBridge,
-      beginAssistantTurn,
       buildRecentContext,
-      completeAssistantTurn,
-      recordStepSpoken,
-      recordUserTurn,
+      recordTriple,
       playAnswerAudio,
-      playSteps,
+      playResponseAndArm,
       runGate,
       speakFiller,
       stopAnswerPlayback,
       updateVoiceCaptureState
     ]
   );
+
+  // The click-turn: a valid click on the pending pointer triggers ANOTHER turn — the
+  // loop, with NO controller state. Fade the old pointer, speak a cheap ack while we
+  // work, settle the screen (never screenshot a loading page), capture, run the SAME
+  // tutor turn with a synthetic "[clicked the highlighted target]" user side + rolling
+  // history, then render via playResponseAndArm (which re-arms if it points again).
+  const runClickTurn = useCallback(
+    async (wait: FollowWait) => {
+      // A click-turn is a new turn: bump the epoch so a voice hold during it supersedes.
+      const turnEpoch = (turnEpochRef.current += 1);
+      klog('follow', 'info', 'click turn', { wait });
+      const userSide = '[clicked the highlighted target]';
+
+      // 1. Fade the old pointer (the watch already cleared its pending state) + disarm
+      //    the native click watch until the next pointer arms.
+      pendingAwaitClickRef.current = null;
+      void nativeBridge.hideOverlay();
+      void nativeBridge.cursorRelease();
+      void nativeBridge.disarmFollowClick();
+
+      // New turn: block idle-close, drop the old context watch, show the Thinking card.
+      answerSettledRef.current = false;
+      isSubmittingRef.current = true;
+      setIsSubmitting(true);
+      void nativeBridge.disarmContextWatch();
+      const thinkingPayload = activationStateToNotchPayload('thinking');
+      setPayload(thinkingPayload);
+      setDetailHidden(false);
+      void nativeBridge.showNotch(thinkingPayload);
+      void emit('cursor:thinking', {});
+
+      const recentContext = buildRecentContext();
+
+      // 2. Ack filler (non-blocking): fetch the cheap ack text, then speak it on the
+      //    follow clip slot while the settle + vision turn run. The text is also the
+      //    triple's gateFiller (resolved well before the slower vision turn).
+      let ackText = '';
+      const ackTextPromise = nativeBridge
+        .runAckTurn(userSide)
+        .then((t) => (t ?? '').trim())
+        .catch(() => '');
+      void ackTextPromise.then((t) => {
+        ackText = t;
+        if (t && turnEpochRef.current === turnEpoch) {
+          void speakFollowClip(t);
+        }
+      });
+
+      try {
+        // 3. Settle the UI after the click.
+        await settleAfterClick(wait, turnEpoch);
+        if (turnEpochRef.current !== turnEpoch) return;
+        // 4. Capture the settled screen + run the same tutor turn.
+        const shot = await nativeBridge.captureScreen();
+        if (turnEpochRef.current !== turnEpoch) return;
+        capturedScreenRef.current = shot;
+        ackText = await ackTextPromise;
+        const result = await askTutorFromNotch({
+          query: userSide,
+          nativeBridge,
+          aiProvider: env.aiProvider,
+          defaultSkill: env.defaultSkill,
+          annotations: [],
+          screenCapture: shot,
+          recentContext,
+          spokenIntro: ackText || 'Nice, one sec.'
+        });
+        if (turnEpochRef.current !== turnEpoch) return;
+        // 5. Render via the same path — re-arms the pointer if it points again.
+        playResponseAndArm(result, turnEpoch, { userSide, gateFiller: ackText });
+      } catch (e) {
+        klog('follow', 'warn', 'click turn failed', { err: String(e) });
+        if (turnEpochRef.current === turnEpoch) markAnswerSettled();
+      } finally {
+        if (turnEpochRef.current === turnEpoch) {
+          isSubmittingRef.current = false;
+          setIsSubmitting(false);
+        }
+      }
+    },
+    [
+      nativeBridge,
+      env.aiProvider,
+      env.defaultSkill,
+      buildRecentContext,
+      settleAfterClick,
+      speakFollowClip,
+      playResponseAndArm,
+      markAnswerSettled
+    ]
+  );
+
+  // Route the pointer-watch's synchronous onValidClick into the latest runClickTurn
+  // without making it a dependency of the once-built watch.
+  runClickTurnRef.current = (wait: FollowWait) => {
+    void runClickTurn(wait);
+  };
 
   // Arm the context watcher for a FINALIZED user drawing, so tab/window switch,
   // scroll, or click clears it (same reset as Kairo's own box). Only called once the
@@ -1347,9 +1411,11 @@ export function NotchApp() {
 
   const hideNotch = useCallback(() => {
     stopAnswerPlayback();
-    // Explicit dismiss also tears down an active follow-along (disarms the click
-    // watch + fades the pointer via the controller's stop). No-op when inactive.
-    followRef.current?.stop('dismissed');
+    // Explicit dismiss also tears down a pending guide pointer (stops the watch's poll
+    // + idle) and disarms the native click watch. No-op when nothing is pending.
+    pointerWatchRef.current?.clear();
+    pendingAwaitClickRef.current = null;
+    void nativeBridge.disarmFollowClick();
     answerSettledRef.current = false;
     pointerInsideNotchRef.current = false;
     void nativeBridge.disarmContextWatch();
@@ -1388,9 +1454,10 @@ export function NotchApp() {
   // never keeps it open or forces it closed.
   useEffect(() => {
     const id = setInterval(() => {
-      // While a follow-along guide is active, never auto-close: the pointer must
-      // stay until the user acts, and hideNotch would wipe the overlay + cursor.
-      if (followRef.current?.state.active) {
+      // While a guide pointer is pending, never auto-close: the pointer must stay
+      // until the user acts (or the watch's own 30s idle fires), and hideNotch would
+      // wipe the overlay + cursor.
+      if (pointerWatchRef.current?.pending) {
         return;
       }
       const now = performance.now();
@@ -1467,11 +1534,10 @@ export function NotchApp() {
 
   useEffect(() => {
     const pending = listen('context:changed', () => {
-      // During an active follow-along the controller owns the pointer lifecycle:
-      // fade the stale hint but KEEP the step + goal (do NOT run the full teardown,
-      // which would drop the follow visuals/state under the user).
-      if (followRef.current?.state.active) {
-        followRef.current.onScreenMoved();
+      // While a guide pointer is pending, the pointer-watch's poll already owns the
+      // fade-on-scroll / re-show lifecycle — don't run the normal teardown (which
+      // would fade the hint out from under the watch). Leave it to the watch.
+      if (pointerWatchRef.current?.pending) {
         return;
       }
       void nativeBridge.hideOverlay();
@@ -1486,12 +1552,12 @@ export function NotchApp() {
     };
   }, [nativeBridge]);
 
-  // Follow-along: native left-mouse-down coordinates (display points), emitted only
-  // while a follow-along click-step is armed. A no-op unless the controller is active
-  // on a click step — it guards internally (in-box + same-screen checks).
+  // Native left-mouse-down coordinates (display points), emitted only while a guide
+  // pointer is armed. Handed to the pointer-watch, which guards internally (in-box +
+  // faded checks) and fires a click-turn on a valid click.
   useEffect(() => {
     const pending = listen<{ x: number; y: number }>('input:click', (event) => {
-      void followRef.current?.onClick(event.payload);
+      pointerWatchRef.current?.onClick(event.payload);
     });
     return () => {
       void pending.then((unlisten) => unlisten());
