@@ -39,7 +39,7 @@ const rawEnvSchema = z.object({
   FOLLOW_ARMED_POLL_MS: z.coerce.number().default(800), // armed-watch re-check interval while a pointer waits
   WAIT_INSTANT_MS: z.coerce.number().default(75),
   WAIT_UI_SETTLE_MS: z.coerce.number().default(400),
-  WAIT_PAGE_LOAD_MS: z.coerce.number().default(1_500),
+  WAIT_PAGE_LOAD_MS: z.coerce.number().default(2_500),
   WAIT_NETWORK_MS: z.coerce.number().default(2_500)
 });
 

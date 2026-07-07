@@ -158,6 +158,6 @@ pub(crate) const WAIT_INSTANT_MS: u64 = 75;
 #[allow(dead_code)]
 pub(crate) const WAIT_UI_SETTLE_MS: u64 = 400;
 #[allow(dead_code)]
-pub(crate) const WAIT_PAGE_LOAD_MS: u64 = 1_500;
+pub(crate) const WAIT_PAGE_LOAD_MS: u64 = 2_500;
 #[allow(dead_code)]
 pub(crate) const WAIT_NETWORK_MS: u64 = 2_500;
