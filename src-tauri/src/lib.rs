@@ -502,11 +502,27 @@ pub fn run() {
         .plugin(global_shortcut_plugin)
         .plugin(tauri_nspanel::init())
         .setup(|app| {
+            let show_setup = should_show_setup_window(&get_permission_status());
+            // Activation policy. By default a Tauri app is `Regular` (Dock icon), so
+            // launching it *activates* the app and macOS yanks the user off any
+            // full-screen Space onto the desktop. Kairo is a background notch/cursor
+            // utility, so on a normal launch run it as an `Accessory` app instead: no
+            // Dock icon, and — crucially — no forced Space switch on launch. The only
+            // time we need a real, front-most, focusable window is the first-run setup
+            // (permissions) window, so keep the default `Regular` policy for that one
+            // launch. (Same idea as clicky's `LSUIElement=true` menu-bar-only design.)
+            #[cfg(target_os = "macos")]
+            {
+                if !show_setup {
+                    app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                }
+                klog!(app, info, setup = show_setup, accessory = !show_setup, "activation policy set");
+            }
             if let Some(window) = app.get_webview_window("main") {
                 log_window_startup(&window);
                 let _ = window.set_size(LogicalSize::new(1180.0, 820.0));
                 let _ = window.center();
-                if should_show_setup_window(&get_permission_status()) {
+                if show_setup {
                     let _ = window.unminimize();
                     let _ = window.show();
                     let _ = window.set_focus();
