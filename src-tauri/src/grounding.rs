@@ -937,11 +937,20 @@ fn map_box_to_targets(b: &DetectedBox, bounds: &OverlayDisplayBounds, step_index
     ]
 }
 
-// Turn the tutor's raw `{ mode, steps:[{say, box?}] }` into a frontend-ready
-// `{ mode, voiceText, steps:[{say, visualTargets}] }`: each step's optional box is
-// mapped to a pointer + highlight in display points. A legacy `{ voiceText, box }`
-// response is wrapped as a single step. `voiceText` is the joined narration (legacy
-// consumers + the answer log).
+// Turn the tutor's raw unified turn `{ steps:[{say, box?}], await_click?, done? }`
+// into a frontend-ready superset `{ mode, voiceText, steps:[{say, visualTargets}],
+// awaitClick, done }`: each step's optional box is mapped to a pointer + highlight in
+// display points. A legacy `{ voiceText, box }` response is wrapped as a single step.
+// `voiceText` is the joined narration (legacy consumers + the answer log). `mode` is
+// still derived (the frontend reads it: steps.len()>1 → "steps" else "single") unless
+// the model explicitly emits one.
+//
+// GOLDEN RULE — additive only: when `await_click` is absent/null, the emitted
+// `mode`/`voiceText`/`steps` are byte-identical to before, and `awaitClick` is null +
+// `done` is false, so single/steps render exactly as today. When `await_click` is
+// present + non-null its normalized box is mapped via the SAME `map_box_to_targets`
+// as steps (→ a pointer + highlight_box in display points) and its `wait` bucket is
+// passed through.
 pub(crate) fn apply_step_targets(
     content: &str,
     image_base64: &str,
@@ -1003,7 +1012,46 @@ pub(crate) fn apply_step_targets(
                 "single".to_string()
             }
         });
-    json!({ "mode": mode, "voiceText": says.join(" "), "steps": out_steps }).to_string()
+
+    // NEW (unified turn): an optional single target the user should click, and a
+    // `done` flag. When `await_click` is present + non-null with a valid box, map it
+    // via the SAME `map_box_to_targets` as steps (→ pointer + highlight_box in display
+    // points) and pass through its `wait` bucket. Absent/null/malformed → awaitClick
+    // null (graceful degrade — no panic). This is additive: with no await_click the
+    // output above is unchanged, so single/steps render exactly as today.
+    let await_click = parsed
+        .get("await_click")
+        .filter(|v| !v.is_null())
+        .and_then(|ac| {
+            let nb = parse_norm_box(ac.get("box"))?;
+            let wait = ac
+                .get("wait")
+                .and_then(Value::as_str)
+                .unwrap_or("ui-settle")
+                .to_string();
+            let color = sample_accent(&rgb, nb);
+            let db = DetectedBox {
+                norm_x1: nb[0],
+                norm_y1: nb[1],
+                norm_x2: nb[2],
+                norm_y2: nb[3],
+                label: "target".to_string(),
+                color,
+            };
+            let targets = map_box_to_targets(&db, bounds, 0);
+            Some(json!({ "visualTargets": targets, "wait": wait }))
+        })
+        .unwrap_or(Value::Null);
+    let done = parsed.get("done").and_then(Value::as_bool).unwrap_or(false);
+    crate::klog!(tutor, debug, mode = %mode, steps = out_steps.len(), await_click = !await_click.is_null(), done = done, "unified tutor turn shaped");
+    json!({
+        "mode": mode,
+        "voiceText": says.join(" "),
+        "steps": out_steps,
+        "awaitClick": await_click,
+        "done": done,
+    })
+    .to_string()
 }
 
 // Reshape a raw follow-along step `{say, box?, expect, wait, status}` into a
@@ -1166,6 +1214,60 @@ mod step_targets_tests {
         let content = "Sure!\n{ \"steps\":[ { \"say\":\"New\", \"box\":[0.1,0.2,0.3,0.4] } ] }\nHope that helps!";
         let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
         assert_eq!(v["steps"][0]["visualTargets"].as_array().unwrap().len(), 2);
+    }
+
+    // Unified turn (RU1): a hands-on step + an await_click target the user should
+    // click. awaitClick must be non-null with a highlight_box carrying a numeric
+    // screenRegion, its wait passed through, done=false, and the steps shaped as today.
+    #[test]
+    fn unified_await_click_yields_targets_and_passthrough() {
+        let content = r#"{ "steps":[ { "say":"Click New to start.", "box":null } ], "await_click": { "box":[0.10,0.20,0.30,0.28], "wait":"page-load" }, "done": false }"#;
+        let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
+        // steps shaped exactly as today: one step, say preserved, null box → no targets.
+        let steps = v["steps"].as_array().unwrap();
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0]["say"], "Click New to start.");
+        assert!(steps[0]["visualTargets"].as_array().unwrap().is_empty());
+        assert_eq!(v["voiceText"], "Click New to start.");
+        assert_eq!(v["mode"], "single");
+        // await_click → non-null with pointer + highlight_box, wait passed through.
+        let ac = &v["awaitClick"];
+        assert!(!ac.is_null(), "awaitClick must be present");
+        assert_eq!(ac["wait"], "page-load");
+        let targets = ac["visualTargets"].as_array().unwrap();
+        let highlight = targets
+            .iter()
+            .find(|t| t["kind"] == "highlight_box")
+            .expect("await_click has a highlight_box target");
+        assert!(
+            highlight["screenRegion"]["x"].is_number(),
+            "highlight_box screenRegion.x is numeric (mapped to display points)"
+        );
+        assert!(
+            targets.iter().any(|t| t["kind"] == "pointer"),
+            "await_click also has a pointer target"
+        );
+        assert_eq!(v["done"], false);
+    }
+
+    // The pre-unified shape (no await_click / done) must reshape byte-identically to
+    // today for mode/voiceText/steps, only GAINING awaitClick=null + done=false.
+    #[test]
+    fn old_shape_without_await_click_is_null_and_not_done() {
+        let content = r#"{ "steps":[ { "say":"Click New — I've highlighted it.", "box":[0.10,0.20,0.30,0.28] } ] }"#;
+        let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
+        // NEW fields degrade gracefully.
+        assert!(v["awaitClick"].is_null(), "no await_click → null");
+        assert_eq!(v["done"], false);
+        // Everything the frontend reads today is unchanged.
+        assert_eq!(v["mode"], "single");
+        assert_eq!(v["voiceText"], "Click New — I've highlighted it.");
+        let steps = v["steps"].as_array().unwrap();
+        assert_eq!(steps.len(), 1);
+        let targets = steps[0]["visualTargets"].as_array().unwrap();
+        assert_eq!(targets.len(), 2);
+        assert_eq!(targets[0]["kind"], "pointer");
+        assert_eq!(targets[1]["kind"], "highlight_box");
     }
 }
 
