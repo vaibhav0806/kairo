@@ -199,14 +199,32 @@ pub(crate) async fn transcribe_audio(
             .send()
             .await
             .map_err(|error| format!("Sarvam STT request failed: {error}"))?;
+        let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        let value: Value = serde_json::from_str(&body)
-            .map_err(|error| format!("Sarvam STT response was not JSON: {error}"))?;
+        // Error bodies are small JSON (status + message), never media — safe to log a
+        // truncated snippet so we can see WHY Sarvam rejected the request.
+        let body_snippet: String = body.chars().take(500).collect();
+        if !status.is_success() {
+            crate::klog!(stt, error, provider = %provider, status = %status, body = %body_snippet, "sarvam STT request failed");
+            let msg = serde_json::from_str::<Value>(&body)
+                .map(|v| parse_provider_json_error(&v, &format!("Sarvam STT failed with {status}")))
+                .unwrap_or_else(|_| format!("Sarvam STT failed with {status}"));
+            return Err(msg);
+        }
+        let value: Value = serde_json::from_str(&body).map_err(|error| {
+            crate::klog!(stt, error, provider = %provider, status = %status, body = %body_snippet, "sarvam STT response was not JSON");
+            format!("Sarvam STT response was not JSON: {error}")
+        })?;
         let text = value
             .get("transcript")
             .or_else(|| value.get("text"))
             .and_then(Value::as_str)
-            .ok_or_else(|| "Sarvam STT response did not include transcript text.".to_string())?
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .ok_or_else(|| {
+                crate::klog!(stt, error, provider = %provider, status = %status, body = %body_snippet, "sarvam STT: 2xx but no transcript");
+                "Sarvam STT response did not include transcript text.".to_string()
+            })?
             .to_string();
 
         // With language_code="unknown", saaras returns the detected language + a
