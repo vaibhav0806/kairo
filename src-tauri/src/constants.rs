@@ -28,7 +28,7 @@ pub(crate) const GROUNDING_PROVIDER: &str = "anthropic"; // anthropic | openrout
 //              narration), and Kairo points at OpenAI's grounded target.
 // The Claude path is never removed — flip this back to "claude" any time. Overridable
 // at runtime via KAIRO_POINTING_PROVIDER (no rebuild), but you never need to set it.
-pub(crate) const POINTING_PROVIDER: &str = "openai"; // claude | openai
+pub(crate) const POINTING_PROVIDER: &str = "claude"; // claude | openai
 
 // ---------------------------------------------------------------- OpenRouter
 // Drives the gate (every ask) + text turns. Keep this a FAST model — Flash Lite
@@ -70,7 +70,9 @@ pub(crate) const QWEN_BASE_URL: &str = "https://dashscope-intl.aliyuncs.com/comp
 // execute the click — the AI points, the user acts. Key = OPENAI_API_KEY in .env.
 // Model/base are overridable via the env var of the same name (default = these).
 pub(crate) const OPENAI_BASE_URL: &str = "https://api.openai.com";
-pub(crate) const OPENAI_COMPUTER_USE_MODEL: &str = "gpt-5.6-sol";
+// gpt-5.6-sol is limited-preview / not on our account yet (OpenAI 404s it and says
+// "use gpt-5.5"); flip back to gpt-5.6-sol once it's broadly available.
+pub(crate) const OPENAI_COMPUTER_USE_MODEL: &str = "gpt-5.5";
 // Reasoning effort — kept IDENTICAL to the Claude path (aliases ANTHROPIC_VISION_EFFORT)
 // so both pointing engines think equally hard; change that one knob and both move.
 // Sent as OpenAI's `reasoning.effort` (accepts minimal | low | medium | high).
