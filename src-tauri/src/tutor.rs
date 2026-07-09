@@ -5,7 +5,7 @@
 use crate::env::{provider_env, provider_env_optional, provider_timeout_ms};
 use crate::grounding::{
     anthropic_vision_chat, apply_box_targets, apply_step_targets, clean_model_json,
-    detect_element_boxes, ground_visual_targets,
+    detect_click_point_openai, detect_element_boxes, ground_visual_targets, inject_primary_box,
 };
 use crate::constants;
 use crate::ocr::build_screen_elements_block;
@@ -190,6 +190,7 @@ pub(crate) fn prewarm_http_connections() {
         constants::OPENROUTER_BASE_URL,
         constants::ANTHROPIC_BASE_URL,
         constants::SARVAM_BASE_URL,
+        constants::OPENAI_BASE_URL,
     ] {
         let url = root_host_url(base);
         tauri::async_runtime::spawn(async move {
@@ -317,11 +318,20 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
     let separate_grounding = constants::SEPARATE_GROUNDING;
     let has_vision = input.screen.captured && input.screen.image_base64.is_some();
 
+    // Alternate pointing engine: when POINTING_PROVIDER="openai", OpenAI's computer-use
+    // tool finds the target box while the OpenRouter vision turn writes the narration.
+    // The default "claude" leaves the single-call Fable path below fully intact.
+    let pointing =
+        provider_env("KAIRO_POINTING_PROVIDER", constants::POINTING_PROVIDER).to_lowercase();
+    let use_openai_pointing = pointing == "openai";
+    crate::klog!(tutor, info, pointing = %pointing, separate = separate_grounding, has_vision = has_vision, "tutor turn routing");
+
     // DEFAULT: one Opus/Fable vision call returns the answer AND the primary target box.
     // On ANY Opus/Fable failure (no key, non-2xx, empty, missing bounds) we fall THROUGH
     // to the legacy OpenRouter answer path below — a transient hiccup must never
     // zero out the spoken answer; the user still gets an answer, grounded via OCR.
-    if has_vision && !separate_grounding {
+    // Skipped entirely when OpenAI pointing is selected (that path grounds separately).
+    if has_vision && !separate_grounding && !use_openai_pointing {
         if let (Some(image_base64), Some(bounds)) = (
             input.screen.image_base64.as_ref(),
             input.screen.display_bounds.as_ref(),
@@ -425,8 +435,45 @@ pub(crate) async fn run_tutor_turn(input: TutorTurnInput) -> Result<String, Stri
         };
         detect_element_boxes(image_base64, bounds, &input.user_query, &ocr_elements).await
     };
-    let (answer_result, detected_boxes) = tokio::join!(answer_future, boxes_future);
+    // OpenAI pointing: one computer-use call for the click target, run in parallel
+    // with the narration answer above. None → we keep the narration's own boxes.
+    let openai_point_future = async {
+        if !use_openai_pointing {
+            return None;
+        }
+        let image_base64 = input.screen.image_base64.as_deref()?;
+        detect_click_point_openai(image_base64, &input.user_query).await
+    };
+    let (answer_result, detected_boxes, openai_point) =
+        tokio::join!(answer_future, boxes_future, openai_point_future);
     let content = answer_result?;
+
+    // OpenAI pointing path: inject OpenAI's grounded target into the narration, then
+    // shape it into the SAME unified frontend turn (mode/voiceText/steps/awaitClick)
+    // the default path emits, so the overlay/cursor render identically.
+    if use_openai_pointing {
+        if let Some(bounds) = input.screen.display_bounds.as_ref() {
+            let image_ref = input.screen.image_base64.as_deref().unwrap_or("");
+            let cleaned = clean_model_json(&content);
+            let had_point = openai_point.is_some();
+            let grounded_json = match openai_point {
+                Some(nb) => inject_primary_box(&cleaned, nb),
+                None => {
+                    crate::klog!(tutor, warn, "openai pointing returned no point; using narration boxes");
+                    cleaned
+                }
+            };
+            let grounded = apply_step_targets(&grounded_json, image_ref, bounds);
+            if let Ok(value) = serde_json::from_str::<Value>(&grounded) {
+                let answer = value.get("voiceText").and_then(Value::as_str).unwrap_or("");
+                let steps = value.get("steps").and_then(Value::as_array).map(|a| a.len()).unwrap_or(0);
+                crate::klog!(tutor, info, pointing = "openai", grounded_point = had_point, steps = steps, answer = %crate::klog::transcript_field(answer), "openai-pointing answer");
+            }
+            return Ok(grounded);
+        }
+        crate::klog!(tutor, warn, "openai pointing missing display bounds; using OpenRouter grounding");
+    }
+
     match (detected_boxes.is_empty(), input.screen.display_bounds.as_ref()) {
         (false, Some(bounds)) => Ok(apply_box_targets(content, &detected_boxes, bounds)),
         _ => Ok(ground_visual_targets(content, &ocr_elements, input.screen.display_bounds.as_ref())),

@@ -427,6 +427,229 @@ pub(crate) async fn detect_element_boxes(
     boxes
 }
 
+// Run ONE turn of OpenAI's built-in computer-use loop to locate the single control
+// the user should act on, and return it as a normalized [x1,y1,x2,y2] box (fractions
+// 0..1 of the screenshot). This is the alternate pointing engine (POINTING_PROVIDER=
+// "openai"): we send the resized screenshot + the ask, take the model's FIRST click
+// action's (x, y), and synthesize a small square target around it. We never execute
+// the click — Kairo points, the user acts. Returns None on any failure (no key,
+// non-2xx, no click action) so the caller degrades to the narration's own boxes.
+pub(crate) async fn detect_click_point_openai(
+    image_base64: &str,
+    user_query: &str,
+) -> Option<[f64; 4]> {
+    let _t = crate::klog::timer("grounding", "openai_point");
+    let api_key = provider_env_optional("OPENAI_API_KEY")?;
+    if api_key.trim().is_empty() {
+        crate::klog!(grounding, warn, provider = "openai", "OPENAI_API_KEY empty; no OpenAI pointing");
+        return None;
+    }
+    let model = provider_env("OPENAI_COMPUTER_USE_MODEL", constants::OPENAI_COMPUTER_USE_MODEL);
+    let base_url = provider_env("OPENAI_BASE_URL", constants::OPENAI_BASE_URL);
+    let timeout = grounding_timeout();
+    let max_edge = provider_env_optional("KAIRO_VISION_MAX_EDGE")
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .filter(|v| *v >= 256)
+        .unwrap_or(constants::VISION_MAX_EDGE);
+
+    // Downscale aspect-preserving (longest edge <= max_edge). computer-use returns
+    // click coords in THIS resized pixel space; we normalize by (rw, rh).
+    use base64::Engine;
+    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(image_base64) else {
+        crate::klog!(grounding, warn, provider = "openai", "failed to decode screenshot base64");
+        return None;
+    };
+    let Ok(image) = image::load_from_memory(&bytes) else {
+        crate::klog!(grounding, warn, provider = "openai", bytes = bytes.len(), "failed to load screenshot image");
+        return None;
+    };
+    let (ow, oh) = (image.width(), image.height());
+    if ow == 0 || oh == 0 {
+        return None;
+    }
+    let long = ow.max(oh);
+    let scale = if long > max_edge {
+        max_edge as f64 / long as f64
+    } else {
+        1.0
+    };
+    let rw = ((ow as f64 * scale).round() as u32).max(1);
+    let rh = ((oh as f64 * scale).round() as u32).max(1);
+    let resized = image.resize_exact(rw, rh, image::imageops::FilterType::Triangle);
+    let mut out = std::io::Cursor::new(Vec::new());
+    if resized
+        .to_rgb8()
+        .write_to(&mut out, image::ImageFormat::Jpeg)
+        .is_err()
+    {
+        crate::klog!(grounding, warn, provider = "openai", resized = %format!("{rw}x{rh}"), "failed to encode resized image");
+        return None;
+    }
+    let resized_base64 = base64::engine::general_purpose::STANDARD.encode(out.into_inner());
+    let data_url = format!("data:image/jpeg;base64,{resized_base64}");
+
+    let instruction = format!(
+        "You are viewing the user's screen, a {rw}x{rh} pixel image (origin top-left, x right, y down). The user asked: \"{user_query}\". Identify the SINGLE control they should click or look at, and click it — exactly once, on the precise control, not a nearby heading, label, tooltip, or large region. Do not type or take any other action. Ignore Kairo's own notch, answer card, purple labels, and cursor."
+    );
+
+    // ONE built-in computer-use turn: seed the current screenshot so the model can
+    // click immediately (no screenshot round-trip). We read only its first action.
+    let body = json!({
+        "model": model,
+        "tools": [{ "type": "computer" }],
+        "input": [{
+            "role": "user",
+            "content": [
+                { "type": "input_text", "text": instruction },
+                { "type": "input_image", "image_url": data_url },
+            ],
+        }],
+    });
+
+    crate::klog!(
+        grounding,
+        debug,
+        provider = "openai",
+        model = %model,
+        resized = %format!("{rw}x{rh}"),
+        max_edge = max_edge,
+        timeout_ms = timeout.as_millis(),
+        query_len = user_query.len(),
+        "openai computer-use request"
+    );
+
+    let response = match shared_http_client()
+        .post(format!("{}/v1/responses", base_url.trim_end_matches('/')))
+        .header("Authorization", format!("Bearer {api_key}"))
+        .header("Content-Type", "application/json")
+        .timeout(timeout)
+        .json(&body)
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            crate::klog!(grounding, warn, provider = "openai", model = %model, "computer-use request failed: {error}");
+            return None;
+        }
+    };
+    let status = response.status();
+    if !status.is_success() {
+        let text = response.text().await.unwrap_or_default();
+        crate::klog!(grounding, warn, provider = "openai", status = %status, model = %model, "computer-use failed: {}", text.chars().take(240).collect::<String>());
+        return None;
+    }
+    let payload = response.json::<Value>().await.ok()?;
+    let Some((cx, cy)) = extract_openai_click_point(&payload) else {
+        crate::klog!(grounding, warn, provider = "openai", model = %model, "no click action in computer-use response");
+        return None;
+    };
+
+    // Normalize the click center, then grow a small square target around it (in pixel
+    // space, so it stays visually square regardless of the screen's aspect ratio).
+    let ncx = (cx / rw as f64).clamp(0.0, 1.0);
+    let ncy = (cy / rh as f64).clamp(0.0, 1.0);
+    let half_px = (constants::OPENAI_POINT_BOX_HALF_FRAC * rw.max(rh) as f64).max(6.0);
+    let half_nx = half_px / rw as f64;
+    let half_ny = half_px / rh as f64;
+    let nx1 = (ncx - half_nx).clamp(0.0, 1.0);
+    let ny1 = (ncy - half_ny).clamp(0.0, 1.0);
+    let nx2 = (ncx + half_nx).clamp(0.0, 1.0);
+    let ny2 = (ncy + half_ny).clamp(0.0, 1.0);
+    if nx2 <= nx1 || ny2 <= ny1 {
+        crate::klog!(grounding, warn, provider = "openai", "degenerate box around click point");
+        return None;
+    }
+    crate::klog!(
+        grounding,
+        info,
+        provider = "openai",
+        model = %model,
+        click_px = %format!("[{cx:.0},{cy:.0}]"),
+        resized = %format!("{rw}x{rh}"),
+        norm_box = %format!("[{nx1:.4},{ny1:.4},{nx2:.4},{ny2:.4}]"),
+        "openai click point grounded"
+    );
+    Some([nx1, ny1, nx2, ny2])
+}
+
+// Pull the first positional (x, y) out of an OpenAI Responses computer-use payload.
+// Scans `output[]` for a `computer_call` item and reads its first action carrying
+// numeric x + y. Tolerates both the newer `actions:[...]` array and the classic
+// single `action:{...}` object. Returns None when the model returned no click (e.g.
+// it asked for a screenshot first, or nothing was relevant).
+fn extract_openai_click_point(payload: &Value) -> Option<(f64, f64)> {
+    let output = payload.get("output").and_then(Value::as_array)?;
+    for item in output {
+        if item.get("type").and_then(Value::as_str) != Some("computer_call") {
+            continue;
+        }
+        let actions: Vec<&Value> = match item.get("actions").and_then(Value::as_array) {
+            Some(array) => array.iter().collect(),
+            None => item.get("action").into_iter().collect(),
+        };
+        for action in actions {
+            if let (Some(x), Some(y)) = (
+                action.get("x").and_then(Value::as_f64),
+                action.get("y").and_then(Value::as_f64),
+            ) {
+                return Some((x, y));
+            }
+        }
+    }
+    None
+}
+
+// Point Kairo at exactly ONE grounded target: override the primary control's box
+// with `nb` (the OpenAI-grounded normalized box) and null out every other box, so no
+// ungrounded model guess leaks to the overlay. Prefers `await_click` (an explicit
+// click target) when present; otherwise attaches to the step the narration meant to
+// highlight (first step with a box, else the first step). Additive-safe: on parse
+// failure or an empty turn, returns the input unchanged. `nb` = [x1,y1,x2,y2] as
+// fractions 0..1 — the same shape `apply_step_targets` maps to display points.
+pub(crate) fn inject_primary_box(content: &str, nb: [f64; 4]) -> String {
+    let Ok(mut parsed) = serde_json::from_str::<Value>(extract_json_object(json_body(content)))
+    else {
+        return content.to_string();
+    };
+    let box_val = json!([nb[0], nb[1], nb[2], nb[3]]);
+    let has_await = parsed
+        .get("await_click")
+        .map(Value::is_object)
+        .unwrap_or(false);
+
+    // Which step the narration intended to point at — captured before we null boxes.
+    let primary_step_idx = parsed
+        .get("steps")
+        .and_then(Value::as_array)
+        .and_then(|steps| {
+            steps
+                .iter()
+                .position(|s| s.get("box").map(|b| !b.is_null()).unwrap_or(false))
+        });
+
+    if let Some(steps) = parsed.get_mut("steps").and_then(Value::as_array_mut) {
+        for step in steps.iter_mut() {
+            if let Some(object) = step.as_object_mut() {
+                object.insert("box".to_string(), Value::Null);
+            }
+        }
+        // No explicit click target → attach the grounded box to the primary step.
+        if !has_await {
+            let idx = primary_step_idx.unwrap_or(0);
+            if let Some(step) = steps.get_mut(idx).and_then(Value::as_object_mut) {
+                step.insert("box".to_string(), box_val.clone());
+            }
+        }
+    }
+    if has_await {
+        if let Some(await_click) = parsed.get_mut("await_click").and_then(Value::as_object_mut) {
+            await_click.insert("box".to_string(), box_val);
+        }
+    }
+    serde_json::to_string(&parsed).unwrap_or_else(|_| content.to_string())
+}
+
 // Strip a leading/trailing ```json ... ``` markdown fence if the model wrapped
 // its JSON in one (it sometimes does despite response_format json_object). Without
 // this the native parse bails and ungrounded targets leak to the frontend.
@@ -1211,5 +1434,89 @@ mod json_extract_tests {
     #[test]
     fn returns_input_when_no_object_present() {
         assert_eq!(extract_json_object("no json here"), "no json here");
+    }
+}
+
+#[cfg(test)]
+mod openai_pointing_tests {
+    use super::{extract_openai_click_point, inject_primary_box};
+    use serde_json::{json, Value};
+
+    #[test]
+    fn extracts_click_from_actions_array() {
+        let payload = json!({
+            "output": [
+                { "type": "reasoning", "summary": [] },
+                { "type": "computer_call", "call_id": "c1", "actions": [
+                    { "type": "click", "x": 405, "y": 157, "button": "left" }
+                ]},
+            ]
+        });
+        assert_eq!(extract_openai_click_point(&payload), Some((405.0, 157.0)));
+    }
+
+    #[test]
+    fn extracts_click_from_singular_action() {
+        let payload = json!({
+            "output": [
+                { "type": "computer_call", "call_id": "c1", "action": { "type": "click", "x": 12, "y": 34 } },
+            ]
+        });
+        assert_eq!(extract_openai_click_point(&payload), Some((12.0, 34.0)));
+    }
+
+    #[test]
+    fn skips_actions_without_coordinates() {
+        // A screenshot-first action (no x/y) must be skipped in favour of the click.
+        let payload = json!({
+            "output": [
+                { "type": "computer_call", "actions": [
+                    { "type": "screenshot" },
+                    { "type": "click", "x": 7, "y": 9 }
+                ]},
+            ]
+        });
+        assert_eq!(extract_openai_click_point(&payload), Some((7.0, 9.0)));
+    }
+
+    #[test]
+    fn returns_none_when_no_computer_call() {
+        let payload = json!({ "output": [ { "type": "message", "content": [] } ] });
+        assert_eq!(extract_openai_click_point(&payload), None);
+    }
+
+    #[test]
+    fn inject_overrides_await_click_and_nulls_step_boxes() {
+        let content = r#"{ "steps":[ {"say":"Open the menu.","box":[0.1,0.1,0.2,0.2]} ], "await_click": {"box":[0.5,0.5,0.6,0.6],"wait":"ui-settle"}, "done": false }"#;
+        let out = inject_primary_box(content, [0.11, 0.22, 0.33, 0.44]);
+        let v: Value = serde_json::from_str(&out).unwrap();
+        // await_click box replaced with the grounded box; wait untouched.
+        assert_eq!(v["await_click"]["box"], json!([0.11, 0.22, 0.33, 0.44]));
+        assert_eq!(v["await_click"]["wait"], "ui-settle");
+        // Every step box nulled (only the grounded target points).
+        assert!(v["steps"][0]["box"].is_null());
+    }
+
+    #[test]
+    fn inject_attaches_to_primary_step_when_no_await_click() {
+        let content = r#"{ "steps":[ {"say":"This is the toolbar."}, {"say":"Click here.","box":[0.1,0.1,0.2,0.2]} ], "done": false }"#;
+        let out = inject_primary_box(content, [0.7, 0.8, 0.9, 0.95]);
+        let v: Value = serde_json::from_str(&out).unwrap();
+        // The step that had a box (index 1) gets the grounded box; the other stays null.
+        assert!(v["steps"][0]["box"].is_null());
+        assert_eq!(v["steps"][1]["box"], json!([0.7, 0.8, 0.9, 0.95]));
+    }
+
+    #[test]
+    fn inject_falls_back_to_first_step_when_no_boxes() {
+        let content = r#"{ "steps":[ {"say":"Do this."} ], "done": false }"#;
+        let out = inject_primary_box(content, [0.1, 0.2, 0.3, 0.4]);
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["steps"][0]["box"], json!([0.1, 0.2, 0.3, 0.4]));
+    }
+
+    #[test]
+    fn inject_returns_input_on_parse_failure() {
+        assert_eq!(inject_primary_box("not json", [0.1, 0.2, 0.3, 0.4]), "not json");
     }
 }

@@ -21,6 +21,15 @@ pub(crate) const STT_PROVIDER: &str = "sarvam"; // sarvam | elevenlabs | mock
 pub(crate) const TTS_PROVIDER: &str = "sarvam";
 pub(crate) const GROUNDING_PROVIDER: &str = "anthropic"; // anthropic | openrouter | qwen
 
+// Which engine finds the on-screen target Kairo points at.
+//   "claude" = the default single vision call (spoken answer + target box together).
+//   "openai" = OpenAI's built-in computer-use tool returns the click point; the spoken
+//              answer/steps come from the OpenRouter vision turn (screen-aware
+//              narration), and Kairo points at OpenAI's grounded target.
+// The Claude path is never removed — flip this back to "claude" any time. Overridable
+// at runtime via KAIRO_POINTING_PROVIDER (no rebuild), but you never need to set it.
+pub(crate) const POINTING_PROVIDER: &str = "openai"; // claude | openai
+
 // ---------------------------------------------------------------- OpenRouter
 // Drives the gate (every ask) + text turns. Keep this a FAST model — Flash Lite
 // has thinking off by default, so the gate answers in ~1-2s instead of qwen's ~10s.
@@ -53,6 +62,19 @@ pub(crate) const ANTHROPIC_VISION_EFFORT: &str = "medium";
 pub(crate) const OPENROUTER_GROUNDING_MODEL: &str = "qwen/qwen3.7-plus";
 pub(crate) const QWEN_VISION_MODEL: &str = "qwen3.7-plus";
 pub(crate) const QWEN_BASE_URL: &str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+
+// ---------------------------------------------------------------- OpenAI (computer use)
+// The alternate pointing engine (POINTING_PROVIDER="openai"). We run ONE turn of
+// OpenAI's built-in computer-use loop: send the screenshot + the user's ask, take the
+// model's first click action, and point Kairo's cursor/highlight there. We NEVER
+// execute the click — the AI points, the user acts. Key = OPENAI_API_KEY in .env.
+// Model/base are overridable via the env var of the same name (default = these).
+pub(crate) const OPENAI_BASE_URL: &str = "https://api.openai.com";
+pub(crate) const OPENAI_COMPUTER_USE_MODEL: &str = "gpt-5.6";
+// Half-size of the box synthesized around OpenAI's click POINT, as a fraction of the
+// screenshot's longest (resized) edge. computer-use returns a point, not a box, so we
+// draw a small square target around it for the highlight; the cursor uses its center.
+pub(crate) const OPENAI_POINT_BOX_HALF_FRAC: f64 = 0.02;
 
 // ---------------------------------------------------------------- Sarvam speech
 pub(crate) const SARVAM_BASE_URL: &str = "https://api.sarvam.ai";
