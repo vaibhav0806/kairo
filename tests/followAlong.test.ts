@@ -3,6 +3,7 @@ import {
   hammingDistance,
   stillMoving,
   sameScreen,
+  screenReacted,
   clickInBox,
   waitFloorMs,
   parseFollowStep,
@@ -27,6 +28,28 @@ describe('stillMoving / sameScreen thresholds', () => {
     expect(sameScreen(a, [0, 0, 0, 0, 0, 0, 0, 0b11], 28)).toBe(true);       // 2 <= 28
     const many = [0xffffffff, 0x3fff, 0, 0, 0, 0, 0, 0]; // 32 + 14 = 46 bits
     expect(sameScreen(a, many, 28)).toBe(false);
+  });
+});
+
+describe('screenReacted (settle Phase 1 gate)', () => {
+  const baseline = [0, 0, 0, 0, 0, 0, 0, 0]; // the pre-click screen
+  const bigChange = [0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0]; // 64 bits off — a clear reaction
+
+  it('the PLATEAU frame does NOT count as reacted (dialog still open → keep waiting)', () => {
+    // A screen that hasn't changed from the click-moment baseline (or only by noise,
+    // within samescreenBits) is still the OLD screen — must not be screenshotted.
+    expect(screenReacted(baseline, [...baseline], 28)).toBe(false);
+    expect(screenReacted(baseline, [0, 0, 0, 0, 0, 0, 0, 0b11], 28)).toBe(false); // 2 bits ≤ 28
+  });
+
+  it('a clearly different screen counts as reacted (proceed to settle)', () => {
+    expect(screenReacted(baseline, bigChange, 28)).toBe(true);
+  });
+
+  it('is the exact negation of sameScreen', () => {
+    for (const live of [[...baseline], bigChange, [0, 0, 0, 0, 0, 0, 0, 0b111111]]) {
+      expect(screenReacted(baseline, live, 28)).toBe(!sameScreen(baseline, live, 28));
+    }
   });
 });
 

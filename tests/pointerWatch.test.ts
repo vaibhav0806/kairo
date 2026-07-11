@@ -55,7 +55,8 @@ describe('pointerWatch', () => {
     expect(w.pending).toBe(true);
     w.onClick(IN_BOX);
     expect(d.onValidClick).toHaveBeenCalledTimes(1);
-    expect(d.onValidClick).toHaveBeenCalledWith('page-load'); // the pending step's wait
+    // the pending step's wait + the pre-click baseline (the ref the box was drawn on)
+    expect(d.onValidClick).toHaveBeenCalledWith('page-load', REF);
     expect(w.pending).toBe(false);
   });
 
@@ -105,7 +106,7 @@ describe('pointerWatch', () => {
     // pointer is back (guard cleared) → a valid in-box click now advances
     w.onClick(IN_BOX);
     expect(d.onValidClick).toHaveBeenCalledTimes(1);
-    expect(d.onValidClick).toHaveBeenCalledWith('ui-settle');
+    expect(d.onValidClick).toHaveBeenCalledWith('ui-settle', REF);
   });
 
   it('idle-fade fires after idleFadeMs → fadePointer + onIdleFade, pending false', async () => {

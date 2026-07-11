@@ -37,6 +37,12 @@ const rawEnvSchema = z.object({
   FOLLOW_CLICK_PAD_PT: z.coerce.number().default(24), // click tolerance in display points
   FOLLOW_POINTER_IDLE_FADE_MS: z.coerce.number().default(30_000),
   FOLLOW_ARMED_POLL_MS: z.coerce.number().default(800), // armed-watch re-check interval while a pointer waits
+  // Dead-zone floor: min time to wait for a click's on-screen reaction to START
+  // before giving up and capturing anyway. Lifts a mislabeled-too-fast `wait` bucket
+  // so a slow reaction (e.g. a dialog that takes a beat to close) isn't screenshotted
+  // while the OLD screen is still up. The reaction, once started, is ridden out by the
+  // settle-diff loop; a click that genuinely changes nothing falls through after this.
+  FOLLOW_CHANGE_WAIT_MIN_MS: z.coerce.number().default(1_500),
   WAIT_INSTANT_MS: z.coerce.number().default(75),
   WAIT_UI_SETTLE_MS: z.coerce.number().default(400),
   WAIT_PAGE_LOAD_MS: z.coerce.number().default(2_500),
@@ -72,6 +78,7 @@ export type KairoEnv = {
   followClickPadPt: number;
   followPointerIdleFadeMs: number;
   followArmedPollMs: number;
+  followChangeWaitMinMs: number;
   waitInstantMs: number;
   waitUiSettleMs: number;
   waitPageLoadMs: number;
@@ -138,6 +145,7 @@ export function loadKairoEnv(
     followClickPadPt: parsed.FOLLOW_CLICK_PAD_PT,
     followPointerIdleFadeMs: parsed.FOLLOW_POINTER_IDLE_FADE_MS,
     followArmedPollMs: parsed.FOLLOW_ARMED_POLL_MS,
+    followChangeWaitMinMs: parsed.FOLLOW_CHANGE_WAIT_MIN_MS,
     waitInstantMs: parsed.WAIT_INSTANT_MS,
     waitUiSettleMs: parsed.WAIT_UI_SETTLE_MS,
     waitPageLoadMs: parsed.WAIT_PAGE_LOAD_MS,

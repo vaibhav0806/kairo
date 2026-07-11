@@ -32,7 +32,11 @@ export interface PointerWatchDeps {
   captureFrameHash: () => Promise<number[]>;
   fadePointer: () => void;              // hide the pending pointer visually
   reshowPointer: () => void;            // re-show the same pending pointer (glide back)
-  onValidClick: (wait: FollowWait) => void;  // a valid in-box click landed on the pending pointer
+  // A valid in-box click landed on the pending pointer. `baselineHash` is the
+  // pre-click screen (the reference the box was drawn on, kept valid by the click
+  // guard) — the caller uses it to tell "the screen reacted" from "still the old
+  // screen" while settling before its next screenshot.
+  onValidClick: (wait: FollowWait, baselineHash: number[]) => void;
   onIdleFade: () => void;              // the pointer faded due to idle timeout (caller decides what next)
   sleep: (ms: number) => Promise<void>;
   log: (level: string, msg: string, fields?: Record<string, unknown>) => void;
@@ -147,6 +151,9 @@ export function createPointerWatch(d: PointerWatchDeps): PointerWatch {
       clickLatch = true;
       try {
         const w = wait;
+        // Grab the pre-click baseline BEFORE we null it below — the caller settles its
+        // next screenshot against this "screen at click time" frame.
+        const baseline = referenceHash ?? [];
         // VALID: supersede the poll + idle timer, clear pending, hand off. The caller
         // runs its turn and will setPending again for the next step. We do NOT fade here
         // — the caller decides (it typically fades the old pointer before its turn).
@@ -155,7 +162,7 @@ export function createPointerWatch(d: PointerWatchDeps): PointerWatch {
         box = null;
         referenceHash = null;
         d.log('info', 'valid click on pending pointer', { wait: w });
-        d.onValidClick(w);
+        d.onValidClick(w, baseline);
       } finally {
         clickLatch = false;
       }

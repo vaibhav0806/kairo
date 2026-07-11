@@ -14,7 +14,7 @@ import { type NotchAnnotationTool } from './annotationActions';
 import { buildAudioDataUrl } from './audioPlayback';
 import { createBufferedClip, createStreamingClip, type SpeechClip } from './streamingTts';
 import { createPointerWatch, type PointerWatch } from './pointerWatch';
-import { stillMoving, waitFloorMs, type FollowWait, type ScreenRegion } from './followAlong';
+import { screenReacted, stillMoving, waitFloorMs, type FollowWait, type ScreenRegion } from './followAlong';
 import { shouldIdleClose } from './idleClose';
 import type { AskTutorResult } from './notchTutor';
 import { subscribeToNotchPayload } from './notchEvents';
@@ -264,7 +264,7 @@ export function NotchApp() {
   const followFirstPointerRef = useRef(true);
   // A valid click fires the pointer-watch's onValidClick synchronously; it routes
   // into runClickTurn via this ref so the watch can be built before runClickTurn.
-  const runClickTurnRef = useRef<(wait: FollowWait) => void>(() => {});
+  const runClickTurnRef = useRef<(wait: FollowWait, baseline: number[]) => void>(() => {});
   const nativeBridge = useMemo(() => createNativeBridge(), []);
   const env = loadBrowserEnv();
 
@@ -294,8 +294,9 @@ export function NotchApp() {
         }
         void routeVisualTargets(nativeBridge, p.visualTargets, p.bounds, 'glide');
       },
-      // A valid in-box click landed → run the next (click-triggered) turn.
-      onValidClick: (wait) => runClickTurnRef.current(wait),
+      // A valid in-box click landed → run the next (click-triggered) turn, handing
+      // it the pre-click baseline so it can settle against "the screen at click time".
+      onValidClick: (wait, baseline) => runClickTurnRef.current(wait, baseline),
       // The pointer sat untouched for the idle window: it already faded + cleared
       // pending. Drop the native click watch and let the notch idle-close run.
       onIdleFade: () => {
@@ -840,12 +841,25 @@ export function NotchApp() {
     [nativeBridge]
   );
 
-  // Settle after a click: wait the completed target's `wait` floor, then the
-  // settle-diff loop (capture every settlePollMs, break when the frame stops moving,
-  // capped) so we never screenshot a loading page. Lifted from the old controller's
-  // settleThenPlan. Bails if a newer turn supersedes this one.
+  // Settle after a click, in two phases, so we never screenshot the OLD screen nor a
+  // mid-animation frame. `baseline` is the pre-click frame hash (the screen at click
+  // time, from the pointer-watch).
+  //
+  //   Phase 1 — wait for the reaction to START: poll until the live screen differs
+  //   from `baseline` (screenReacted). This kills the "plateau" bug — a screen that
+  //   hasn't reacted yet (dialog still open) reads as "not moving" AND "unchanged", so
+  //   we keep waiting instead of screenshotting the old screen. Budget = the `wait`
+  //   bucket floor, lifted to followChangeWaitMinMs so a mislabeled-too-fast bucket
+  //   can't bail during a slow reaction's dead zone. A click that genuinely changes
+  //   nothing visible falls through after the budget (capture + let the vision turn
+  //   judge). Skipped only if we have no baseline (defensive) — then a plain floor sleep.
+  //
+  //   Phase 2 — wait for it to STOP: the settle-diff loop (capture every settlePollMs,
+  //   break when the frame stops moving, capped), unchanged.
+  //
+  // Bails if a newer turn supersedes this one.
   const settleAfterClick = useCallback(
-    async (wait: FollowWait, turnEpoch: number) => {
+    async (wait: FollowWait, baseline: number[], turnEpoch: number) => {
       const floors = {
         instant: env.waitInstantMs,
         uiSettle: env.waitUiSettleMs,
@@ -853,16 +867,41 @@ export function NotchApp() {
         network: env.waitNetworkMs
       };
       const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-      await sleep(waitFloorMs(wait, floors));
-      if (turnEpochRef.current !== turnEpoch) {
-        return;
+      const superseded = () => turnEpochRef.current !== turnEpoch;
+
+      // Phase 1: wait for the click's on-screen reaction to start.
+      if (baseline.length > 0) {
+        const changeBudget = Math.max(env.followChangeWaitMinMs, waitFloorMs(wait, floors));
+        const startedAt = performance.now();
+        let reacted = false;
+        while (performance.now() - startedAt < changeBudget) {
+          await sleep(env.followSettlePollMs);
+          if (superseded()) return;
+          const live = await nativeBridge.captureFrameHash();
+          if (superseded()) return;
+          if (screenReacted(baseline, live, env.followSamescreenBits)) {
+            reacted = true;
+            break;
+          }
+        }
+        if (!reacted) {
+          klog('follow', 'info', 'no screen reaction within change budget — capturing anyway', {
+            wait,
+            budget_ms: Math.round(changeBudget)
+          });
+          return;
+        }
+      } else {
+        // No baseline to compare against → fall back to the old fixed floor sleep.
+        await sleep(waitFloorMs(wait, floors));
+        if (superseded()) return;
       }
+
+      // Phase 2: the reaction has begun — wait for it to stop moving.
       let prev = await nativeBridge.captureFrameHash();
       for (let i = 0; i < env.followSettleMaxIterations; i += 1) {
         await sleep(env.followSettlePollMs);
-        if (turnEpochRef.current !== turnEpoch) {
-          return;
-        }
+        if (superseded()) return;
         const cur = await nativeBridge.captureFrameHash();
         if (!stillMoving(prev, cur, env.followSettleMovingBits)) {
           break;
@@ -879,6 +918,8 @@ export function NotchApp() {
       env.waitUiSettleMs,
       env.waitPageLoadMs,
       env.waitNetworkMs,
+      env.followChangeWaitMinMs,
+      env.followSamescreenBits,
       env.followSettleMaxIterations,
       env.followSettlePollMs,
       env.followSettleMovingBits
@@ -1310,7 +1351,7 @@ export function NotchApp() {
   // tutor turn with a synthetic "[clicked the highlighted target]" user side + rolling
   // history, then render via playResponseAndArm (which re-arms if it points again).
   const runClickTurn = useCallback(
-    async (wait: FollowWait) => {
+    async (wait: FollowWait, baseline: number[]) => {
       // A click-turn is a new turn: bump the epoch so a voice hold during it supersedes.
       const turnEpoch = (turnEpochRef.current += 1);
       klog('follow', 'info', 'click turn', { wait });
@@ -1356,7 +1397,7 @@ export function NotchApp() {
 
       try {
         // 3. Settle the UI after the click.
-        await settleAfterClick(wait, turnEpoch);
+        await settleAfterClick(wait, baseline, turnEpoch);
         if (turnEpochRef.current !== turnEpoch) return;
         // 4. Capture the settled screen + run the same tutor turn.
         const shot = await nativeBridge.captureScreen();
@@ -1400,8 +1441,8 @@ export function NotchApp() {
 
   // Route the pointer-watch's synchronous onValidClick into the latest runClickTurn
   // without making it a dependency of the once-built watch.
-  runClickTurnRef.current = (wait: FollowWait) => {
-    void runClickTurn(wait);
+  runClickTurnRef.current = (wait: FollowWait, baseline: number[]) => {
+    void runClickTurn(wait, baseline);
   };
 
   // Arm the context watcher for a FINALIZED user drawing, so tab/window switch,
