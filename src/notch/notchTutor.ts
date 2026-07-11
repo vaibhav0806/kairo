@@ -46,8 +46,9 @@ export type AskTutorResult = {
   context: NativeContextBaseline | null;
   // Unified turn (RU5): the SINGLE target the user should click, kept up after
   // narration → the notch arms the pointer-watch instead of idle-closing. null ⇒
-  // today's single/steps behavior. Its box carries the click region; `wait` = settle.
-  awaitClick: { visualTargets: VisualTarget[]; wait: string } | null;
+  // today's single/steps behavior. Its box carries the click region; `wait` = settle;
+  // `button` = which mouse button ('left' default | 'right' for context menus).
+  awaitClick: { visualTargets: VisualTarget[]; wait: string; button: 'left' | 'right' } | null;
   // The user's goal is achieved → celebrate + no pending pointer.
   done: boolean;
   // The frame this answer was grounded on, reused to place the await_click pointer.

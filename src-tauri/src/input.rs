@@ -72,13 +72,13 @@ impl Default for FollowClickWatch {
     }
 }
 
-// Payload for the `input:click` event: a left mouse-down location. `CGEvent::location()`
-// gives global display coordinates; whether those are points or pixels is verified in
-// Phase 6 on the real app (this unit emits the raw value as-is).
+// Payload for the `input:click` event: a mouse-down location + which button was used
+// ("left" | "right"). `CGEvent::location()` gives global display coordinates (points).
 #[derive(serde::Serialize, Clone)]
 struct ClickPoint {
     x: f64,
     y: f64,
+    button: &'static str,
 }
 
 // Low-frequency poll (only costs anything while armed) that catches app switches
@@ -152,15 +152,21 @@ pub(crate) fn spawn_context_input_tap(
                 if context_watch_settled(&watch) {
                     fire_context_reset(&app, &watch, "input");
                 }
-                // Follow-along: emit the click location on a left mouse-down while armed.
-                // `event.location()` is a CGPoint in global display coordinates; whether
-                // those are points or pixels is verified in Phase 6 on the real app.
-                if matches!(event_type, CGEventType::LeftMouseDown)
-                    && follow.armed.load(Ordering::SeqCst)
-                {
-                    let p = event.location();
-                    let _ = app.emit("input:click", ClickPoint { x: p.x, y: p.y });
-                    crate::klog!(follow, debug, x = p.x, y = p.y, "emit input:click");
+                // Follow-along: emit the click location + button on a left OR right
+                // mouse-down while armed. The frontend pointer-watch matches the button
+                // against the step's expected button. `event.location()` is a CGPoint in
+                // global display coordinates (points).
+                let follow_button = match event_type {
+                    CGEventType::LeftMouseDown => Some("left"),
+                    CGEventType::RightMouseDown => Some("right"),
+                    _ => None,
+                };
+                if let Some(button) = follow_button {
+                    if follow.armed.load(Ordering::SeqCst) {
+                        let p = event.location();
+                        let _ = app.emit("input:click", ClickPoint { x: p.x, y: p.y, button });
+                        crate::klog!(follow, debug, x = p.x, y = p.y, button = button, "emit input:click");
+                    }
                 }
                 // Listen-only: never modify the event stream, always keep the event.
                 CallbackResult::Keep

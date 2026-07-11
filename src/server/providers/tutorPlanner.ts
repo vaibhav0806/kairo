@@ -36,7 +36,13 @@ const awaitClickSchema = z.object({
   wait: z
     .string()
     .nullish()
-    .transform((value) => value ?? 'ui-settle')
+    .transform((value) => value ?? 'ui-settle'),
+  // Which mouse button the user must use. Default 'left' → every existing flow is
+  // unchanged; 'right' is for context-menu / right-click tasks.
+  button: z
+    .enum(['left', 'right'])
+    .nullish()
+    .transform((value) => value ?? 'left')
 });
 
 const tutorResponseSchema = z.object({
@@ -202,7 +208,8 @@ export function parseTutorPlannerResponse(rawContent: string, input: TutorTurnIn
   const awaitClick = parsed.awaitClick
     ? {
         visualTargets: safeTargetsOf(parsed.awaitClick.visualTargets).targets,
-        wait: parsed.awaitClick.wait
+        wait: parsed.awaitClick.wait,
+        button: parsed.awaitClick.button
       }
     : null;
 
