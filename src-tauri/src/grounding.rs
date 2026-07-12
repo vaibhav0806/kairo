@@ -1258,6 +1258,14 @@ pub(crate) fn apply_step_targets(
                 .and_then(Value::as_str)
                 .unwrap_or("ui-settle")
                 .to_string();
+            // Which mouse button the step needs. MUST be passed through: the frontend
+            // pointer-watch matches it against the actual click, and a dropped button
+            // defaults to "left" → a right-click step would nudge "left-click instead".
+            let button = ac
+                .get("button")
+                .and_then(Value::as_str)
+                .unwrap_or("left")
+                .to_string();
             let color = sample_accent(&rgb, nb);
             let db = DetectedBox {
                 norm_x1: nb[0],
@@ -1268,7 +1276,7 @@ pub(crate) fn apply_step_targets(
                 color,
             };
             let targets = map_box_to_targets(&db, bounds, 0);
-            Some(json!({ "visualTargets": targets, "wait": wait }))
+            Some(json!({ "visualTargets": targets, "wait": wait, "button": button }))
         })
         .unwrap_or(Value::Null);
     let done = parsed.get("done").and_then(Value::as_bool).unwrap_or(false);
@@ -1364,19 +1372,20 @@ mod step_targets_tests {
     // screenRegion, its wait passed through, done=false, and the steps shaped as today.
     #[test]
     fn unified_await_click_yields_targets_and_passthrough() {
-        let content = r#"{ "steps":[ { "say":"Click New to start.", "box":null } ], "await_click": { "box":[0.10,0.20,0.30,0.28], "wait":"page-load" }, "done": false }"#;
+        let content = r#"{ "steps":[ { "say":"Right-click the file.", "box":null } ], "await_click": { "box":[0.10,0.20,0.30,0.28], "wait":"page-load", "button":"right" }, "done": false }"#;
         let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
         // steps shaped exactly as today: one step, say preserved, null box → no targets.
         let steps = v["steps"].as_array().unwrap();
         assert_eq!(steps.len(), 1);
-        assert_eq!(steps[0]["say"], "Click New to start.");
+        assert_eq!(steps[0]["say"], "Right-click the file.");
         assert!(steps[0]["visualTargets"].as_array().unwrap().is_empty());
-        assert_eq!(v["voiceText"], "Click New to start.");
+        assert_eq!(v["voiceText"], "Right-click the file.");
         assert_eq!(v["mode"], "single");
-        // await_click → non-null with pointer + highlight_box, wait passed through.
+        // await_click → non-null with pointer + highlight_box, wait + button passed through.
         let ac = &v["awaitClick"];
         assert!(!ac.is_null(), "awaitClick must be present");
         assert_eq!(ac["wait"], "page-load");
+        assert_eq!(ac["button"], "right", "await_click.button MUST survive the reshape");
         let targets = ac["visualTargets"].as_array().unwrap();
         let highlight = targets
             .iter()
@@ -1391,6 +1400,15 @@ mod step_targets_tests {
             "await_click also has a pointer target"
         );
         assert_eq!(v["done"], false);
+    }
+
+    // An await_click that omits `button` defaults to "left" (every pre-right-click flow
+    // is unchanged), never null/missing on the emitted awaitClick.
+    #[test]
+    fn await_click_without_button_defaults_to_left() {
+        let content = r#"{ "steps":[ { "say":"Click Save.", "box":null } ], "await_click": { "box":[0.1,0.2,0.3,0.28], "wait":"ui-settle" }, "done": false }"#;
+        let v: Value = serde_json::from_str(&apply_step_targets(content, "", &bounds())).unwrap();
+        assert_eq!(v["awaitClick"]["button"], "left");
     }
 
     // The pre-unified shape (no await_click / done) must reshape byte-identically to
