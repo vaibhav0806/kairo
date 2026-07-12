@@ -576,20 +576,35 @@ pub(crate) fn show_notch_with_payload(
         .map_err(|_| "Failed to lock notch window state.".to_string())?
         .clone()
         .ok_or_else(|| "Notch panel has no backing window.".to_string())?;
+    // The typing prompt (state "captured") is the ONLY notch state that needs the
+    // keyboard — so it's the only one allowed to take the key window. Every other
+    // state (thinking / listening / answer / guide step) just DISPLAYS a card, so it
+    // shows non-key. Taking key elsewhere would steal focus from the user's app and
+    // dismiss any open context menu / dropdown / popover (in ANY app) — see the
+    // right-click guide flow, where the answer card's key-grab killed the menu.
     let is_prompt_mode = payload
         .as_ref()
         .map(|payload| payload.state == "captured")
         .unwrap_or(false);
+    let log_state = payload
+        .as_ref()
+        .map(|payload| payload.state.clone())
+        .unwrap_or_default();
     configure_notch_window(&window, payload.as_ref())?;
     if let Some(payload) = payload {
         store_notch_payload_inner(state, Some(payload.clone()))?;
         emit_notch_payload(&window, payload)?;
     }
-    // Always make the non-activating panel key: it can take keyboard focus and
-    // deliver hover/mouse-move events for the UI without activating the app, so
-    // it stays on the user's current (possibly full-screen) Space.
-    let _ = is_prompt_mode;
-    panel.show_and_make_key();
+    if is_prompt_mode {
+        // Typing box → take key so keystrokes land in the input.
+        panel.show_and_make_key();
+    } else {
+        // Display card → orderFrontRegardless: visible, on top, but NEVER key, so it
+        // can't steal focus or dismiss the user's menus. Same call the pointer overlay
+        // uses for click-through guidance.
+        panel.show();
+    }
+    crate::klog!(notch, debug, state = %log_state, key = is_prompt_mode, "notch show");
 
     Ok(())
 }
