@@ -188,7 +188,7 @@ export function LandingPage() {
               <p className={styles.eyebrow}>Kairo / a tutor inside your software</p>
               <h1 id="landing-title">
                 Learn software <span className={styles.headlineDoing}>by doing.</span>
-                <span className={styles.headlineContrast}>Not watching.</span>
+                {' '}<span className={styles.headlineContrast}>Not watching.</span>
               </h1>
               <p className={styles.heroIntro}>
                 Ask Kairo what to do next. Talk or circle what you mean. Kairo answers aloud with

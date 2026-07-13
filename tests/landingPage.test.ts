@@ -241,6 +241,7 @@ describe('landing page', () => {
 
     expect(html).toMatch(/class="[^"]*headlineDoing[^"]*"/);
     expect(html).toMatch(/class="[^"]*headlineContrast[^"]*"/);
+    expect(html).toMatch(/by doing\.<\/span> <span class="[^"]*headlineContrast[^"]*">Not watching\.<\/span>/);
     expect(css).toMatch(/@media \(min-width:\s*1180px\)[\s\S]*\.hero\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(390px,\s*0\.78fr\) minmax\(0,\s*1\.42fr\);/s);
     expect(css).toMatch(/@media \(min-width:\s*1180px\)[\s\S]*\.headlinedoing\s*\{[^}]*display:\s*block;/s);
     expect(css).toMatch(/@media \(max-width:\s*1179px\)[\s\S]*\.hero\s*\{[^}]*display:\s*block;/s);
