@@ -72,6 +72,11 @@ function ProductPreview() {
           <div><span>03</span><b>Move to frame 40</b><em>Next</em></div>
         </div>
       </div>
+      <ol className={styles.mobileTranscript} aria-label="Mobile lesson summary">
+        <li><span>Ask</span><p>“How do I start animating this cube?”</p></li>
+        <li><span>Step</span><p>Press I and choose Location.</p></li>
+        <li><span>Check</span><p>Cube selected. Next step ready.</p></li>
+      </ol>
       <small>
         Interface capture: <a href="https://www.blender.org/">Blender</a>. Kairo overlays are a product preview.
       </small>

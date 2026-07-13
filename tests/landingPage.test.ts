@@ -190,20 +190,26 @@ describe('landing page', () => {
     expect(css).not.toContain('radial-gradient');
   });
 
-  test('gives verification states responsive inner spacing', () => {
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+  test('uses a full-width field-guide hero with unboxed text actions', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 
-    expect(css).toMatch(/\.checkRow\s*\{[^}]*padding:\s*22px 24px;/s);
-    expect(css).toMatch(/@media \(max-width:\s*640px\)[\s\S]*\.checkRow\s*\{[^}]*padding:\s*18px 16px;/);
+    expect(css).toContain('--graphite:');
+    expect(css).toMatch(/\.hero\s*\{[^}]*display:\s*block;/s);
+    expect(css).not.toMatch(/\.hero\s*\{[^}]*grid-template-columns:/s);
+    expect(css).toMatch(/\.primaryaction,[\s\S]*?\.secondaryaction\s*\{[^}]*background:\s*transparent;[^}]*border:\s*0;/s);
+    expect(css).toMatch(/\.landingpage button,[\s\S]*?min-height:\s*44px;/s);
   });
 
-  test('keeps chapter visual details visible when reduced motion is enabled', () => {
+  test('styles one continuous lesson spine and connected skill layers', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-    const reducedMotionCss = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
 
-    expect(reducedMotionCss).toMatch(
-      /\.landingpage\s+\[data-reveal\]\s+\.chaptervisual\s*>\s*\*\s*\{[^}]*opacity:\s*1\s*!important;[^}]*transform:\s*none\s*!important;[^}]*transition:\s*none\s*!important;[^}]*\}/
-    );
+    expect(css).toMatch(/\.lessonspine\s*\{[^}]*border-left:\s*1px solid var\(--line-strong\);/s);
+    expect(css).toMatch(/\.skilllayers\s*\{[^}]*grid-template-columns:/s);
+    expect(css).toMatch(/\.productskilllayer\s*\{[^}]*border-left:\s*1px solid var\(--line-strong\);/s);
+    expect(css).not.toContain('.chaptervisual');
+    expect(css).not.toContain('.faketoolbar');
+    expect(css).not.toContain('.trustcolumns');
+    expect(css).not.toContain('.principles');
   });
 
   test('styles waitlist messages through CSS module classes', () => {
@@ -215,22 +221,29 @@ describe('landing page', () => {
     expect(css).not.toContain('#waitlist-note');
   });
 
-  test('keeps mobile product-preview labels readable', () => {
+  test('simplifies the native-ratio preview on mobile with a compact transcript', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-    const mobileCss = css.slice(css.indexOf('@media (max-width: 760px)'));
+    const mobileCss = css.slice(css.indexOf('@media (max-width: 640px)'));
 
-    expect(mobileCss).toMatch(/\.learnerask b\s*\{[^}]*font-size:\s*0\.55rem;/);
-    expect(mobileCss).toMatch(/\.progressrail\s*\{[^}]*font-size:\s*0\.55rem;/);
-    expect(mobileCss).toMatch(/\.kairotarget span\s*\{[^}]*font-size:\s*0\.55rem;/);
-    expect(mobileCss).toMatch(/\.guidenotch\s*\{[^}]*top:\s*54px;/);
-    expect(mobileCss).toMatch(/\.voiceresponse\s*\{[^}]*bottom:\s*116px;/);
+    expect(html).toContain('aria-label="Mobile lesson summary"');
+    expect(html).toContain('Ask');
+    expect(html).toContain('Step');
+    expect(html).toContain('Check');
+    expect(css).toMatch(/\.mobiletranscript\s*\{[^}]*display:\s*none;/s);
+    expect(mobileCss).toMatch(/\.mobiletranscript\s*\{[^}]*display:\s*grid;/s);
+    expect(mobileCss).toMatch(/\.softwareframe\s*\{[^}]*aspect-ratio:\s*3560 \/ 1972;/s);
+    expect(mobileCss).toMatch(/\.learnerask,[\s\S]*?\.progressrail\s*\{[^}]*display:\s*none;/s);
+    expect(mobileCss).toMatch(/\.skilllayers\s*\{[^}]*grid-template-columns:\s*1fr;/s);
+    expect(mobileCss).toMatch(/\.productskilllayer\s*\{[^}]*border-left:\s*0;/s);
   });
 
-  test('keeps the desktop hero heading responsive to its column', () => {
+  test('keeps only the hero display-sized and scales it with the viewport', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 
-    expect(css).toMatch(/\.herocopy\s*\{[^}]*container-type:\s*inline-size;/);
-    expect(css).toMatch(/\.landingpage h1\s*\{[^}]*font-size:\s*clamp\(3\.5rem,\s*17cqi,\s*7rem\);/);
+    expect(css).toMatch(/\.landingpage h1\s*\{[^}]*font-size:\s*clamp\(/s);
+    expect(css).toMatch(/\.sectionheader h2,[\s\S]*?\.access h2\s*\{[^}]*font-size:\s*clamp\(/s);
+    expect(css).not.toContain('17cqi');
   });
 
 });
