@@ -23,6 +23,7 @@
 - `src/landing/LandingPage.tsx`: new story, lesson spine, product-skills model, trust note, waitlist copy, observer targets.
 - `src/landing/LandingPage.module.css`: Warm Field Guide layout, typography, compact product states, responsive behavior, causal motion.
 - `tests/landingPage.test.ts`: product-promise, content structure, motion, image, form, and accessibility contracts.
+- `tests/landingWaitlist.test.ts`: interactive waitlist labels and local-only submission behavior.
 
 ---
 
@@ -31,14 +32,15 @@
 **Files:**
 - Modify: `src/landing/LandingPage.tsx`
 - Modify: `tests/landingPage.test.ts`
+- Modify: `tests/landingWaitlist.test.ts`
 
 - [ ] Add failing tests for the exact five-beat order: `You ask or point`, `Kairo understands`, `One next step`, `You do it`, `Kairo checks`.
 - [ ] Add failing tests for the exact universal-versus-product-skill model, all four product examples, and the closing any-software statement.
 - [ ] Add failing absence checks for the old `Talk / Draw / Understand / Guide / Verify` strip, four fabricated app stages, principles grid copy, and three trust-card headings.
-- [ ] Add failing tests for the revised human hero labels, CTA copy, differentiation statement, waitlist heading, and mock disclosure.
+- [ ] Add failing tests for the revised human hero labels, explicit spoken Kairo response, CTA copy, differentiation statement, waitlist heading, and mock disclosure.
 - [ ] Replace the old page sections with the header, full-width hero, immediate differentiation, one Figma lesson spine, two-layer product-skills model, compact trust note, and waitlist defined in the design specification.
 - [ ] Retain `ProductPreview`, form validation, success state, role buttons, and semantic landmarks.
-- [ ] Run `npx vitest run tests/landingPage.test.ts` and `npm run typecheck`.
+- [ ] Run `npx vitest run tests/landingPage.test.ts tests/landingWaitlist.test.ts` and `npm run typecheck`.
 - [ ] Commit as `feat: rebuild the landing page around one lesson`.
 
 ### Task 2: Apply the Warm Field Guide visual system
@@ -50,6 +52,7 @@
 - [ ] Add failing CSS contracts for full-width hero flow, warm graphite, restrained semantic colors, unboxed text CTAs, lesson spine, stacking skills layers, and mobile behavior.
 - [ ] Remove styling for deleted feature grids and fabricated app interfaces.
 - [ ] Implement the full-width editorial hero above the native-ratio product canvas.
+- [ ] Add a simplified mobile preview state: keep the native-ratio capture, hide nonessential overlapping desktop cards, and render a compact ask/step/check transcript below it.
 - [ ] Implement one continuous lesson spine with compact learner, Kairo, action, and verified states.
 - [ ] Implement the base-tutor and product-skill layers with rules and spacing instead of cards.
 - [ ] Replace the three trust cards with one compact ruled note.
@@ -66,9 +69,10 @@
 - Modify: `tests/landingPage.test.ts`
 
 - [ ] Add failing tests that reject `data-reveal`, generic section fade-up keyframes, and software-row slide-in keyframes.
-- [ ] Add failing tests for the ordered lesson-state motion target and final readable reduced-motion state.
-- [ ] Replace the generic reveal observer with an observer for the lesson sequence only; keep the hero preview visibility and page-visibility controls.
-- [ ] Animate the five lesson states in causal order using short opacity/position changes.
+- [ ] Add failing tests for an accessible `Pause demo` / `Play demo` control, individually observed lesson steps, and the final readable reduced-motion state.
+- [ ] Replace the generic reveal observer with observation of each lesson step; keep the hero preview visibility and page-visibility controls.
+- [ ] Animate each lesson state as it reaches the reading position, preserving causal order with short opacity/position changes.
+- [ ] Add a user-controlled paused state to the hero demo and apply it to all looping hero animations.
 - [ ] Keep marketing copy and software rows static.
 - [ ] Ensure the hero demo pauses offscreen and when the page is hidden.
 - [ ] Ensure `prefers-reduced-motion` renders final product states without transitions or animation.
@@ -83,8 +87,8 @@
 - [ ] Run `npm test`, `npm run typecheck`, `npm run build`, and `git diff --check`.
 - [ ] Verify no stale Blender-first or generic AI-assistant language remains outside the labeled hero example and skills row.
 - [ ] Verify the high-resolution image asset, native aspect ratio, overlay alignment contracts, keyboard focus, form labels/errors, and mock disclosure.
-- [ ] Verify the design at wide desktop, 100% laptop scale, tablet, and mobile in the web-only Vite route when a browser backend is available.
-- [ ] If browser control remains unavailable, report that limitation explicitly and request one refreshed screenshot rather than claiming visual verification.
+- [ ] Verify the design at wide desktop, 100% laptop scale, tablet, and mobile in the web-only Vite route.
+- [ ] If browser control remains unavailable, report that limitation explicitly and request one refreshed screenshot for required visual sign-off rather than claiming visual verification.
 - [ ] Request an independent spec/code review and resolve any concrete issue.
 - [ ] Commit only if review or verification requires a fix.
 

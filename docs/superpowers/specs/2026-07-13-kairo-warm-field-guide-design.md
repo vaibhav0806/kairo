@@ -32,7 +32,7 @@ Use a full-width editorial introduction above the product preview. Do not split 
 
 - Eyebrow: `Kairo / a tutor inside your software`
 - Headline: `Learn software by doing. Not watching.`
-- Intro: `Ask Kairo what to do next. Talk or circle what you mean. It points to one control, waits while you do it, then checks the result before moving on.`
+- Intro: `Ask Kairo what to do next. Talk or circle what you mean. It answers aloud with one next step, waits while you do it, then checks the result before moving on.`
 - Primary text action: `Join the Mac alpha ↗`
 - Secondary text action: `See one complete lesson ↓`
 
@@ -65,7 +65,7 @@ Show a single continuous Figma lesson as a vertical lesson spine. It must preser
 
 1. `You ask or point` — `Why won't these cards resize with the frame?`
 2. `Kairo understands` — `Cards / horizontal resizing`
-3. `One next step` — `Set horizontal resizing to Fill container.`
+3. `One next step` — `Set horizontal resizing to Fill container.` Kairo speaks this response aloud and the compact voice waveform remains visible.
 4. `You do it` — `Changed to Fill container.`
 5. `Kairo checks` — `Cards resize with the frame. Next step ready.`
 
@@ -113,7 +113,7 @@ Include the honest limitation that AI can make mistakes, but keep it secondary.
 
 ### Waitlist
 
-- Heading: `What software do you want to learn?`
+- Heading: `Bring the software you want to learn.`
 - Copy: `Join the Mac alpha and bring the software you already use.`
 - Button: `Join the alpha`
 - Preserve the current mock-only email validation and explicit preview-mode disclosure.
@@ -157,7 +157,8 @@ Use a Warm Field Guide system: warm paper, warm graphite, restrained technical r
 Motion must explain product causality, not decorate sections.
 
 - Keep the hero demonstration loop and pause it when offscreen or when the page is hidden.
-- Reveal the five lesson states in causal order when the lesson enters view.
+- Provide an accessible `Pause demo` / `Play demo` control for the looping hero sequence.
+- Reveal each of the five lesson states as that individual step reaches the reading position, while preserving causal order.
 - Use 200–420ms state transitions with small movement and opacity changes.
 - Remove generic whole-section fade-ups and software-row slide-ins.
 - In reduced-motion mode, render the final readable state immediately.
@@ -167,6 +168,7 @@ Motion must explain product causality, not decorate sections.
 
 - The hero headline must scale with the viewport and preserve deliberate line breaks without creating a narrow column.
 - The preview retains its native `3560 / 1972` coordinate system at every width.
+- On small screens, simplify the in-canvas overlays and show the ask/step/check transcript immediately below the image; do not squeeze every desktop overlay into the 16:9 canvas.
 - The lesson spine becomes single-column naturally; it must not rely on fixed-height fake stages.
 - The two skills layers stack on small screens while preserving their relationship and order.
 - All controls retain a 44px minimum target size.
