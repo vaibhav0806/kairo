@@ -11,16 +11,16 @@ export function validateWaitlistEmail(value: string): string | null {
 }
 
 const skills = [
-  ['Blender', 'modelling, animation, materials, rendering', 'model'],
-  ['Photoshop', 'layers, masks, retouching, compositing', 'image'],
-  ['DaVinci Resolve', 'editing, color, audio, delivery', 'edit'],
-  ['Figma', 'layout, components, prototyping', 'layout']
+  ['Blender', 'modelling, animation, materials, rendering', 'model', 'creative-3d.jpg', 'A vivid abstract 3D render'],
+  ['Photoshop', 'layers, masks, retouching, compositing', 'image', 'creative-design.jpg', 'A visual design project open on a desktop screen'],
+  ['DaVinci Resolve', 'editing, color, audio, delivery', 'edit', 'creative-edit.jpg', 'A close-up of a video editing timeline'],
+  ['Figma', 'layout, components, prototyping', 'layout', 'creative-layout.jpg', 'A bright laptop canvas ready for a visual layout']
 ] as const;
 
 const learningScenes = [
-  ['01', 'Ask / Figma', 'layout', 'Circle the thing that doesn’t make sense.', 'learner'],
-  ['02', 'Guide / Photoshop', 'image', 'Kairo points to one next step.', 'kairo'],
-  ['03', 'Check / DaVinci Resolve', 'edit', 'You do it. Kairo checks what changed.', 'verified']
+  ['01', 'Ask / 3D', 'model', 'Circle the thing that doesn’t make sense.', 'learner', 'creative-3d.jpg', 'Colorful abstract 3D artwork by Steve A Johnson', 'Steve A Johnson', 'https://www.pexels.com/photo/vibrant-abstract-3d-render-with-gradient-colors-34204383/'],
+  ['02', 'Guide / visual design', 'image', 'Kairo points to one next step.', 'kairo', 'creative-design.jpg', 'A visual design workspace photographed by Tranmautritam', 'Tranmautritam', 'https://www.pexels.com/photo/full-frame-shot-of-computer-326514/'],
+  ['03', 'Check / video editing', 'edit', 'You do it. Kairo checks what changed.', 'verified', 'creative-edit.jpg', 'A video editing timeline photographed by Vito Goričan', 'Vito Goričan', 'https://www.pexels.com/photo/close-up-shot-of-a-computer-screen-6253568/']
 ] as const;
 
 interface ProductPreviewProps {
@@ -103,7 +103,7 @@ function LearningRunway() {
     return () => observer.disconnect();
   }, []);
 
-  const [number, app, mode, copy] = learningScenes[activeScene];
+  const [number, app, mode, copy, , , , creator, sourceUrl] = learningScenes[activeScene];
 
   return (
     <section id="lesson" className={styles.runway} aria-labelledby="runway-title">
@@ -113,30 +113,40 @@ function LearningRunway() {
         <p>One clear move at a time.</p>
       </header>
       <div className={styles.lessonShowcase} data-active-scene={activeScene}>
-        <div className={styles.lessonCanvas} role="img" aria-label={`${app}: ${copy}`}>
+        <div className={styles.lessonCanvas}>
           <div className={styles.canvasTopline}>
             <span>{number} / live lesson</span>
             <b>{app}</b>
             <em>{activeScene === 0 ? 'You point' : activeScene === 1 ? 'Kairo guides' : 'You try'}</em>
           </div>
           <div className={styles.canvasField} data-mode={mode}>
-            <span className={styles.canvasWindow} />
-            <span className={styles.canvasGrid} />
-            <span className={styles.canvasLayout}><i /><i /><i /><i /></span>
-            <span className={styles.canvasCircle} />
-            <span className={styles.canvasLayers}><i /><i /><i /><i /></span>
-            <span className={styles.canvasTarget} />
-            <span className={styles.canvasCursor}>➤</span>
-            <span className={styles.canvasTimeline}><i /><i /><i /><i /><i /></span>
-            <span className={styles.canvasCheck}>✓</span>
+            {learningScenes.map(([, sceneApp, , , , image, alt], index) => (
+              <img
+                className={styles.canvasMedia}
+                src={`${import.meta.env.BASE_URL}${image}`}
+                alt={activeScene === index ? alt : ''}
+                aria-hidden={activeScene !== index}
+                data-scene={index}
+                data-active={activeScene === index}
+                key={sceneApp}
+              />
+            ))}
+            <span className={styles.canvasShade} aria-hidden="true" />
+            <span className={styles.canvasCircle} aria-hidden="true" />
+            <span className={styles.canvasLayers} aria-hidden="true"><i /><i /><i /><i /></span>
+            <span className={styles.canvasTarget} aria-hidden="true" />
+            <span className={styles.canvasCursor} aria-hidden="true">➤</span>
+            <span className={styles.canvasTimeline} aria-hidden="true"><i /><i /><i /><i /><i /></span>
+            <span className={styles.canvasCheck} aria-hidden="true">✓</span>
           </div>
           <div className={styles.canvasCaption}>
             <span>{number}</span>
             <p>{copy}</p>
           </div>
+          <small className={styles.canvasCredit}>Image: <a href={sourceUrl}>{creator}</a> / Pexels</small>
         </div>
         <ol className={styles.learningSteps} aria-label="Kairo lesson sequence">
-        {learningScenes.map(([number, app, mode, copy, tone], index) => (
+        {learningScenes.map(([number, app, , copy, tone], index) => (
           <li
             className={styles.learningScene}
             data-scroll="learning-scene"
@@ -164,6 +174,7 @@ export function LandingPage() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const [role, setRole] = useState<WaitlistRole | null>(null);
+  const [selectedApp, setSelectedApp] = useState<(typeof skills)[number][0]>('Blender');
 
   const handleWaitlistSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -289,16 +300,22 @@ export function LandingPage() {
             </div>
           </header>
           <ul className={styles.skillGrid} aria-label="Examples of apps Kairo can guide in">
-            {skills.map(([software, knowledge, mode], index) => (
+            {skills.map(([software, knowledge, mode, image, alt], index) => (
               <li className={styles.skillTile} data-scroll="skill-row" data-scroll-index={index} data-mode={mode} key={software}>
-                <span className={styles.skillTileMark} aria-hidden="true" />
-                <span className={styles.skillTileArt} aria-hidden="true"><i /><i /><i /><i /></span>
-                <h3>{software}</h3>
-                <p>{knowledge}</p>
+                <div className={styles.skillTileVisual}>
+                  <img src={`${import.meta.env.BASE_URL}${image}`} alt={alt} />
+                  <span className={styles.skillTileMark} aria-hidden="true" />
+                  <span className={styles.skillTileArt} aria-hidden="true"><i /><i /><i /><i /></span>
+                </div>
+                <div className={styles.skillTileCopy}>
+                  <h3>{software}</h3>
+                  <p>{knowledge}</p>
+                </div>
               </li>
             ))}
           </ul>
           <p className={styles.anySoftware}>Don’t see your app? Kairo can still help from what’s on your screen.</p>
+          <p className={styles.mediaCredits}>Images: <a href="https://www.pexels.com/photo/vibrant-abstract-3d-render-with-gradient-colors-34204383/">Steve A Johnson</a>, <a href="https://www.pexels.com/photo/full-frame-shot-of-computer-326514/">Tranmautritam</a>, <a href="https://www.pexels.com/photo/close-up-shot-of-a-computer-screen-6253568/">Vito Goričan</a>, and <a href="https://www.pexels.com/photo/a-laptop-with-a-blank-white-screen-8534464/">Hanna Pad</a> / Pexels.</p>
         </section>
 
         <section id="trust" className={styles.trust} data-scroll="trust" aria-labelledby="trust-title">
@@ -321,7 +338,20 @@ export function LandingPage() {
           </div>
           <div className={styles.accessShell} data-scroll="access-form">
             <div className={styles.accessMarks} aria-hidden="true"><i /><i /><i /><i /></div>
-            <p>Join the early group and tell us which app you want help with.</p>
+            <p>Pick an app. We’ll start there.</p>
+            <fieldset className={styles.appChooser}>
+              <legend>What do you want to learn first?</legend>
+              {skills.map(([software]) => (
+                <button
+                  type="button"
+                  aria-pressed={selectedApp === software}
+                  onClick={() => setSelectedApp(software)}
+                  key={software}
+                >
+                  {software}
+                </button>
+              ))}
+            </fieldset>
             {submittedEmail ? (
               <div className={styles.waitlistSuccess} aria-live="polite">
                 <strong>Preview complete.</strong>

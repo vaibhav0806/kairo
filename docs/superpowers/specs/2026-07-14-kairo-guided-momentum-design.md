@@ -1,129 +1,118 @@
-# Kairo Color Signal Landing Page
+# Kairo Live Creative Wall
 
 Date: 2026-07-14
-Status: proposed design
+Status: approved product direction
 
 ## Objective
 
-Replace Kairo's polished-but-muted landing page with a crisp, optimistic
-product experience. It must feel like a modern creative tool in motion: bold,
-screen-native, and unmistakably about learning by doing.
+Turn Kairo's clean but restrained landing page into a visual AI-product launch.
+The site must feel energetic before the visitor reads: real creative imagery,
+recognisable software work, and motion that demonstrates Kairo's teaching loop.
 
-The previous warm editorial direction is deliberately retired. More movement
-and color must reveal product behavior, not become generic AI decoration.
+The crisp white/off-white base remains. The previous abstract black wireframes
+and large decorative app tiles are retired because they look like a design
+system rather than product proof.
 
-## Visual direction: Color Signal
+## Signature
 
-Kairo uses a near-white canvas and high-contrast black typography. The product
-states become the visual identity:
+The page is remembered for one recurring living mark:
 
-- learner input — orange `#FF6547`;
-- Kairo guidance — violet `#8B79FF`;
-- verified progress — green `#78CAAA`;
-- active learning / app discovery — electric blue `#3078FF`.
+`orange annotation → violet guidance → green check`
 
-Colors appear in larger, geometric marks: targets, underlines, progress
-segments, scene tabs, cursor paths, and confirmation panels. They never become
-background auroras, gradients, glass effects, or arbitrary decoration.
+That sequence travels across the hero, creative imagery, software examples,
+and closing action. It is Kairo's visual explanation of learning by doing.
 
-## Hero: a bright live desk
+## Visual system
 
-Keep the split hero and genuine Blender product preview. Surround it with a
-compact signal system that makes the product feel active before the user
-scrolls:
+- Canvas: near-white `#FCFCFA` and cool off-white `#F3F5F2`.
+- Ink: `#151515`.
+- Learner input: orange `#FF6547`.
+- Kairo guidance: violet `#8B79FF`.
+- Verified progress: green `#78CAAA`.
+- Active controls: electric blue `#3078FF`.
+- Product screens may use graphite `#171717` for contrast.
 
-1. an orange `You ask` marker originates beside the headline;
-2. a violet guide path crosses toward the preview and resolves at the target;
-3. a green `Step checked` marker settles below the preview;
-4. a thin blue lesson counter carries the flow from 01 to 03.
+Color appears in confident blocks, annotations, targets, progress, and image
+frames. Do not add generic gradient auroras, glass cards, or neon glows.
 
-The heading, description, and actions remain plain and readable. The signals
-are visual proof rather than extra explanatory copy. The hero animation loops
-only while visible, pauses when requested, and respects reduced motion.
+## Hero
 
-## Main product sequence: a visual lesson runway
+Keep the split hero and real Blender screenshot, but make it behave like a live
+product trailer:
 
-Follow the hero with a horizontal-to-vertical sequence of three product scenes.
-It is the page's energetic centre rather than a generic feature grid.
+1. the screenshot stays sharp and stable;
+2. the learner's orange circle draws around the selected object;
+3. the violet Kairo target and spoken step arrive;
+4. the lesson rail resolves to a green checked state before looping.
 
-### Scene 01 — Ask / Figma
+The headline and supporting copy stay short. On mobile, a compact product strip
+must enter the first viewport rather than leaving the fold text-only.
 
-An off-white interface fragment shows a layout question. An orange drawn mark
-and label identify the confusing area. Supporting copy: `Circle the thing that
-doesn't make sense.`
+## Creative wall
 
-### Scene 02 — Guide / Photoshop
+Add four licensed Pexels images representing what visitors want to learn to
+make, not generic stock portraits:
 
-A darker image-editing interface fragment shows a violet Kairo target, a short
-spoken instruction, and a cursor that stops before clicking. Supporting copy:
-`Kairo points to one next step.`
+- vivid 3D output — Steve A Johnson;
+- a real visual-design workspace — Tranmautritam;
+- a real video-editing timeline — Vito Goričan.
+- a bright blank design canvas — Hanna Pad.
 
-### Scene 03 — Check / DaVinci Resolve
+Images are downloaded locally, resized to 1600px, credited, given fixed aspect
+ratios, and used as learning surfaces. Kairo overlays sit above them; the site
+does not imply the underlying images are Kairo outputs or customer work.
 
-A timeline-like interface fragment shows a green completion rail and a checked
-result. Supporting copy: `You do it. Kairo checks what changed.`
+## Scroll story
 
-Each scene uses stylised CSS/SVG product fragments, not a fabricated complete
-application screenshot. Captions call them examples. The exact live-product
-claim remains limited to the existing Blender demonstration.
+Replace the generic wireframe lesson canvas with one sticky media stage. As the
+visitor scrolls through the three numbered beats, the stage crossfades between
+the 3D, design, and editing images while the same teaching sequence advances:
 
-## Motion
+1. `Ask` — the orange hand-drawn mark identifies the confusing area.
+2. `See the next step` — the violet target and cursor land on a control.
+3. `Try it` — the timeline advances and a green check confirms the result.
 
-The learning order is visible:
+Each beat has one sentence. The image and overlay carry the explanation.
 
-- orange annotation strokes draw first;
-- violet target and cursor follow;
-- green verified state arrives only at the end;
-- blue progress marker advances between scenes.
+## App examples
 
-Scroll motion runs once per scene using the existing observer structure. It
-only animates transforms, opacity, and SVG stroke progress; every scene remains
-readable in its final state with JavaScript disabled or reduced motion enabled.
+The app section becomes four compact visual windows instead of oversized
+poster cards. Each window has one recognisable visual fragment and a small
+motion demonstration:
 
-There is no parallax, scroll-jacking, animated background, auto-scrolling
-marquee, blur, or autoplay audio. Motion is 300–400ms for a scene entrance and
-100–150ms for interactive feedback.
+- Blender: selection/orbit;
+- Photoshop: layer reveal;
+- DaVinci Resolve: moving playhead;
+- Figma: frame reflow.
 
-## Skills: product map instead of a passive table
+Micro-demos run when the tile enters the viewport and replay on hover/focus.
+Text remains stationary. No invented availability claims are added.
 
-The skills section becomes a clean white product map that follows the runway.
-Each application is a vivid but compact tile connected to a learning mode:
+## Closing
 
-- Blender — model;
-- Photoshop — image;
-- DaVinci Resolve — edit;
-- Figma — layout.
+The dark control section remains as a deliberate contrast beat. The waitlist
+becomes a brighter final composition with app-choice chips and a strong submit
+state so the page ends with momentum rather than a thin form line.
 
-Tiles expose the existing honest descriptions and animate their color mark into
-place on scroll. Do not add availability labels, fake integrations, customer
-logos, testimonials, or invented results.
+## Motion and accessibility
 
-## Quiet finish
-
-Trust and early-access sections return to mostly neutral off-white with small
-semantic signals only. This release of visual density gives the waitlist form a
-clear, trustworthy finish after the energetic product story.
-
-## Technical boundaries
-
-- Preserve React/Vite structure, isolated landing styles, current waitlist
-  mock, primary Blender image, semantic color roles, visible focus, and
-  reduced-motion fallback.
-- Do not add a design, animation, or image package. Use local React, CSS, and
-  SVG only.
-- Do not modify Tauri routes or native WebView styles.
-- Product visuals reserve their own dimensions and must not cause layout shift.
-- Test at 1440px, 1280px, 768px, and 390px. No horizontal clipping, text
-  overlap, or hidden structural content is acceptable.
+- Animate transforms, opacity, SVG stroke progress, and object-position only.
+- Hero motion pauses offscreen, in hidden tabs, and via the existing control.
+- Scroll media crossfades are 300–400ms; interaction feedback is 100–150ms.
+- Ambient motion must never block reading or input.
+- Reduced motion renders every visual in a stable final state and hides the
+  pause control.
+- Structural text and the waitlist form are never hidden before observation.
 
 ## Acceptance criteria
 
-- The hero visibly communicates learner → guide → verified through color and
-  motion before a visitor reaches the first scroll section.
-- The first two page lengths show three materially different, visual Kairo
-  learning moments across multiple applications.
-- The skills area reads as an active product map instead of a static table.
-- The full page feels more upbeat and distinctive in visual review while
-  preserving clarity and trust.
-- All color meaning is duplicated with visible labels; reduced motion renders
-  the completed, readable page; focused tests and production build pass.
+- The first viewport includes a visually active product demo on desktop and
+  mobile.
+- At least four locally hosted, licensed images appear in the page.
+- The sticky lesson stage visibly changes image and overlay state during normal
+  scrolling at 1440px and 390px.
+- Every app tile has a distinct, visible micro-demo.
+- The page has no horizontal overflow, clipped copy, or blank scroll zones at
+  1440px, 768px, and 390px.
+- All existing tests plus new landing assertions pass, and the production
+  build succeeds.

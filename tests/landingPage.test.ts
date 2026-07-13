@@ -72,7 +72,7 @@ describe('landing page', () => {
 
   test('renders a visual runway in causal order', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
-    const beats = ['Ask / Figma', 'Guide / Photoshop', 'Check / DaVinci Resolve'];
+    const beats = ['Ask / 3D', 'Guide / visual design', 'Check / video editing'];
     const beatPositions = beats.map((beat) => html.indexOf(beat));
 
     beatPositions.forEach((position) => expect(position).toBeGreaterThan(-1));
@@ -130,9 +130,27 @@ describe('landing page', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
 
     expect(html).toContain('What do you want to learn?');
-    expect(html).toContain('Join the early group and tell us which app you want help with.');
+    expect(html).toContain('Pick an app. We’ll start there.');
+    expect(html).toContain('<legend>What do you want to learn first?</legend>');
+    expect(html).toContain('aria-pressed="true">Blender</button>');
     expect(html).toContain('<button type="submit">Join the alpha</button>');
     expect(html).toContain('Preview mode. This form does not send or store your email yet.');
+  });
+
+  test('uses local, credited creative-work imagery throughout the lesson wall', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+
+    ['creative-3d.jpg', 'creative-design.jpg', 'creative-edit.jpg', 'creative-layout.jpg'].forEach((filename) => {
+      const image = readFileSync(`public/${filename}`);
+      expect(html).toContain(filename);
+      expect(image.byteLength).toBeGreaterThan(50_000);
+      expect(image.toString('hex', 0, 2)).toBe('ffd8');
+    });
+    expect(html).toContain('Steve A Johnson');
+    expect(html).toContain('Tranmautritam');
+    expect(html).toContain('Vito Goričan');
+    expect(html).toContain('Hanna Pad');
+    expect(html).toContain('/ Pexels');
   });
 
   test('uses a high-resolution Blender source with cube-aligned overlays', () => {
@@ -184,15 +202,15 @@ describe('landing page', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 
-    ['You ask', 'Kairo guides', 'Step checked', 'Ask / Figma', 'Guide / Photoshop', 'Check / DaVinci Resolve'].forEach((label) => {
+    ['You ask', 'Kairo guides', 'Step checked', 'Ask / 3D', 'Guide / visual design', 'Check / video editing'].forEach((label) => {
       expect(html).toContain(label);
     });
     expect(html.match(/data-scroll="learning-scene"/g)).toHaveLength(3);
     expect(html).toContain('aria-label="Kairo lesson sequence"');
-    expect(html).toContain('role="img"');
+    expect(html).toContain('data-active="true"');
     expect(css).toMatch(/\.lessonshowcase\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.25fr\) minmax\(300px,\s*0\.75fr\);/s);
     expect(css).toContain(".lessonshowcase[data-active-scene='0']".toLowerCase());
-    expect(css).toContain('.canvaslayout');
+    expect(css).toContain('.canvasmedia');
     expect(css).toContain('.canvastimeline');
     expect(css).toContain(".learningScene[data-tone='learner']".toLowerCase());
     expect(css).toContain(".learningScene[data-tone='kairo']".toLowerCase());
@@ -235,12 +253,11 @@ describe('landing page', () => {
     const runningRule = css.match(/\.landingPage\[data-motion-ready='true'\]\[data-demo-active='true'\]\[data-page-visible='true'\]\[data-demo-paused='false'\][\s\S]*?\{[^}]*animation-play-state:\s*running;[^}]*\}/s)?.[0] ?? '';
 
     expect(html).toContain('type="button"');
-    expect(html).not.toContain('aria-pressed="false"');
     expect(html).toContain('Pause demo');
     expect(source).toContain('data-demo-paused={demoPaused}');
     expect(source).toContain("page.dataset.demoActive = String(entry.isIntersecting)");
     expect(source).toContain("page.dataset.pageVisible = String(!document.hidden)");
-    ['learnerAsk', 'learnerAnnotation', 'kairoTarget', 'kairoCursor', 'notch', 'progressRail', 'verified', 'wave'].forEach((className) => {
+    ['learnerAsk', 'learnerAnnotation', 'kairoTarget', 'kairoCursor', 'wave'].forEach((className) => {
       expect(runningRule).toContain(`.${className}`);
     });
   });
