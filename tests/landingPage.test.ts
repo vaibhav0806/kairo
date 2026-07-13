@@ -190,6 +190,50 @@ describe('landing page', () => {
     expect(css).not.toContain('radial-gradient');
   });
 
+  test('keeps marketing static and reveals each lesson state at its reading position', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+
+    expect(html.match(/data-lesson-step=/g)).toHaveLength(5);
+    expect(html).not.toContain('data-reveal');
+    expect(source).not.toContain('revealObserver');
+    expect(source).toContain("querySelectorAll('[data-lesson-step]')");
+    expect(source).toMatch(/querySelectorAll\('\[data-lesson-step\]'\)[\s\S]*\.map\(\(step\) =>[\s\S]*new IntersectionObserver/);
+    expect(source).toContain("rootMargin: '0px 0px -45% 0px'");
+    expect(source).toContain('lessonStepElements.slice(0, stepIndex + 1)');
+    expect(css).not.toContain('[data-reveal]');
+    expect(css).not.toMatch(/\.skillRow\s*\{[^}]*animation:/s);
+    expect(css).toMatch(/\[data-lesson-step\]\s*\{[^}]*opacity:\s*0;[^}]*transform:\s*translateY\(12px\);/s);
+    expect(css).toMatch(/\[data-lesson-step\]\[data-step-visible='true'\]\s*\{[^}]*transition:\s*opacity 320ms ease-out, transform 320ms ease-out;/s);
+  });
+
+  test('offers a demo control and gates every looping preview animation with its state', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+    const runningRule = css.match(/\.landingPage\[data-motion-ready='true'\]\[data-demo-active='true'\]\[data-page-visible='true'\]\[data-demo-paused='false'\][\s\S]*?\{[^}]*animation-play-state:\s*running;[^}]*\}/s)?.[0] ?? '';
+
+    expect(html).toContain('type="button"');
+    expect(html).toContain('aria-pressed="false"');
+    expect(html).toContain('Pause demo');
+    expect(source).toContain('data-demo-paused={demoPaused}');
+    expect(source).toContain("page.dataset.demoActive = String(entry.isIntersecting)");
+    expect(source).toContain("page.dataset.pageVisible = String(!document.hidden)");
+    ['learnerAsk', 'learnerAnnotation', 'kairoTarget', 'kairoCursor', 'notch', 'progressRail', 'verified', 'wave'].forEach((className) => {
+      expect(runningRule).toContain(`.${className}`);
+    });
+  });
+
+  test('renders the final lesson and preview state for reduced motion', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+    const reducedMotion = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+
+    expect(reducedMotion).toMatch(/\[data-lesson-step\]\s*\{[^}]*opacity:\s*1 !important;[^}]*transform:\s*none !important;/s);
+    expect(reducedMotion).toMatch(/\.landingPage \.learnerAsk,[\s\S]*?\.landingPage \.progressRail \.verified\s*\{[^}]*animation:\s*none !important;[^}]*opacity:\s*1 !important;/s);
+    expect(reducedMotion).toMatch(/\.landingPage \.learnerAnnotation path\s*\{[^}]*stroke-dashoffset:\s*0 !important;/s);
+  });
+
   test('uses a full-width field-guide hero with unboxed text actions', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 

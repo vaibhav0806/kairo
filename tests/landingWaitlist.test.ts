@@ -7,7 +7,7 @@ import { LandingPage } from '../src/landing/LandingPage';
 
 beforeAll(() => {
   window.matchMedia = (query) => ({
-    matches: true,
+    matches: false,
     media: query,
     onchange: null,
     addListener: () => undefined,
@@ -21,6 +21,20 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe('landing waitlist preview', () => {
+  test('lets the learner pause and resume the hero demonstration', () => {
+    render(createElement(LandingPage));
+
+    const pause = screen.getByRole('button', { name: 'Pause demo' });
+    expect(pause.getAttribute('aria-pressed')).toBe('false');
+
+    fireEvent.click(pause);
+    const play = screen.getByRole('button', { name: 'Play demo' });
+    expect(play.getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(play);
+    expect(screen.getByRole('button', { name: 'Pause demo' }).getAttribute('aria-pressed')).toBe('false');
+  });
+
   test('keeps and focuses invalid input with accessible error state', () => {
     render(createElement(LandingPage));
     const input = screen.getByLabelText('Email address') as HTMLInputElement;

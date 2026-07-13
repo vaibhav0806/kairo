@@ -40,12 +40,25 @@ const productSkillCapabilities = [
   'Loads structured lesson recipes'
 ] as const;
 
-function ProductPreview() {
+interface ProductPreviewProps {
+  demoPaused: boolean;
+  onToggleDemo: () => void;
+}
+
+function ProductPreview({ demoPaused, onToggleDemo }: ProductPreviewProps) {
   return (
     <figure className={styles.productPreview} data-product-preview>
       <figcaption>
         <span>One lesson, shown in Blender</span>
         <strong>Blender skill active</strong>
+        <button
+          className={styles.demoControl}
+          type="button"
+          aria-pressed={demoPaused}
+          onClick={onToggleDemo}
+        >
+          {demoPaused ? 'Play demo' : 'Pause demo'}
+        </button>
       </figcaption>
       <div className={styles.softwareFrame}>
         <img
@@ -86,6 +99,7 @@ function ProductPreview() {
 
 export function LandingPage() {
   const pageRef = useRef<HTMLDivElement>(null);
+  const [demoPaused, setDemoPaused] = useState(false);
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
@@ -107,27 +121,38 @@ export function LandingPage() {
 
   useEffect(() => {
     const page = pageRef.current;
-    if (!page || window.matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) {
-      return;
+    if (!page) return;
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const canObserve = 'IntersectionObserver' in window;
+    const lessonStepObservers: IntersectionObserver[] = [];
+    let previewObserver: IntersectionObserver | null = null;
+
+    if (!reducedMotion && canObserve) {
+      page.dataset.motionReady = 'true';
+      const lessonStepElements = Array.from(page.querySelectorAll('[data-lesson-step]'));
+      lessonStepObservers.push(...lessonStepElements.map((step) => {
+        const stepIndex = lessonStepElements.indexOf(step);
+        const observer = new IntersectionObserver(([entry]) => {
+          if (entry?.isIntersecting) {
+            lessonStepElements.slice(0, stepIndex + 1).forEach((visibleStep) => {
+              visibleStep.setAttribute('data-step-visible', 'true');
+            });
+            observer.unobserve(step);
+          }
+        }, { threshold: 0.28, rootMargin: '0px 0px -45% 0px' });
+        observer.observe(step);
+        return observer;
+      }));
     }
 
-    page.dataset.motionReady = 'true';
-    const revealObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.setAttribute('data-visible', 'true');
-          revealObserver.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.22 });
-
-    page.querySelectorAll('[data-reveal]').forEach((element) => revealObserver.observe(element));
-
-    const preview = page.querySelector('[data-product-preview]');
-    const previewObserver = new IntersectionObserver(([entry]) => {
-      if (entry) page.dataset.demoActive = String(entry.isIntersecting);
-    }, { threshold: 0.1 });
-    if (preview) previewObserver.observe(preview);
+    if (canObserve) {
+      const preview = page.querySelector('[data-product-preview]');
+      previewObserver = new IntersectionObserver(([entry]) => {
+        if (entry) page.dataset.demoActive = String(entry.isIntersecting);
+      }, { threshold: 0.1 });
+      if (preview) previewObserver.observe(preview);
+    }
 
     const syncPageVisibility = () => {
       page.dataset.pageVisible = String(!document.hidden);
@@ -136,8 +161,8 @@ export function LandingPage() {
     document.addEventListener('visibilitychange', syncPageVisibility);
 
     return () => {
-      revealObserver.disconnect();
-      previewObserver.disconnect();
+      lessonStepObservers.forEach((observer) => observer.disconnect());
+      previewObserver?.disconnect();
       document.removeEventListener('visibilitychange', syncPageVisibility);
       delete page.dataset.motionReady;
       delete page.dataset.demoActive;
@@ -146,7 +171,7 @@ export function LandingPage() {
   }, []);
 
   return (
-    <div ref={pageRef} className={styles.landingPage}>
+    <div ref={pageRef} className={styles.landingPage} data-demo-paused={demoPaused}>
       <header className={styles.header}>
         <a className={styles.wordmark} href="#top" aria-label="Kairo home">kairo</a>
         <nav aria-label="Landing page">
@@ -173,15 +198,15 @@ export function LandingPage() {
               <a className={styles.secondaryAction} href="#lesson">See one complete lesson <span aria-hidden="true">↓</span></a>
             </div>
           </div>
-          <ProductPreview />
+          <ProductPreview demoPaused={demoPaused} onToggleDemo={() => setDemoPaused((paused) => !paused)} />
         </section>
 
-        <section className={styles.distinction} aria-labelledby="distinction-title" data-reveal>
+        <section className={styles.distinction} aria-labelledby="distinction-title">
           <h2 id="distinction-title">Tutorials make you leave the work. Agents take over the work. Kairo teaches you inside it.</h2>
           <p>It starts from your screen, gives one move, waits while you try it, and checks before continuing.</p>
         </section>
 
-        <section id="lesson" className={styles.lesson} aria-labelledby="lesson-title" data-reveal>
+        <section id="lesson" className={styles.lesson} aria-labelledby="lesson-title">
           <header className={styles.sectionHeader}>
             <p>One complete lesson in Figma</p>
             <h2 id="lesson-title">A lesson moves only when you do.</h2>
@@ -206,14 +231,14 @@ export function LandingPage() {
         </section>
 
         <section id="skills" className={styles.skills} aria-labelledby="skills-title">
-          <header className={styles.sectionHeader} data-reveal>
+          <header className={styles.sectionHeader}>
             <p>One tutor, two layers</p>
             <div>
               <h2 id="skills-title">Works anywhere. Gets deeper with product skills.</h2>
               <p className={styles.skillsIntro}>Kairo can guide from the screen alone. Add a product skill for lessons that know the software's tools, language, and workflows.</p>
             </div>
           </header>
-          <div className={styles.skillLayers} data-reveal>
+          <div className={styles.skillLayers}>
             <section className={styles.baseTutorLayer} aria-labelledby="base-tutor-title">
               <h3 id="base-tutor-title">In any desktop app</h3>
               <ul>
@@ -238,13 +263,13 @@ export function LandingPage() {
           <p className={styles.anySoftware}>And any other desktop software, even without a dedicated skill.</p>
         </section>
 
-        <section id="trust" className={styles.trust} aria-labelledby="trust-title" data-reveal>
+        <section id="trust" className={styles.trust} aria-labelledby="trust-title">
           <p>Trust</p>
           <h2 id="trust-title">Kairo starts only when you ask. Pause it anytime. It points; it never clicks for you.</h2>
           <p className={styles.trustLimit}>AI can make mistakes. Check important guidance and use your judgment.</p>
         </section>
 
-        <section id="access" className={styles.access} aria-labelledby="access-title" data-reveal>
+        <section id="access" className={styles.access} aria-labelledby="access-title">
           <div>
             <p>Early access / Mac</p>
             <h2 id="access-title">Bring the software you want to learn.</h2>

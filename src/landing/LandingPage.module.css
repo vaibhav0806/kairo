@@ -192,6 +192,17 @@
   text-align: right;
 }
 
+.demoControl {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 620;
+}
+
 .productPreview small {
   display: block;
   margin-top: 12px;
@@ -303,7 +314,7 @@
   transform-origin: center;
 }
 
-.wave i {
+.landingPage[data-motion-ready='true'] .wave i {
   animation: voiceBar 680ms ease-in-out infinite alternate;
 }
 
@@ -317,14 +328,6 @@
 
 .wave i:nth-child(4) {
   animation-delay: 360ms;
-}
-
-.landingPage .wave i {
-  animation-play-state: paused;
-}
-
-.landingPage[data-demo-active='true'][data-page-visible='true'] .wave i {
-  animation-play-state: running;
 }
 
 .learnerAsk {
@@ -393,32 +396,54 @@
   color: var(--kairo);
 }
 
-.landingPage[data-demo-active='true'][data-page-visible='true'] .learnerAsk {
+.landingPage[data-motion-ready='true'] .learnerAsk {
   animation: heroquestion 10s ease-in-out infinite both;
 }
 
-.landingPage[data-demo-active='true'][data-page-visible='true'] .learnerAnnotation path {
+.landingPage[data-motion-ready='true'] .learnerAnnotation path {
   animation: herodraw 10s ease-in-out infinite both;
 }
 
-.landingPage[data-demo-active='true'][data-page-visible='true'] .kairoTarget {
+.landingPage[data-motion-ready='true'] .kairoTarget {
   animation: herotarget 10s ease-in-out infinite both;
 }
 
-.landingPage[data-demo-active='true'][data-page-visible='true'] .kairoCursor {
+.landingPage[data-motion-ready='true'] .kairoCursor {
   animation: herocursor 10s ease-in-out infinite both;
 }
 
-.landingPage[data-demo-active='true'][data-page-visible='true'] .notch {
+.landingPage[data-motion-ready='true'] .notch {
   animation: heronotch 10s ease-in-out infinite both;
 }
 
-.landingPage[data-demo-active='true'][data-page-visible='true'] .progressRail {
+.landingPage[data-motion-ready='true'] .progressRail {
   animation: heroprogress 10s ease-in-out infinite both;
 }
 
-.landingPage[data-demo-active='true'][data-page-visible='true'] .progressRail .verified {
+.landingPage[data-motion-ready='true'] .progressRail .verified {
   animation: heroverify 10s ease-in-out infinite both;
+}
+
+.landingPage[data-motion-ready='true'] .learnerAsk,
+.landingPage[data-motion-ready='true'] .learnerAnnotation path,
+.landingPage[data-motion-ready='true'] .kairoTarget,
+.landingPage[data-motion-ready='true'] .kairoCursor,
+.landingPage[data-motion-ready='true'] .notch,
+.landingPage[data-motion-ready='true'] .progressRail,
+.landingPage[data-motion-ready='true'] .progressRail .verified,
+.landingPage[data-motion-ready='true'] .wave i {
+  animation-play-state: paused;
+}
+
+.landingPage[data-motion-ready='true'][data-demo-active='true'][data-page-visible='true'][data-demo-paused='false'] .learnerAsk,
+.landingPage[data-motion-ready='true'][data-demo-active='true'][data-page-visible='true'][data-demo-paused='false'] .learnerAnnotation path,
+.landingPage[data-motion-ready='true'][data-demo-active='true'][data-page-visible='true'][data-demo-paused='false'] .kairoTarget,
+.landingPage[data-motion-ready='true'][data-demo-active='true'][data-page-visible='true'][data-demo-paused='false'] .kairoCursor,
+.landingPage[data-motion-ready='true'][data-demo-active='true'][data-page-visible='true'][data-demo-paused='false'] .notch,
+.landingPage[data-motion-ready='true'][data-demo-active='true'][data-page-visible='true'][data-demo-paused='false'] .progressRail,
+.landingPage[data-motion-ready='true'][data-demo-active='true'][data-page-visible='true'][data-demo-paused='false'] .progressRail .verified,
+.landingPage[data-motion-ready='true'][data-demo-active='true'][data-page-visible='true'][data-demo-paused='false'] .wave i {
+  animation-play-state: running;
 }
 
 .mobileTranscript {
@@ -858,15 +883,15 @@
   border-bottom-color: var(--ink);
 }
 
-.landingPage[data-motion-ready='true'] [data-reveal] {
+.landingPage[data-motion-ready='true'] [data-lesson-step] {
   opacity: 0;
-  transform: translateY(24px);
+  transform: translateY(12px);
 }
 
-.landingPage[data-motion-ready='true'] [data-reveal][data-visible='true'] {
+.landingPage[data-motion-ready='true'] [data-lesson-step][data-step-visible='true'] {
   opacity: 1;
   transform: none;
-  transition: opacity 420ms ease-out, transform 420ms ease-out;
+  transition: opacity 320ms ease-out, transform 320ms ease-out;
 }
 
 @keyframes voiceBar {
@@ -923,6 +948,7 @@
   .header nav a,
   .primaryAction,
   .secondaryAction,
+  .demoControl,
   .emailRow button,
   .waitlistSuccess button {
     transition: color 140ms ease-out, border-color 140ms ease-out;
@@ -936,6 +962,7 @@
   }
 
   .secondaryAction:hover,
+  .demoControl:hover,
   .waitlistSuccess button:hover {
     color: var(--ink) !important;
   }
@@ -1032,6 +1059,10 @@
 
   .productPreview figcaption strong {
     text-align: left;
+  }
+
+  .demoControl {
+    align-self: flex-start;
   }
 
   .softwareFrame {
@@ -1210,7 +1241,7 @@
     transition-duration: 0.001ms !important;
   }
 
-  .landingPage [data-reveal] {
+  .landingPage [data-lesson-step] {
     opacity: 1 !important;
     transform: none !important;
   }
@@ -1243,6 +1274,7 @@
     transform: translateX(-50%) !important;
   }
 
+  .landingPage .wave i,
   .landingPage .miniWave i {
     animation: none !important;
     transform: none !important;
