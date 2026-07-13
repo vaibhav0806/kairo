@@ -42,6 +42,7 @@ describe('landing page', () => {
     expect(html).toContain('Your institute');
     expect(html).toContain('Curriculum · internal workflows');
     expect(html).toContain('Custom skill');
+    expect(html).toContain('Not available yet');
   });
 
   test('states that learners can pause guidance', () => {

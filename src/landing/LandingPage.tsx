@@ -17,7 +17,7 @@ const skills = [
   ['Photoshop', 'Layers · masks · retouching', 'Next'],
   ['DaVinci Resolve', 'Timeline · color · export', 'Planned'],
   ['Figma', 'Frames · auto layout · components', 'Planned'],
-  ['Your institute', 'Curriculum · internal workflows', 'Custom skill']
+  ['Your institute', 'Curriculum · internal workflows', 'Custom skill / Not available yet']
 ] as const;
 
 function ProductPreview() {
