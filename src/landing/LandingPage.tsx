@@ -84,6 +84,27 @@ function ProductPreview({ demoPaused, onToggleDemo }: ProductPreviewProps) {
 }
 
 function LearningRunway() {
+  const [activeScene, setActiveScene] = useState(0);
+  const sceneRefs = useRef<Array<HTMLElement | null>>([]);
+
+  useEffect(() => {
+    const scenes = sceneRefs.current.filter((scene): scene is HTMLElement => scene !== null);
+    if (!('IntersectionObserver' in window) || scenes.length === 0) return undefined;
+
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top));
+      const nearest = visible[0]?.target as HTMLElement | undefined;
+      if (nearest) setActiveScene(Number(nearest.dataset.sceneIndex));
+    }, { rootMargin: '-20% 0px -45% 0px', threshold: 0.01 });
+
+    scenes.forEach((scene) => observer.observe(scene));
+    return () => observer.disconnect();
+  }, []);
+
+  const [number, app, mode, copy] = learningScenes[activeScene];
+
   return (
     <section id="lesson" className={styles.runway} aria-labelledby="runway-title">
       <header className={styles.runwayHeader} data-scroll="runway-header">
@@ -91,27 +112,46 @@ function LearningRunway() {
         <h2 id="runway-title">Your screen becomes the lesson.</h2>
         <p>One clear move at a time.</p>
       </header>
-      <div className={styles.learningRunway}>
+      <div className={styles.lessonShowcase} data-active-scene={activeScene}>
+        <div className={styles.lessonCanvas} role="img" aria-label={`${app}: ${copy}`}>
+          <div className={styles.canvasTopline}>
+            <span>{number} / live lesson</span>
+            <b>{app}</b>
+            <em>{activeScene === 0 ? 'You point' : activeScene === 1 ? 'Kairo guides' : 'You try'}</em>
+          </div>
+          <div className={styles.canvasField} data-mode={mode}>
+            <span className={styles.canvasWindow} />
+            <span className={styles.canvasGrid} />
+            <span className={styles.canvasLayout}><i /><i /><i /><i /></span>
+            <span className={styles.canvasCircle} />
+            <span className={styles.canvasLayers}><i /><i /><i /><i /></span>
+            <span className={styles.canvasTarget} />
+            <span className={styles.canvasCursor}>➤</span>
+            <span className={styles.canvasTimeline}><i /><i /><i /><i /><i /></span>
+            <span className={styles.canvasCheck}>✓</span>
+          </div>
+          <div className={styles.canvasCaption}>
+            <span>{number}</span>
+            <p>{copy}</p>
+          </div>
+        </div>
+        <ol className={styles.learningSteps} aria-label="Kairo lesson sequence">
         {learningScenes.map(([number, app, mode, copy, tone], index) => (
-          <article
+          <li
             className={styles.learningScene}
             data-scroll="learning-scene"
             data-scroll-index={index}
             data-tone={tone}
+            data-scene-index={index}
+            data-active={activeScene === index}
+            ref={(element) => { sceneRefs.current[index] = element; }}
             key={app}
           >
-            <div className={styles.sceneTopline}><span>{number}</span><b>{app}</b><em>Example</em></div>
-            <div className={styles.sceneVisual} data-mode={mode} aria-hidden="true">
-              <span className={styles.sceneMark} />
-              <span className={styles.sceneTarget} />
-              <span className={styles.sceneCursor}>➤</span>
-              <span className={styles.scenePanel}><i /><i /><i /></span>
-              <span className={styles.sceneBlocks}><i /><i /><i /><i /></span>
-              <span className={styles.sceneTimeline}><i /><i /><i /><i /></span>
-            </div>
+            <div className={styles.sceneTopline}><span>{number}</span><b>{app}</b><em>{activeScene === index ? 'Now showing' : 'Step'}</em></div>
             <p>{copy}</p>
-          </article>
+          </li>
         ))}
+        </ol>
       </div>
     </section>
   );
@@ -252,6 +292,7 @@ export function LandingPage() {
             {skills.map(([software, knowledge, mode], index) => (
               <li className={styles.skillTile} data-scroll="skill-row" data-scroll-index={index} data-mode={mode} key={software}>
                 <span className={styles.skillTileMark} aria-hidden="true" />
+                <span className={styles.skillTileArt} aria-hidden="true"><i /><i /><i /><i /></span>
                 <h3>{software}</h3>
                 <p>{knowledge}</p>
               </li>
@@ -262,7 +303,14 @@ export function LandingPage() {
 
         <section id="trust" className={styles.trust} data-scroll="trust" aria-labelledby="trust-title">
           <p>You stay in control</p>
-          <h2 id="trust-title">Kairo only helps when you ask. You can pause it whenever you want. It never takes over.</h2>
+          <div>
+            <h2 id="trust-title">Kairo only helps when you ask. You can pause it whenever you want. It never takes over.</h2>
+            <ol className={styles.trustControl} aria-label="Kairo control states">
+              <li><span>01</span><b>You ask</b></li>
+              <li><span>02</span><b>Kairo guides</b></li>
+              <li><span>03</span><b>You decide</b></li>
+            </ol>
+          </div>
           <p className={styles.trustLimit}>Double-check important work. AI can get things wrong.</p>
         </section>
 
@@ -272,6 +320,7 @@ export function LandingPage() {
             <h2 id="access-title">What do you want to learn?</h2>
           </div>
           <div className={styles.accessShell} data-scroll="access-form">
+            <div className={styles.accessMarks} aria-hidden="true"><i /><i /><i /><i /></div>
             <p>Join the early group and tell us which app you want help with.</p>
             {submittedEmail ? (
               <div className={styles.waitlistSuccess} aria-live="polite">

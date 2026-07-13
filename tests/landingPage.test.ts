@@ -180,7 +180,7 @@ describe('landing page', () => {
     expect(css).not.toContain('radial-gradient');
   });
 
-  test('uses color signal scenes to make the teaching loop visual', () => {
+  test('uses a scroll-responsive lesson canvas to make the teaching loop visual', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 
@@ -188,7 +188,12 @@ describe('landing page', () => {
       expect(html).toContain(label);
     });
     expect(html.match(/data-scroll="learning-scene"/g)).toHaveLength(3);
-    expect(css).toMatch(/\.learningrunway\s*\{[^}]*grid-template-columns:\s*repeat\(3,/s);
+    expect(html).toContain('aria-label="Kairo lesson sequence"');
+    expect(html).toContain('role="img"');
+    expect(css).toMatch(/\.lessonshowcase\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.25fr\) minmax\(300px,\s*0\.75fr\);/s);
+    expect(css).toContain(".lessonshowcase[data-active-scene='0']".toLowerCase());
+    expect(css).toContain('.canvaslayout');
+    expect(css).toContain('.canvastimeline');
     expect(css).toContain(".learningScene[data-tone='learner']".toLowerCase());
     expect(css).toContain(".learningScene[data-tone='kairo']".toLowerCase());
     expect(css).toContain(".learningScene[data-tone='verified']".toLowerCase());
@@ -263,12 +268,14 @@ describe('landing page', () => {
     expect(css).toMatch(/\.softwareframe\s*\{[^}]*aspect-ratio:\s*3560 \/ 1972;/s);
   });
 
-  test('gives the hero, skills ending, and trust section room to breathe', () => {
+  test('balances visual density with space in the hero, skills ending, and trust section', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 
-    expect(css).toMatch(/\.herocopy h1\s*\{[^}]*margin-bottom:\s*clamp\(88px,\s*7vw,\s*112px\);/s);
+    expect(css).toMatch(/\.herocopy h1\s*\{[^}]*margin-bottom:\s*clamp\(52px,\s*5vw,\s*76px\);/s);
     expect(css).toMatch(/\.anysoftware\s*\{[^}]*margin:\s*48px 0 0;[^}]*padding:\s*28px 0 0;[^}]*border-top:/s);
-    expect(css).toMatch(/\.trust\s*\{[^}]*padding:\s*88px 0 96px;/s);
+    expect(css).toMatch(/\.trust\s*\{[^}]*padding:\s*96px 48px;[^}]*background:\s*var\(--graphite\);/s);
+    expect(css).toContain('.trustcontrol');
+    expect(css).toContain('.accessmarks');
   });
 
   test('reserves violet for Kairo product states instead of generic interactions', () => {

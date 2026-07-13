@@ -126,7 +126,7 @@
 }
 
 .heroCopy h1 {
-  margin-bottom: clamp(88px, 7vw, 112px);
+  margin-bottom: clamp(52px, 5vw, 76px);
 }
 
 .eyebrow,
@@ -684,6 +684,231 @@
 .learningScene[data-tone='verified'] .sceneTarget,
 .learningScene[data-tone='verified'] .sceneCursor { display: none; }
 
+.lessonShowcase {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+  align-items: start;
+  gap: clamp(24px, 4vw, 64px);
+}
+
+.lessonCanvas {
+  position: sticky;
+  top: 24px;
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  background: var(--graphite);
+  color: var(--paper);
+}
+
+.canvasTopline,
+.canvasCaption {
+  display: flex;
+  min-height: 58px;
+  padding: 0 18px;
+  align-items: center;
+  gap: 12px;
+}
+
+.canvasTopline {
+  border-bottom: 1px solid var(--graphite-line);
+  font-size: 0.73rem;
+}
+
+.canvasTopline span,
+.canvasCaption > span {
+  color: var(--graphite-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.canvasTopline b { font-weight: 680; }
+.canvasTopline em { margin-left: auto; color: var(--verified); font-style: normal; }
+
+.canvasField {
+  position: relative;
+  min-height: 480px;
+  overflow: hidden;
+  background: #171717;
+}
+
+.canvasWindow,
+.canvasGrid,
+.canvasLayout,
+.canvasCircle,
+.canvasLayers,
+.canvasTarget,
+.canvasCursor,
+.canvasTimeline,
+.canvasCheck {
+  position: absolute;
+  transition: transform 380ms cubic-bezier(0, 0, 0.2, 1), opacity 200ms cubic-bezier(0, 0, 0.2, 1), color 150ms ease-out;
+}
+
+.canvasWindow {
+  inset: 24px 24px auto;
+  height: 28px;
+  border: 1px solid #6b6a65;
+  opacity: 0.9;
+}
+
+.canvasGrid {
+  inset: 80px 24px 24px;
+  opacity: 0.28;
+  border: 1px solid #8b8a84;
+  box-shadow: inset 0 25% #171717, inset 0 50% #8b8a84, inset 0 51% #171717, inset 25% 0 #171717, inset 50% 0 #8b8a84, inset 51% 0 #171717, inset 75% 0 #171717;
+}
+
+.canvasLayout {
+  top: 25%;
+  left: 15%;
+  display: grid;
+  width: 46%;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 10px;
+  opacity: 0;
+  transform: translateX(-40px) scale(0.92);
+}
+
+.canvasLayout i {
+  min-height: 92px;
+  border: 2px solid var(--paper);
+}
+
+.canvasLayout i:nth-child(1) { grid-row: span 2; }
+.canvasLayout i:nth-child(2) { border-color: var(--learner); }
+.canvasLayout i:nth-child(3) { border-color: var(--active); }
+.canvasLayout i:nth-child(4) { background: var(--paper); }
+
+.canvasCircle {
+  top: 33%;
+  left: 11%;
+  width: 57%;
+  height: 31%;
+  border: 7px solid var(--learner);
+  border-radius: 52% 47% 48% 54%;
+  opacity: 0;
+  transform: rotate(-12deg) scaleX(0.4);
+  transform-origin: left;
+}
+
+.canvasLayers {
+  top: 23%;
+  right: 12%;
+  display: grid;
+  width: 42%;
+  gap: 9px;
+  opacity: 0;
+  transform: translateX(42px);
+}
+
+.canvasLayers i {
+  display: block;
+  height: 52px;
+  border: 1px solid #7a7973;
+  background: #30302d;
+}
+
+.canvasLayers i:nth-child(1) { width: 76%; background: var(--kairo); }
+.canvasLayers i:nth-child(2) { width: 100%; background: #52514c; }
+.canvasLayers i:nth-child(3) { width: 64%; background: var(--active); }
+.canvasLayers i:nth-child(4) { width: 87%; background: #353530; }
+
+.canvasTarget {
+  top: 35%;
+  right: 20%;
+  width: 28%;
+  height: 35%;
+  border: 2px dashed var(--kairo);
+  opacity: 0;
+  transform: scale(0.76);
+}
+
+.canvasCursor {
+  top: 56%;
+  right: 29%;
+  color: var(--kairo);
+  font-size: 2.7rem;
+  opacity: 0;
+  transform: translate(46px, 38px) rotate(-22deg);
+}
+
+.canvasTimeline {
+  right: 10%;
+  bottom: 15%;
+  left: 10%;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 7px;
+  opacity: 0;
+  transform: translateY(38px);
+}
+
+.canvasTimeline i {
+  display: block;
+  height: 62px;
+  background: #4e4d47;
+}
+
+.canvasTimeline i:nth-child(-n+3) { background: var(--verified); }
+.canvasTimeline i:nth-child(4) { background: var(--active); }
+
+.canvasCheck {
+  right: 13%;
+  bottom: 30%;
+  display: grid;
+  width: 74px;
+  height: 74px;
+  place-items: center;
+  border: 2px solid var(--verified);
+  border-radius: 50%;
+  color: var(--verified);
+  font-size: 2.3rem;
+  font-weight: 720;
+  opacity: 0;
+  transform: scale(0.45) rotate(-24deg);
+}
+
+.canvasCaption {
+  min-height: 70px;
+  border-top: 1px solid var(--graphite-line);
+}
+
+.canvasCaption p { margin: 0; font-size: clamp(1rem, 1.5vw, 1.22rem); font-weight: 590; }
+
+.lessonShowcase[data-active-scene='0'] .canvasLayout,
+.lessonShowcase[data-active-scene='0'] .canvasCircle,
+.lessonShowcase[data-active-scene='1'] .canvasLayers,
+.lessonShowcase[data-active-scene='1'] .canvasTarget,
+.lessonShowcase[data-active-scene='1'] .canvasCursor,
+.lessonShowcase[data-active-scene='2'] .canvasTimeline,
+.lessonShowcase[data-active-scene='2'] .canvasCheck {
+  opacity: 1;
+  transform: none;
+}
+
+.learningSteps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 14px;
+  list-style: none;
+}
+
+.learningSteps .learningScene {
+  display: grid;
+  min-height: 188px;
+  padding: 20px;
+  align-content: space-between;
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  transition: background-color 200ms ease-out, border-color 200ms ease-out;
+}
+
+.learningSteps .learningScene[data-active='true'][data-tone='learner'] { background: color-mix(in srgb, var(--learner) 14%, var(--paper)); }
+.learningSteps .learningScene[data-active='true'][data-tone='kairo'] { background: color-mix(in srgb, var(--kairo) 15%, var(--paper)); }
+.learningSteps .learningScene[data-active='true'][data-tone='verified'] { background: color-mix(in srgb, var(--verified) 20%, var(--paper)); }
+.learningSteps .learningScene[data-active='true'] .sceneTopline em { color: var(--ink); font-weight: 680; }
+.learningSteps .learningScene > p { max-width: 18ch; margin: 24px 0 0; }
+
 .skills {
   background: var(--paper);
   color: var(--ink);
@@ -773,6 +998,49 @@
 .skillTile[data-mode='image'] .skillTileMark { border-color: var(--kairo); transform: rotate(45deg); }
 .skillTile[data-mode='edit'] .skillTileMark { border-width: 0 0 36px; border-color: var(--verified); transform: rotate(-22deg); }
 .skillTile[data-mode='layout'] .skillTileMark { border-width: 24px; border-color: var(--active); }
+
+.skillTileArt {
+  position: absolute;
+  z-index: 1;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  width: 44%;
+  height: 46%;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  opacity: 0.96;
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.skillTileArt i {
+  display: block;
+  min-width: 0;
+  border: 2px solid var(--ink);
+}
+
+.skillTile[data-mode='model'] .skillTileArt { width: 42%; grid-template-columns: 1fr; }
+.skillTile[data-mode='model'] .skillTileArt i { border-radius: 50%; }
+.skillTile[data-mode='model'] .skillTileArt i:nth-child(2) { width: 72%; justify-self: end; }
+.skillTile[data-mode='model'] .skillTileArt i:nth-child(3) { width: 46%; }
+.skillTile[data-mode='model'] .skillTileArt i:nth-child(4) { display: none; }
+
+.skillTile[data-mode='image'] .skillTileArt { grid-template-columns: 1fr; gap: 7px; }
+.skillTile[data-mode='image'] .skillTileArt i { height: 14px; border: 0; background: var(--ink); }
+.skillTile[data-mode='image'] .skillTileArt i:nth-child(1) { width: 80%; background: var(--kairo); }
+.skillTile[data-mode='image'] .skillTileArt i:nth-child(3) { width: 66%; background: var(--active); }
+.skillTile[data-mode='image'] .skillTileArt i:nth-child(4) { width: 87%; background: var(--learner); }
+
+.skillTile[data-mode='edit'] .skillTileArt { grid-template-columns: repeat(4, 1fr); align-items: end; gap: 5px; }
+.skillTile[data-mode='edit'] .skillTileArt i { height: 46%; border: 0; background: var(--verified); }
+.skillTile[data-mode='edit'] .skillTileArt i:nth-child(2) { height: 72%; background: var(--active); }
+.skillTile[data-mode='edit'] .skillTileArt i:nth-child(3) { height: 32%; background: var(--verified); }
+.skillTile[data-mode='edit'] .skillTileArt i:nth-child(4) { height: 91%; background: var(--ink); }
+
+.skillTile[data-mode='layout'] .skillTileArt i:nth-child(1) { grid-row: span 2; }
+.skillTile[data-mode='layout'] .skillTileArt i:nth-child(2) { border-color: var(--active); }
+.skillTile[data-mode='layout'] .skillTileArt i:nth-child(3) { border-color: var(--learner); }
+.skillTile[data-mode='layout'] .skillTileArt i:nth-child(4) { background: var(--ink); }
 
 .lesson,
 .skills,
@@ -1044,13 +1312,14 @@
 .trust {
   position: relative;
   display: grid;
-  width: min(100% - 96px, 1344px);
-  margin: 0 auto;
-  padding: 88px 0 96px;
+  width: min(100%, 1440px);
+  margin: 64px auto;
+  padding: 96px 48px;
   grid-template-columns: 120px minmax(0, 1fr) minmax(240px, 0.45fr);
   align-items: start;
   gap: 48px;
-  border-bottom: 1px solid var(--line-strong);
+  background: var(--graphite);
+  color: var(--paper);
 }
 
 .trust::after {
@@ -1059,13 +1328,13 @@
   bottom: -1px;
   left: 0;
   height: 1px;
-  background: var(--ink);
+  background: var(--verified);
   content: "";
   transform-origin: left;
 }
 
 .trust > p:first-child {
-  color: var(--muted);
+  color: var(--graphite-muted);
   font: 0.72rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -1078,9 +1347,35 @@
   letter-spacing: -0.04em;
 }
 
+.trustControl {
+  display: grid;
+  max-width: 640px;
+  margin: 36px 0 0;
+  padding: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--graphite-line);
+  list-style: none;
+}
+
+.trustControl li {
+  display: grid;
+  min-height: 68px;
+  padding: 10px 12px;
+  align-content: center;
+  gap: 5px;
+  border-right: 1px solid var(--graphite-line);
+}
+
+.trustControl li:last-child { border-right: 0; }
+.trustControl span { color: var(--graphite-muted); font: 0.65rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.trustControl b { font-size: 0.76rem; }
+.trustControl li:nth-child(1) { background: color-mix(in srgb, var(--learner) 24%, var(--graphite)); }
+.trustControl li:nth-child(2) { background: color-mix(in srgb, var(--kairo) 26%, var(--graphite)); }
+.trustControl li:nth-child(3) { background: color-mix(in srgb, var(--verified) 28%, var(--graphite)); }
+
 .trustLimit {
   margin-bottom: 0;
-  color: var(--muted);
+  color: var(--graphite-muted);
   font-size: 0.84rem;
   line-height: 1.55;
 }
@@ -1111,6 +1406,25 @@
   font-size: 1.05rem;
   line-height: 1.55;
 }
+
+.accessMarks {
+  display: flex;
+  height: 34px;
+  margin: 0 0 20px;
+  align-items: end;
+  gap: 7px;
+}
+
+.accessMarks i {
+  display: block;
+  width: 24px;
+  border: 2px solid var(--ink);
+}
+
+.accessMarks i:nth-child(1) { height: 24px; border-radius: 50%; border-color: var(--learner); }
+.accessMarks i:nth-child(2) { height: 28px; border-color: var(--kairo); transform: rotate(45deg); }
+.accessMarks i:nth-child(3) { height: 12px; border: 0; background: var(--verified); }
+.accessMarks i:nth-child(4) { height: 30px; border-color: var(--active); }
 
 .waitlistForm {
   margin: 0;
@@ -1260,6 +1574,12 @@
 .landingPage[data-motion-ready='true'] [data-scroll='learning-scene'][data-scroll-visible='true'][data-tone='verified'] .sceneTimeline i:nth-child(3) { transition-delay: 140ms; }
 .landingPage[data-motion-ready='true'] [data-scroll='learning-scene'][data-scroll-visible='true'][data-tone='verified'] .sceneTimeline i:nth-child(4) { transition-delay: 210ms; }
 
+.landingPage[data-motion-ready='true'] .lessonShowcase .canvasCircle,
+.landingPage[data-motion-ready='true'] .lessonShowcase .canvasTarget,
+.landingPage[data-motion-ready='true'] .lessonShowcase .canvasCheck {
+  transition-duration: 380ms, 200ms, 150ms;
+}
+
 .landingPage[data-motion-ready='true'] [data-scroll='lesson-step']::before {
   transform: scale(0);
 }
@@ -1382,6 +1702,10 @@
   .waitlistSuccess button:hover {
     color: var(--ink) !important;
   }
+
+  .skillTile:hover .skillTileArt {
+    transform: translate(-5px, -5px);
+  }
 }
 
 @media (min-width: 1180px) {
@@ -1473,8 +1797,18 @@
     gap: 28px;
   }
 
-  .learningRunway {
+  .lessonShowcase {
     grid-template-columns: 1fr;
+  }
+
+  .lessonCanvas {
+    position: sticky;
+    top: 18px;
+    z-index: 1;
+  }
+
+  .learningSteps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .sceneVisual {
@@ -1614,6 +1948,31 @@
     gap: 16px;
   }
 
+  .lessonShowcase {
+    gap: 24px;
+  }
+
+  .canvasField {
+    min-height: 330px;
+  }
+
+  .canvasLayout i {
+    min-height: 64px;
+  }
+
+  .learningSteps {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .learningSteps .learningScene {
+    min-height: 128px;
+  }
+
+  .learningSteps .learningScene > p {
+    margin-top: 16px;
+  }
+
   .learningScene {
     padding: 14px;
   }
@@ -1713,20 +2072,41 @@
     min-height: 210px;
   }
 
+  .skillTileArt {
+    top: 68px;
+    right: 14px;
+    bottom: auto;
+    width: 38%;
+    height: 74px;
+  }
+
+  .skillTile p {
+    max-width: 58%;
+    right: auto;
+    bottom: 16px;
+    left: 14px;
+    font-size: 0.77rem;
+  }
+
   .anySoftware {
     margin-top: 40px;
     padding-top: 24px;
   }
 
   .trust {
-    width: calc(100% - 40px);
-    padding: 64px 0;
+    width: 100%;
+    margin: 0;
+    padding: 64px 20px;
     grid-template-columns: 1fr;
     gap: 24px;
   }
 
   .trustLimit {
     grid-column: 1;
+  }
+
+  .trustControl {
+    margin-top: 28px;
   }
 
   .access {
