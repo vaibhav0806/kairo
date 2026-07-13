@@ -204,11 +204,18 @@
   position: absolute;
   top: 33%;
   left: 38%;
-  width: 15%;
-  aspect-ratio: 1.4;
-  border: 5px solid var(--learner);
-  border-radius: 50%;
+  width: 17%;
+  overflow: visible;
   transform: rotate(-8deg);
+}
+
+.learnerAnnotation path {
+  fill: none;
+  stroke: var(--learner);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 430;
+  stroke-dashoffset: 0;
 }
 
 .kairoTarget {
@@ -369,6 +376,34 @@
 
 .progressRail .current {
   color: var(--kairo);
+}
+
+.landingPage[data-demo-active='true'][data-page-visible='true'] .learnerAsk {
+  animation: heroquestion 10s ease-in-out infinite both;
+}
+
+.landingPage[data-demo-active='true'][data-page-visible='true'] .learnerAnnotation path {
+  animation: herodraw 10s ease-in-out infinite both;
+}
+
+.landingPage[data-demo-active='true'][data-page-visible='true'] .kairoTarget {
+  animation: herotarget 10s ease-in-out infinite both;
+}
+
+.landingPage[data-demo-active='true'][data-page-visible='true'] .kairoCursor {
+  animation: herocursor 10s ease-in-out infinite both;
+}
+
+.landingPage[data-demo-active='true'][data-page-visible='true'] .notch {
+  animation: heronotch 10s ease-in-out infinite both;
+}
+
+.landingPage[data-demo-active='true'][data-page-visible='true'] .progressRail {
+  animation: heroprogress 10s ease-in-out infinite both;
+}
+
+.landingPage[data-demo-active='true'][data-page-visible='true'] .progressRail .verified {
+  animation: heroverify 10s ease-in-out infinite both;
 }
 
 .learningLoop {
@@ -604,15 +639,23 @@
   left: 47%;
   width: 25%;
   height: 96px;
-  border: 5px solid var(--learner);
-  border-radius: 50%;
+  overflow: visible;
   transform: rotate(-7deg);
 }
 
-.drawnCircle span {
+.drawnCircle path {
+  fill: none;
+  stroke: var(--learner);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 430;
+  stroke-dashoffset: 0;
+}
+
+.annotationLabel {
   position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
+  top: 110px;
+  left: 59.5%;
   color: var(--learner);
   font-size: 0.7rem;
   font-weight: 700;
@@ -636,6 +679,23 @@
   width: min(52%, 340px);
   padding: 24px;
   border: 2px dashed var(--kairo);
+  transform: translateX(-50%);
+}
+
+.guideNotch {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  display: flex;
+  width: min(68%, 430px);
+  min-height: 52px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border: 1px solid #4c4f59;
+  background: #111216;
+  font-size: 0.76rem;
+  line-height: 1.35;
   transform: translateX(-50%);
 }
 
@@ -975,36 +1035,236 @@
   transition: opacity 700ms ease, transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.landingPage[data-motion-ready='true'] [data-reveal] .chapterVisual > * {
+.landingPage[data-motion-ready='true'] [data-motion='conversation'] .chapterVisual blockquote,
+.landingPage[data-motion-ready='true'] [data-motion='conversation'] .voiceResponse,
+.landingPage[data-motion-ready='true'] [data-motion='conversation'] .visualVerification {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .chapterVisual blockquote {
+  animation: conversationin 520ms 100ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .voiceResponse {
+  animation: conversationin 520ms 380ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .visualVerification {
+  animation: conversationin 520ms 680ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='annotation'] .drawnCircle path {
+  opacity: 0;
+  stroke-dashoffset: 430;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='annotation'] .annotationLabel,
+.landingPage[data-motion-ready='true'] [data-motion='annotation'] .groundedAnswer,
+.landingPage[data-motion-ready='true'] [data-motion='annotation'] .visualVerification {
   opacity: 0;
   transform: translateY(12px);
 }
 
-.landingPage[data-motion-ready='true'] [data-reveal][data-visible='true'] .chapterVisual > * {
+.landingPage[data-motion-ready='true'] [data-motion='annotation'][data-visible='true'] .drawnCircle path {
+  animation: annotationdraw 700ms 160ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='annotation'][data-visible='true'] .annotationLabel {
+  animation: annotationresolve 420ms 520ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='annotation'][data-visible='true'] .groundedAnswer {
+  animation: annotationresolve 480ms 760ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='annotation'][data-visible='true'] .visualVerification {
+  animation: annotationresolve 420ms 980ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'] .guideNotch,
+.landingPage[data-motion-ready='true'] [data-motion='guidance'] .targetControl,
+.landingPage[data-motion-ready='true'] [data-motion='guidance'] .guideCursor,
+.landingPage[data-motion-ready='true'] [data-motion='guidance'] .learnerAction,
+.landingPage[data-motion-ready='true'] [data-motion='guidance'] .visualVerification {
+  opacity: 0;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'] .guideNotch {
+  transform: translate(-50%, -14px);
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'] .learnerAction,
+.landingPage[data-motion-ready='true'] [data-motion='guidance'] .visualVerification {
+  transform: translateY(14px);
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'] .targetControl {
+  transform: translate(-50%, 14px);
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'] .guideCursor {
+  transform: translate(72px, 58px) rotate(-20deg);
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'][data-visible='true'] .guideNotch {
+  animation: guidenotchin 440ms 100ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'][data-visible='true'] .targetControl {
+  animation: guidecenterin 440ms 380ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'][data-visible='true'] .guideCursor {
+  animation: cursortravel 620ms 640ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'][data-visible='true'] .learnerAction {
+  animation: guidein 420ms 980ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'][data-visible='true'] .visualVerification {
+  animation: guidein 420ms 1180ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='verification'] .checkRow {
+  color: #77787d;
+  background-color: transparent;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='verification'] .visualVerification {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='verification'][data-visible='true'] .checkRow:nth-of-type(1) {
+  animation: verifyrow 480ms 140ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='verification'][data-visible='true'] .checkRow:nth-of-type(2) {
+  animation: verifyrow 480ms 380ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='verification'][data-visible='true'] .nextRow {
+  animation: verifynext 480ms 660ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='verification'][data-visible='true'] .visualVerification {
+  animation: conversationin 420ms 900ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] .skillList[data-motion='skills'] {
   opacity: 1;
   transform: none;
-  transition: opacity 420ms ease-out, transform 420ms ease-out;
 }
 
-.landingPage[data-motion-ready='true'] [data-reveal][data-visible='true'] .chapterVisual > :nth-child(2) {
-  transition-delay: 80ms;
+.landingPage[data-motion-ready='true'] [data-motion='skills'] .skillRow {
+  opacity: 0;
+  transform: translateX(28px);
 }
 
-.landingPage[data-motion-ready='true'] [data-reveal][data-visible='true'] .chapterVisual > :nth-child(3) {
-  transition-delay: 160ms;
-}
-
-.landingPage[data-motion-ready='true'] [data-reveal][data-visible='true'] .chapterVisual > :nth-child(4) {
-  transition-delay: 240ms;
-}
-
-.landingPage[data-motion-ready='true'] [data-reveal][data-visible='true'] .chapterVisual > :nth-child(5) {
-  transition-delay: 320ms;
+.landingPage[data-motion-ready='true'] [data-motion='skills'][data-visible='true'] .skillRow {
+  animation: skillin 560ms calc(var(--skill-index) * 100ms) cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes voiceBar {
   from { transform: scaleY(0.35); }
   to { transform: scaleY(1); }
+}
+
+@keyframes heroquestion {
+  0%, 3% { opacity: 0; transform: translateY(16px); }
+  9%, 90% { opacity: 1; transform: translateY(0); }
+  98%, 100% { opacity: 0; transform: translateY(0); }
+}
+
+@keyframes herodraw {
+  0%, 12% { opacity: 0; stroke-dashoffset: 430; }
+  17% { opacity: 1; stroke-dashoffset: 430; }
+  30%, 90% { opacity: 1; stroke-dashoffset: 0; }
+  98% { opacity: 0; stroke-dashoffset: 0; }
+  100% { opacity: 0; stroke-dashoffset: 430; }
+}
+
+@keyframes herotarget {
+  0%, 28% { opacity: 0; transform: scale(0.88); box-shadow: 0 0 0 rgba(139, 121, 255, 0); }
+  36% { opacity: 1; transform: scale(1); box-shadow: 0 0 20px rgba(139, 121, 255, 0.24); }
+  43% { opacity: 1; transform: scale(1.04); box-shadow: 0 0 34px rgba(139, 121, 255, 0.5); }
+  51%, 90% { opacity: 1; transform: scale(1); box-shadow: 0 0 20px rgba(139, 121, 255, 0.24); }
+  98%, 100% { opacity: 0; transform: scale(1); box-shadow: 0 0 0 rgba(139, 121, 255, 0); }
+}
+
+@keyframes herocursor {
+  0%, 38% { opacity: 0; transform: translate(76px, 58px) rotate(-22deg); }
+  51%, 90% { opacity: 1; transform: translate(0, 0) rotate(-22deg); }
+  98%, 100% { opacity: 0; transform: translate(0, 0) rotate(-22deg); }
+}
+
+@keyframes heronotch {
+  0%, 52% { opacity: 0; transform: translate(-50%, -14px); }
+  62%, 90% { opacity: 1; transform: translate(-50%, 0); }
+  98%, 100% { opacity: 0; transform: translate(-50%, 0); }
+}
+
+@keyframes heroprogress {
+  0%, 63% { opacity: 0; transform: translateY(12px); }
+  72%, 90% { opacity: 1; transform: translateY(0); }
+  98%, 100% { opacity: 0; transform: translateY(0); }
+}
+
+@keyframes heroverify {
+  0%, 68% { color: #b9b9b5; }
+  76%, 100% { color: var(--verified); }
+}
+
+@keyframes conversationin {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes annotationdraw {
+  from { opacity: 0; stroke-dashoffset: 430; }
+  to { opacity: 1; stroke-dashoffset: 0; }
+}
+
+@keyframes annotationresolve {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes guidein {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes guidecenterin {
+  from { opacity: 0; transform: translate(-50%, 14px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes guidenotchin {
+  from { opacity: 0; transform: translate(-50%, -14px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes cursortravel {
+  from { opacity: 0; transform: translate(72px, 58px) rotate(-20deg); }
+  to { opacity: 1; transform: translate(0, 0) rotate(-20deg); }
+}
+
+@keyframes verifyrow {
+  from { color: #77787d; background-color: transparent; }
+  to { color: var(--verified); background-color: rgba(120, 202, 170, 0.08); }
+}
+
+@keyframes verifynext {
+  from { color: #77787d; background-color: transparent; }
+  to { color: var(--kairo); background-color: rgba(139, 121, 255, 0.1); }
+}
+
+@keyframes skillin {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: translateX(0); }
 }
 
 @media (hover: hover) {
@@ -1237,6 +1497,10 @@
     margin-top: 82px;
   }
 
+  .guideNotch {
+    top: 54px;
+  }
+
   .targetControl {
     top: 118px;
     width: 70%;
@@ -1338,5 +1602,64 @@
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
+  }
+
+  .landingPage .learnerAsk,
+  .landingPage .kairoTarget,
+  .landingPage .kairoCursor,
+  .landingPage .notch,
+  .landingPage .progressRail,
+  .landingPage .progressRail .verified,
+  .landingPage [data-motion] .chapterVisual > *,
+  .landingPage [data-motion='skills'] .skillRow {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  .landingPage .learnerAnnotation path,
+  .landingPage .drawnCircle path {
+    animation: none !important;
+    opacity: 1 !important;
+    stroke-dashoffset: 0 !important;
+  }
+
+  .landingPage .learnerAnnotation {
+    transform: rotate(-8deg) !important;
+  }
+
+  .landingPage .kairoCursor {
+    transform: rotate(-22deg) !important;
+  }
+
+  .landingPage .notch,
+  .landingPage .guideNotch,
+  .landingPage .targetControl {
+    transform: translateX(-50%) !important;
+  }
+
+  .landingPage .drawnCircle {
+    transform: rotate(-7deg) !important;
+  }
+
+  .landingPage .annotationLabel {
+    transform: translateX(-50%) !important;
+  }
+
+  .landingPage .guideCursor {
+    transform: rotate(-20deg) !important;
+  }
+
+  .landingPage [data-motion='verification'] .checkRow {
+    color: var(--verified) !important;
+    background-color: rgba(120, 202, 170, 0.08) !important;
+  }
+
+  .landingPage [data-motion='verification'] .nextRow {
+    color: var(--kairo) !important;
+    background-color: rgba(139, 121, 255, 0.1) !important;
+  }
+
+  .landingPage [data-motion='skills'] .skillRow {
+    transform: none !important;
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import styles from './LandingPage.module.css';
 
 type WaitlistRole = 'Student' | 'Creator' | 'Educator';
@@ -31,7 +31,9 @@ function ProductPreview() {
           src={`${import.meta.env.BASE_URL}kairo-blender-preview.png`}
           alt="Blender startup scene used to demonstrate Kairo's on-screen guidance"
         />
-        <div className={styles.learnerAnnotation} aria-hidden="true" />
+        <svg className={styles.learnerAnnotation} viewBox="0 0 180 130" aria-hidden="true">
+          <path d="M16 68 C9 25 130 5 163 46 C190 80 147 121 84 120 C28 118 1 91 16 68" />
+        </svg>
         <div className={styles.kairoTarget}><span>Cube · target</span></div>
         <div className={styles.kairoCursor} aria-hidden="true">➤</div>
         <div className={styles.notch}>
@@ -151,7 +153,7 @@ export function LandingPage() {
           ))}
         </ol>
 
-        <section className={styles.problem} aria-labelledby="problem-title">
+        <section className={styles.problem} aria-labelledby="problem-title" data-reveal>
           <p>Why another way to learn?</p>
           <div>
             <h2 id="problem-title">Tutorials show their screen. Kairo starts from yours.</h2>
@@ -160,12 +162,12 @@ export function LandingPage() {
         </section>
 
         <section id="how" className={styles.how} aria-labelledby="how-title">
-          <header className={styles.sectionHeader}>
+          <header className={styles.sectionHeader} data-reveal>
             <p>How it works</p>
             <h2 id="how-title">A question becomes your next clear action.</h2>
           </header>
 
-          <article className={styles.chapter} data-reveal>
+          <article className={styles.chapter} data-reveal data-motion="conversation">
             <div className={styles.chapterCopy}>
               <span>01 / Ask naturally</span>
               <h3>Talk to Kairo. <span>Hear the answer.</span></h3>
@@ -182,7 +184,7 @@ export function LandingPage() {
             </div>
           </article>
 
-          <article className={styles.chapter} data-reveal>
+          <article className={styles.chapter} data-reveal data-motion="annotation">
             <div className={styles.chapterCopy}>
               <span>02 / Point to context</span>
               <h3>Circle “this.” <span>Kairo resolves what you mean.</span></h3>
@@ -191,13 +193,16 @@ export function LandingPage() {
             <div className={styles.chapterVisual} aria-label="On-screen annotation grounding example">
               <p className={styles.visualLabel}>Learner input / annotation</p>
               <div className={styles.fakeToolbar}><span>Move</span><span>Rotate</span><span>Scale</span></div>
-              <div className={styles.drawnCircle}><span>This control</span></div>
+              <svg className={styles.drawnCircle} viewBox="0 0 180 110" aria-hidden="true">
+                <path d="M13 58 C5 19 126 1 165 38 C199 70 149 107 87 104 C28 102 1 81 13 58" />
+              </svg>
+              <span className={styles.annotationLabel}>This control</span>
               <p className={styles.groundedAnswer}><b>Kairo guidance / resolved target</b>Object Properties → Transform → Location</p>
               <p className={styles.visualVerification}><b>Verification</b> Target found on your screen</p>
             </div>
           </article>
 
-          <article className={styles.chapter} data-reveal>
+          <article className={styles.chapter} data-reveal data-motion="guidance">
             <div className={styles.chapterCopy}>
               <span>03 / Stay in control</span>
               <h3 aria-label="The AI points. You act.">The AI points. <span>You act.</span></h3>
@@ -205,6 +210,10 @@ export function LandingPage() {
             </div>
             <div className={styles.chapterVisual} aria-label="Kairo pointing to the learner's next action">
               <p className={styles.visualLabel}>Kairo guidance / next control</p>
+              <div className={styles.guideNotch}>
+                <span className={styles.miniWave} aria-hidden="true"><i /><i /><i /><i /><i /></span>
+                <span>Choose Location to save the cube’s position.</span>
+              </div>
               <div className={styles.targetControl}><span>Insert keyframe</span><b>Location</b></div>
               <span className={styles.guideCursor} aria-hidden="true">➤</span>
               <p className={styles.learnerAction}><b>Learner input / action</b> You choose and click Location</p>
@@ -212,7 +221,7 @@ export function LandingPage() {
             </div>
           </article>
 
-          <article className={styles.chapter} data-reveal>
+          <article className={styles.chapter} data-reveal data-motion="verification">
             <div className={styles.chapterCopy}>
               <span>04 / Build real progress</span>
               <h3 aria-label="Kairo checks before moving on.">Kairo checks <span>before moving on.</span></h3>
@@ -229,13 +238,13 @@ export function LandingPage() {
         </section>
 
         <section id="skills" className={styles.skills} aria-labelledby="skills-title">
-          <header className={styles.sectionHeader}>
+          <header className={styles.sectionHeader} data-reveal>
             <p>Skills</p>
             <h2 id="skills-title">Deep in one tool first. More as Kairo learns them well.</h2>
           </header>
-          <div className={styles.skillList}>
+          <div className={styles.skillList} data-reveal data-motion="skills">
             {skills.map(([software, knowledge, status], index) => (
-              <article className={styles.skillRow} key={software} data-reveal>
+              <article className={styles.skillRow} key={software} style={{ '--skill-index': index } as CSSProperties}>
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <h3>{software}</h3>
                 <p>{knowledge}</p>
@@ -245,7 +254,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className={styles.difference} aria-labelledby="difference-title">
+        <section className={styles.difference} aria-labelledby="difference-title" data-reveal>
           <div className={styles.differenceLead}>
             <p>What makes Kairo different</p>
             <h2 id="difference-title">Built around learning, not task completion.</h2>
@@ -258,7 +267,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="trust" className={styles.trust} aria-labelledby="trust-title">
+        <section id="trust" className={styles.trust} aria-labelledby="trust-title" data-reveal>
           <header className={styles.sectionHeader}>
             <p>Trust</p>
             <h2 id="trust-title">Quiet until you ask. Clear about its limits.</h2>
@@ -282,7 +291,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="access" className={styles.access} aria-labelledby="access-title">
+        <section id="access" className={styles.access} aria-labelledby="access-title" data-reveal>
           <div>
             <p>Early access / Mac</p>
             <h2 id="access-title">Learn inside the work.</h2>

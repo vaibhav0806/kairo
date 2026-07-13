@@ -75,6 +75,7 @@ describe('landing page', () => {
     expect(mobileCss).toMatch(/\.learnerask b\s*\{[^}]*font-size:\s*0\.55rem;/);
     expect(mobileCss).toMatch(/\.progressrail\s*\{[^}]*font-size:\s*0\.55rem;/);
     expect(mobileCss).toMatch(/\.kairotarget span\s*\{[^}]*font-size:\s*0\.55rem;/);
+    expect(mobileCss).toMatch(/\.guidenotch\s*\{[^}]*top:\s*54px;/);
   });
 
   test('keeps the desktop hero responsive to its column and viewport height', () => {
@@ -83,5 +84,27 @@ describe('landing page', () => {
     expect(css).toMatch(/\.herocopy\s*\{[^}]*container-type:\s*inline-size;/);
     expect(css).toMatch(/\.landingpage h1\s*\{[^}]*font-size:\s*clamp\(3\.5rem,\s*17cqi,\s*7rem\);/);
     expect(css).toMatch(/\.softwareframe\s*\{[^}]*min-height:\s*clamp\(480px,\s*calc\(100svh - 240px\),\s*640px\);/);
+  });
+
+  test('defines semantic product and scroll motion choreography', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+
+    expect(html).toContain('data-motion="conversation"');
+    expect(html).toContain('data-motion="annotation"');
+    expect(html).toContain('data-motion="guidance"');
+    expect(html).toContain('data-motion="verification"');
+    expect(html).toContain('data-motion="skills"');
+    expect(html).toContain('<svg');
+    expect(css).toContain('@keyframes herodraw');
+    expect(css).toContain('@keyframes herotarget');
+    expect(css).toContain('@keyframes herocursor');
+    expect(css).toContain('@keyframes conversationin');
+    expect(css).toContain('@keyframes annotationdraw');
+    expect(css).toContain('@keyframes guidenotchin');
+    expect(css).toContain('@keyframes cursortravel');
+    expect(css).toContain('@keyframes verifyrow');
+    expect(css).toContain('@keyframes skillin');
+    expect(css).toContain("[data-demo-active='true'][data-page-visible='true']");
   });
 });
