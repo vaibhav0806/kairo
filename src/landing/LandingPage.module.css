@@ -36,7 +36,7 @@
 .landingPage h1 {
   max-width: 10ch;
   margin: 0;
-  font-size: clamp(3.5rem, 7.4vw, 7.8rem);
+  font-size: clamp(3.5rem, 17cqi, 7rem);
   line-height: 0.88;
   letter-spacing: -0.075em;
 }
@@ -96,6 +96,7 @@
   justify-content: space-between;
   gap: 64px;
   padding: 48px;
+  container-type: inline-size;
 }
 
 .eyebrow,
@@ -183,7 +184,7 @@
 
 .softwareFrame {
   position: relative;
-  min-height: 640px;
+  min-height: clamp(480px, calc(100svh - 240px), 640px);
   overflow: hidden;
   border: 1px solid #242424;
   background: #17191e;
