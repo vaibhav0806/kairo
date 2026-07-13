@@ -76,6 +76,7 @@ describe('landing page', () => {
     expect(mobileCss).toMatch(/\.progressrail\s*\{[^}]*font-size:\s*0\.55rem;/);
     expect(mobileCss).toMatch(/\.kairotarget span\s*\{[^}]*font-size:\s*0\.55rem;/);
     expect(mobileCss).toMatch(/\.guidenotch\s*\{[^}]*top:\s*54px;/);
+    expect(mobileCss).toMatch(/\.voiceresponse\s*\{[^}]*bottom:\s*116px;/);
   });
 
   test('keeps the desktop hero responsive to its column and viewport height', () => {
@@ -106,5 +107,43 @@ describe('landing page', () => {
     expect(css).toContain('@keyframes verifyrow');
     expect(css).toContain('@keyframes skillin');
     expect(css).toContain("[data-demo-active='true'][data-page-visible='true']");
+  });
+
+  test('sequences conversation through learner action and final verification', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+    const beats = ['question', 'response', 'action', 'verification'];
+    const beatPositions = beats.map((beat) => html.indexOf(`data-conversation-beat="${beat}"`));
+
+    beatPositions.forEach((position) => expect(position).toBeGreaterThan(-1));
+    expect(beatPositions).toEqual([...beatPositions].sort((a, b) => a - b));
+    expect(html).toContain('Learner action / move');
+    expect(html).toContain('Movement verified');
+    expect(css).toContain('@keyframes conversationquestion');
+    expect(css).toContain('@keyframes conversationresponse');
+    expect(css).toContain('@keyframes conversationaction');
+    expect(css).toContain('@keyframes conversationverify');
+    expect(css).toMatch(/\.conversationquestion\s*\{[^}]*animation:\s*conversationquestion 420ms 100ms/);
+    expect(css).toMatch(/\.conversationresponse\s*\{[^}]*animation:\s*conversationresponse 420ms 560ms/);
+    expect(css).toMatch(/\.conversationaction\s*\{[^}]*animation:\s*conversationaction 420ms 1040ms/);
+    expect(css).toMatch(/\.conversationverified\s*\{[^}]*animation:\s*conversationverify 420ms 1520ms/);
+  });
+
+  test('finishes annotation drawing before resolving its answer', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+
+    expect(css).toMatch(/\.drawncircle path\s*\{[^}]*animation:\s*annotationdraw 700ms 160ms/);
+    expect(css).toMatch(/\.annotationlabel\s*\{[^}]*animation:\s*annotationresolve 420ms 900ms/);
+    expect(css).toMatch(/\.groundedanswer\s*\{[^}]*animation:\s*annotationresolve 480ms 1080ms/);
+    expect(css).toMatch(/\.visualverification\s*\{[^}]*animation:\s*annotationresolve 420ms 1600ms/);
+  });
+
+  test('runs chapter wave bars only as finite visible entrances', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+
+    expect(css).not.toMatch(/\.wave i,\s*\.miniwave i\s*\{[^}]*animation:[^}]*infinite/);
+    expect(css).toContain('@keyframes chaptervoicebar');
+    expect(css).toMatch(/\[data-motion='conversation'\]\[data-visible='true'\] \.conversationresponse \.miniwave i\s*\{[^}]*animation:\s*chaptervoicebar [^;}]* 2 alternate both/);
+    expect(css).toMatch(/\[data-motion='guidance'\]\[data-visible='true'\] \.guidenotch \.miniwave i\s*\{[^}]*animation:\s*chaptervoicebar [^;}]* 2 alternate both/);
   });
 });

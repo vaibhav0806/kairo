@@ -282,26 +282,22 @@
   height: 14px;
   background: var(--kairo);
   transform-origin: center;
+}
+
+.wave i {
   animation: voiceBar 680ms ease-in-out infinite alternate;
 }
 
-.wave i:nth-child(2),
-.miniWave i:nth-child(2) {
+.wave i:nth-child(2) {
   animation-delay: 120ms;
 }
 
-.wave i:nth-child(3),
-.miniWave i:nth-child(3) {
+.wave i:nth-child(3) {
   animation-delay: 240ms;
 }
 
-.wave i:nth-child(4),
-.miniWave i:nth-child(4) {
+.wave i:nth-child(4) {
   animation-delay: 360ms;
-}
-
-.miniWave i:nth-child(5) {
-  animation-delay: 480ms;
 }
 
 .landingPage .wave i {
@@ -573,7 +569,7 @@
 .voiceResponse {
   position: absolute;
   right: 40px;
-  bottom: 84px;
+  bottom: 150px;
   display: flex;
   width: min(64%, 460px);
   align-items: center;
@@ -590,6 +586,7 @@
 
 .voiceResponse b,
 .groundedAnswer b,
+.conversationAction b,
 .learnerAction b,
 .visualVerification b {
   display: block;
@@ -598,6 +595,20 @@
   font-size: 0.66rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.conversationAction {
+  position: absolute;
+  bottom: 82px;
+  left: 40px;
+  margin: 0;
+  padding-left: 14px;
+  border-left: 3px solid var(--learner);
+  font-size: 0.82rem;
+}
+
+.conversationAction b {
+  color: var(--learner);
 }
 
 .visualVerification {
@@ -1035,23 +1046,32 @@
   transition: opacity 700ms ease, transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.landingPage[data-motion-ready='true'] [data-motion='conversation'] .chapterVisual blockquote,
-.landingPage[data-motion-ready='true'] [data-motion='conversation'] .voiceResponse,
-.landingPage[data-motion-ready='true'] [data-motion='conversation'] .visualVerification {
+.landingPage[data-motion-ready='true'] [data-motion='conversation'] .conversationQuestion,
+.landingPage[data-motion-ready='true'] [data-motion='conversation'] .conversationResponse,
+.landingPage[data-motion-ready='true'] [data-motion='conversation'] .conversationAction,
+.landingPage[data-motion-ready='true'] [data-motion='conversation'] .conversationVerified {
   opacity: 0;
   transform: translateY(18px);
 }
 
-.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .chapterVisual blockquote {
-  animation: conversationin 520ms 100ms ease-out both;
+.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .conversationQuestion {
+  animation: conversationquestion 420ms 100ms ease-out both;
 }
 
-.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .voiceResponse {
-  animation: conversationin 520ms 380ms ease-out both;
+.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .conversationResponse {
+  animation: conversationresponse 420ms 560ms ease-out both;
 }
 
-.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .visualVerification {
-  animation: conversationin 520ms 680ms ease-out both;
+.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .conversationAction {
+  animation: conversationaction 420ms 1040ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .conversationVerified {
+  animation: conversationverify 420ms 1520ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='conversation'][data-visible='true'] .conversationResponse .miniWave i {
+  animation: chaptervoicebar 190ms 560ms 2 alternate both;
 }
 
 .landingPage[data-motion-ready='true'] [data-motion='annotation'] .drawnCircle path {
@@ -1071,15 +1091,15 @@
 }
 
 .landingPage[data-motion-ready='true'] [data-motion='annotation'][data-visible='true'] .annotationLabel {
-  animation: annotationresolve 420ms 520ms ease-out both;
+  animation: annotationresolve 420ms 900ms ease-out both;
 }
 
 .landingPage[data-motion-ready='true'] [data-motion='annotation'][data-visible='true'] .groundedAnswer {
-  animation: annotationresolve 480ms 760ms ease-out both;
+  animation: annotationresolve 480ms 1080ms ease-out both;
 }
 
 .landingPage[data-motion-ready='true'] [data-motion='annotation'][data-visible='true'] .visualVerification {
-  animation: annotationresolve 420ms 980ms ease-out both;
+  animation: annotationresolve 420ms 1600ms ease-out both;
 }
 
 .landingPage[data-motion-ready='true'] [data-motion='guidance'] .guideNotch,
@@ -1109,6 +1129,10 @@
 
 .landingPage[data-motion-ready='true'] [data-motion='guidance'][data-visible='true'] .guideNotch {
   animation: guidenotchin 440ms 100ms ease-out both;
+}
+
+.landingPage[data-motion-ready='true'] [data-motion='guidance'][data-visible='true'] .guideNotch .miniWave i {
+  animation: chaptervoicebar 190ms 100ms 2 alternate both;
 }
 
 .landingPage[data-motion-ready='true'] [data-motion='guidance'][data-visible='true'] .targetControl {
@@ -1220,6 +1244,31 @@
 @keyframes conversationin {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes conversationquestion {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes conversationresponse {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes conversationaction {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes conversationverify {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes chaptervoicebar {
+  from { transform: scaleY(0.35); }
+  to { transform: scaleY(1); }
 }
 
 @keyframes annotationdraw {
@@ -1475,8 +1524,13 @@
 
   .voiceResponse {
     right: 24px;
-    bottom: 76px;
+    bottom: 116px;
     width: 76%;
+  }
+
+  .conversationAction {
+    bottom: 70px;
+    left: 24px;
   }
 
   .visualVerification {
@@ -1660,6 +1714,11 @@
   }
 
   .landingPage [data-motion='skills'] .skillRow {
+    transform: none !important;
+  }
+
+  .landingPage .miniWave i {
+    animation: none !important;
     transform: none !important;
   }
 }

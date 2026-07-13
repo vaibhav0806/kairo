@@ -150,3 +150,91 @@ Focused final result: `tests/landingPage.test.ts` passed 9/9.
 - No scroll snap, wheel interception, gradients, fake video, routing/native/waitlist changes, or unrelated redesign was introduced.
 - The Blender PNG remains explicitly labeled and attributed as an interface backdrop; product behavior is represented by real HTML/SVG overlays rather than video.
 - The only remaining judgment call is animation pacing: timings are intentionally restrained and causal, but subjective feel can still be tuned later without changing the semantic structure.
+
+## Review follow-up: explicit causal ordering
+
+Task 2 review identified three gaps: conversation lacked an explicit learner-action beat, annotation resolution overlapped the draw, and chapter mini waveforms continued infinitely. All three were corrected with focused TDD.
+
+### Follow-up RED
+
+Three independent contracts were added before implementation:
+
+1. Four ordered semantic conversation beats (`question`, `response`, `action`, `verification`), real learner-action/final-verification copy, purpose-specific keyframes, and distinct delays.
+2. Annotation timing contracts requiring the 700ms draw delayed by 160ms to finish before label/answer resolution at 900ms/1080ms, with verification at 1600ms.
+3. A contract rejecting the shared unconditional `.wave i, .miniWave i` infinite animation and requiring finite visible-only chapter wave animations.
+
+Command:
+
+```text
+npm test -- tests/landingPage.test.ts
+```
+
+Result: exit 1; 3 expected failures and the previous 9 tests passed. The failures were specifically missing `data-conversation-beat`, premature `.annotationLabel` timing, and the shared infinite `.miniWave` animation.
+
+### Follow-up GREEN
+
+The minimal implementation:
+
+- Added explicit learner action copy (`Learner action / move`) and final verified response (`Movement verified`) after Kairo's response.
+- Added purpose-specific `.conversationQuestion`, `.conversationResponse`, `.conversationAction`, and `.conversationVerified` classes with 420ms keyframes delayed to 100ms, 560ms, 1040ms, and 1520ms respectively. Each beat starts only after the prior 420ms entrance has completed.
+- Kept the annotation draw at 160–860ms; moved label resolution to 900ms, violet answer resolution to 1080ms, and verification to 1600ms.
+- Made `.miniWave` static by default. Conversation and guidance now trigger `chaptervoicebar` only when their chapter becomes visible, for exactly 2 alternate iterations. Hero `.wave` behavior remains separately visibility-scoped and unchanged.
+- Added an explicit reduced-motion override leaving mini wave bars static.
+
+Focused result: exit 0; 12/12 landing-page tests passed.
+
+A final naming contract was then added to ensure the question also uses a purpose-named `conversationquestion` keyframe instead of the legacy generic `conversationin`. It recorded RED with 1 expected failure and 11 prior tests passing, then GREEN at 12/12 after the mechanical keyframe rename. The legacy `conversationin` remains only for the separate verification chapter's generic message entrance.
+
+### Chrome causal-order samples
+
+Chrome production-preview samples at 1440×1000 recorded:
+
+- Conversation at 0.20s: question opacity `0.303`; response, action, and verification `0`.
+- At 0.70s: question `1`; response `0.437`; action and verification `0`.
+- At 1.15s: question/response `1`; action `0.312`; verification `0`.
+- At 1.65s: question/response/action `1`; verification `0.429`.
+- At 2.25s: all four beats opacity `1` with zero Y translation.
+- Conversation wave bars reported `animationIterationCount: 2`; they were `finished` by 1.15s and remained finished after the section settled.
+- A final production-build sample after the purpose-name refinement reported `conversationquestion`, `conversationresponse`, `conversationaction`, and `conversationverify` with delays `0.1s`, `0.56s`, `1.04s`, and `1.52s`; all four were settled at opacity `1` and every wave bar remained `finished` with iteration count `2`.
+
+Annotation samples proved strict ordering:
+
+- At 0.84s the path was still drawing (`stroke-dashoffset: 2.91px`, opacity `0.993`) while label, answer, and verification all remained opacity `0`.
+- At 0.98s the path was complete (`0px`); only then had the label begun (`0.219`), while answer and verification remained `0`.
+- At 1.24s label was `0.922`, answer had begun at `0.448`, and verification remained `0`.
+- At 1.72s label and answer were settled at `1`; verification had begun at `0.362`.
+- At 2.22s all annotation elements were settled at opacity `1`.
+
+Guidance wave sampling showed animation name `none` before visibility, 2 finite iterations running at 0.20s, and all bars in `finished` state by 0.85s.
+
+Reduced-motion Chrome emulation reported all four conversation beats at opacity `1`, transforms `none`, every chapter mini wave animation name `none`, and annotation dash offset `0px`.
+
+### Mobile regression found during follow-up
+
+The new explicit action exposed a 15.5px overlap between the question and response at 390px. A focused mobile CSS assertion was added and recorded RED (1 failure, 11 prior tests passed), then the response position was corrected from `bottom: 136px` to `bottom: 116px`.
+
+Chrome recheck at 390×844 reported:
+
+- Document width `390px`; horizontal overflow `false`.
+- Question/response, response/action, and action/verification overlaps: all `0px`.
+- Corresponding vertical gaps: `4.47px`, `11px`, and `16px`.
+- All four final beat opacities: `1`.
+
+### Follow-up full verification
+
+Final command:
+
+```text
+npm test -- tests/landingPage.test.ts && npm run typecheck && npm test && npm run build && git diff --check
+```
+
+Result:
+
+- Focused landing tests: 12/12 passed.
+- TypeScript: exit 0.
+- Full Vitest suite: 36 files passed, 193 tests passed.
+- Production website build: exit 0; 81 modules transformed.
+- Diff whitespace check: exit 0.
+- No Tauri command, native build, or `.app` launch was run.
+
+Follow-up self-review found no new dependencies, scroll listeners, native/routing/waitlist changes, gradients, or unrelated redesign. The remaining concern is still subjective pacing only; causal order and finite completion are now contract- and browser-verified.

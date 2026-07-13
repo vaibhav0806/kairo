@@ -175,12 +175,13 @@ export function LandingPage() {
             </div>
             <div className={styles.chapterVisual} aria-label="Voice question and spoken guidance example">
               <p className={styles.visualLabel}>Learner input / voice</p>
-              <blockquote>“Why does this keyframe not move the cube?”</blockquote>
-              <div className={styles.voiceResponse}>
+              <blockquote className={styles.conversationQuestion} data-conversation-beat="question">“Why does this keyframe not move the cube?”</blockquote>
+              <div className={`${styles.voiceResponse} ${styles.conversationResponse}`} data-conversation-beat="response">
                 <span className={styles.miniWave} aria-hidden="true"><i /><i /><i /><i /><i /></span>
                 <p><b>Kairo guidance / voice</b>Your second keyframe is at the same position. Move the playhead, then move the cube.</p>
               </div>
-              <p className={styles.visualVerification}><b>Verification</b> Waiting for the next action</p>
+              <p className={styles.conversationAction} data-conversation-beat="action"><b>Learner action / move</b> Moves the cube at frame 40.</p>
+              <p className={`${styles.visualVerification} ${styles.conversationVerified}`} data-conversation-beat="verification"><b>Movement verified</b> The cube changed position. Ready for the next step.</p>
             </div>
           </article>
 
