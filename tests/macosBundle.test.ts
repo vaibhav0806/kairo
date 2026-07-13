@@ -72,6 +72,7 @@ describe('macOS bundle permissions', () => {
 
     expect(mainWindow).toMatchObject({
       label: 'main',
+      url: 'index.html#/app',
       visible: false,
       focus: false
     });

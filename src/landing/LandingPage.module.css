@@ -1,0 +1,28 @@
+.landingPage {
+  min-height: 100svh;
+  background: #f5f4ef;
+  color: #151515;
+}
+
+.header,
+.hero,
+.access {
+  padding: 24px;
+}
+
+.hero {
+  display: grid;
+  gap: 32px;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+}
+
+.eyebrow {
+  font: 0.75rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+}
+
+.previewPlaceholder {
+  min-height: 420px;
+  background: #151515;
+  color: #f5f4ef;
+}
