@@ -235,15 +235,16 @@ describe('landing page', () => {
     expect(reducedMotion).toMatch(/\.landingPage \.learnerAnnotation path\s*\{[^}]*stroke-dashoffset:\s*0 !important;/s);
   });
 
-  test('uses a full-width field-guide hero with unboxed text actions', () => {
+  test('uses an asymmetric split hero that stacks below desktop', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 
-    expect(css).toContain('--graphite:');
-    expect(css).toMatch(/\.hero\s*\{[^}]*display:\s*block;/s);
-    expect(css).not.toMatch(/\.hero\s*\{[^}]*grid-template-columns:/s);
-    expect(css).toMatch(/\.herocopy\s*\{[^}]*display:\s*block;/s);
-    expect(css).toMatch(/\.primaryaction,[\s\S]*?\.secondaryaction\s*\{[^}]*background:\s*transparent;[^}]*border:\s*0;/s);
-    expect(css).toMatch(/\.landingpage button,[\s\S]*?min-height:\s*44px;/s);
+    expect(html).toMatch(/class="[^"]*headlineDoing[^"]*"/);
+    expect(html).toMatch(/class="[^"]*headlineContrast[^"]*"/);
+    expect(css).toMatch(/@media \(min-width:\s*1180px\)[\s\S]*\.hero\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(390px,\s*0\.78fr\) minmax\(0,\s*1\.42fr\);/s);
+    expect(css).toMatch(/@media \(min-width:\s*1180px\)[\s\S]*\.headlinedoing\s*\{[^}]*display:\s*block;/s);
+    expect(css).toMatch(/@media \(max-width:\s*1179px\)[\s\S]*\.hero\s*\{[^}]*display:\s*block;/s);
+    expect(css).toMatch(/\.softwareframe\s*\{[^}]*aspect-ratio:\s*3560 \/ 1972;/s);
   });
 
   test('reserves violet for Kairo product states instead of generic interactions', () => {

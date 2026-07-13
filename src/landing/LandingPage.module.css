@@ -59,8 +59,12 @@
   letter-spacing: -0.072em;
 }
 
-.landingPage h1 span {
-  display: block;
+.headlineDoing,
+.headlineContrast {
+  display: inline;
+}
+
+.headlineContrast {
   color: var(--muted);
   font-weight: 470;
 }
@@ -106,8 +110,6 @@
 }
 
 .hero {
-  display: block;
-  padding-bottom: 64px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -965,6 +967,49 @@
   .demoControl:hover,
   .waitlistSuccess button:hover {
     color: var(--ink) !important;
+  }
+}
+
+@media (min-width: 1180px) {
+  .hero {
+    display: grid;
+    width: min(100%, 1440px);
+    min-height: calc(100svh - 68px);
+    margin: 0 auto;
+    padding: 64px 48px;
+    grid-template-columns: minmax(390px, 0.78fr) minmax(0, 1.42fr);
+    align-items: center;
+    gap: 40px;
+  }
+
+  .heroCopy,
+  .productPreview {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .landingPage h1 {
+    font-size: clamp(3.75rem, 5vw, 4.6rem);
+  }
+
+  .headlineDoing {
+    display: block;
+  }
+
+  .headlineContrast {
+    display: block;
+  }
+
+  .heroActions {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+@media (max-width: 1179px) {
+  .hero {
+    display: block;
   }
 }
 
