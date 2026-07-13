@@ -136,7 +136,7 @@ export function LandingPage() {
           element.setAttribute('data-scroll-visible', 'true');
           if (scrollObserver) scrollObserver.unobserve(element);
         });
-      }, { threshold: 0.15, rootMargin: '0px 0px -12% 0px' });
+      }, { threshold: 0.15, rootMargin: '0px 0px -50% 0px' });
 
       page.querySelectorAll('[data-scroll]').forEach((element) => {
         scrollObserver?.observe(element);
@@ -213,7 +213,7 @@ export function LandingPage() {
           </header>
           <ol className={styles.lessonSpine} aria-label="One Kairo lesson" data-motion="lesson">
             {lessonSteps.map(([label, detail, className], index) => (
-              <li className={styles[className]} data-lesson-step={index + 1} data-scroll="lesson-step" key={label}>
+              <li className={styles[className]} data-lesson-step={index + 1} data-scroll="lesson-step" data-scroll-index={index} key={label}>
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <div>
                   <h3>{label}</h3>
@@ -253,8 +253,8 @@ export function LandingPage() {
             </section>
           </div>
           <ul className={styles.skillList} aria-label="Available product skill examples">
-            {skills.map(([software, knowledge]) => (
-              <li className={styles.skillRow} data-scroll="skill-row" key={software}>
+            {skills.map(([software, knowledge], index) => (
+              <li className={styles.skillRow} data-scroll="skill-row" data-scroll-index={index} key={software}>
                 <h3>{software}</h3>
                 <p>{knowledge}</p>
               </li>

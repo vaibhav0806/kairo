@@ -202,11 +202,19 @@ describe('landing page', () => {
     expect(html).toContain('data-scroll="skill-layer-product"');
     expect(html).toContain('data-scroll="trust"');
     expect(html).toContain('data-scroll="access-form"');
+    expect(html.match(/data-scroll-index=/g) ?? []).toHaveLength(9);
+    expect(html).toContain('data-scroll-index="4"');
     expect(source).toContain("page.querySelectorAll('[data-scroll]')");
     expect(source).toContain("element.setAttribute('data-scroll-visible', 'true')");
     expect(source).toContain('scrollObserver.unobserve(element)');
+    expect(source).toContain("rootMargin: '0px 0px -50% 0px'");
     expect(source).not.toContain('lessonStepElements.slice');
     expect(css).toContain("[data-scroll-visible='true']");
+    [25, 50, 75, 100].forEach((delay, index) => {
+      expect(css).toMatch(new RegExp(`\\[data-scroll-index='${index + 1}'\\]\\[data-scroll-visible='true'\\]\\s*\\{[^}]*transition-delay:\\s*${delay}ms;`, 's'));
+    });
+    const scrollDelays = [...css.matchAll(/transition-delay:\s*(\d+)ms;/g)].map((match) => Number(match[1]));
+    expect(Math.max(...scrollDelays)).toBeLessThanOrEqual(100);
   });
 
   test('offers a demo control and gates every looping preview animation with its state', () => {

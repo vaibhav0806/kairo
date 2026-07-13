@@ -962,6 +962,27 @@
   transition-delay: 80ms;
 }
 
+.landingPage[data-motion-ready='true'] [data-scroll-index='1'][data-scroll-visible='true'] {
+  transition-delay: 25ms;
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll-index='2'][data-scroll-visible='true'] {
+  transition-delay: 50ms;
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll-index='3'][data-scroll-visible='true'] {
+  transition-delay: 75ms;
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll-index='4'][data-scroll-visible='true'] {
+  transition-delay: 100ms;
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll='lesson-step'][data-scroll-visible='true']::before,
+.landingPage[data-motion-ready='true'] [data-scroll='lesson-step'][data-scroll-visible='true']::after {
+  transition-delay: inherit;
+}
+
 @keyframes voiceBar {
   from { transform: scaleY(0.35); }
   to { transform: scaleY(1); }
