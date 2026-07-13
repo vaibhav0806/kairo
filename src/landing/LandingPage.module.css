@@ -1240,4 +1240,10 @@
     opacity: 1 !important;
     transform: none !important;
   }
+
+  .landingPage [data-reveal] .chapterVisual > * {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }

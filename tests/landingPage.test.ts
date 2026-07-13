@@ -35,4 +35,13 @@ describe('landing page', () => {
     expect(css).not.toContain('linear-gradient');
     expect(css).not.toContain('radial-gradient');
   });
+
+  test('keeps chapter visual details visible when reduced motion is enabled', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+    const reducedMotionCss = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+
+    expect(reducedMotionCss).toMatch(
+      /\.landingpage\s+\[data-reveal\]\s+\.chaptervisual\s*>\s*\*\s*\{[^}]*opacity:\s*1\s*!important;[^}]*transform:\s*none\s*!important;[^}]*transition:\s*none\s*!important;[^}]*\}/
+    );
+  });
 });
