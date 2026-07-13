@@ -26,7 +26,7 @@ describe('landing waitlist preview', () => {
     const input = screen.getByLabelText('Email address') as HTMLInputElement;
 
     fireEvent.change(input, { target: { value: 'learner@' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Request access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
 
     expect(input.value).toBe('learner@');
     expect(input.getAttribute('aria-invalid')).toBe('true');
@@ -44,7 +44,7 @@ describe('landing waitlist preview', () => {
     fireEvent.change(screen.getByLabelText('Email address'), {
       target: { value: ' learner@example.com ' }
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Request access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
 
     expect(screen.queryByLabelText('Email address')).toBeNull();
     expect(screen.getByText('Preview complete.')).toBeTruthy();
@@ -59,7 +59,7 @@ describe('landing waitlist preview', () => {
     fireEvent.change(screen.getByLabelText('Email address'), {
       target: { value: 'learner@example.com' }
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Request access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
 
     const student = screen.getByRole('button', { name: 'Student' });
     const creator = screen.getByRole('button', { name: 'Creator' });

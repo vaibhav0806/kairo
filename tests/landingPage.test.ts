@@ -30,74 +30,120 @@ describe('landing page', () => {
     expect(css).not.toMatch(/\.waitlistsuccess > strong\s*\{[^}]*color:\s*var\(--verified\);/);
   });
 
-  test('uses the approved secondary CTA wording', () => {
+  test('uses the field-guide hero language and text actions', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
 
-    expect(html).toContain('Watch Kairo teach');
+    expect(html).toContain('Kairo / a tutor inside your software');
+    expect(html).toContain('Talk or circle what you mean. Kairo answers aloud with one next step');
+    expect(html).toContain('Join the Mac alpha');
+    expect(html).toContain('See one complete lesson');
+    expect(html).toContain('↗');
+    expect(html).toContain('↓');
+    expect(html).toContain('One lesson, shown in Blender');
+    expect(html).toContain('Blender skill active');
+    expect(html).toContain('Kairo understood: cube');
+    expect(html).toContain('You asked + circled');
   });
 
-  test('presents equal compatibility across desktop software', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
+  test('presents the base tutor and product skills as distinct layers', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage)).replaceAll('&#x27;', "'");
 
+    expect(html).toContain('Works anywhere. Gets deeper with product skills.');
+    expect(html).toContain("Kairo can guide from the screen alone. Add a product skill for lessons that know the software's tools, language, and workflows.");
+    expect(html).toContain('In any desktop app');
+    ['Sees the current screen', 'Hears the question', 'Understands the annotation', 'Points to the next control', 'Checks the visible result'].forEach((capability) => {
+      expect(html).toContain(capability);
+    });
+    expect(html).toContain('With a product skill');
+    ['Knows app terminology', 'Teaches complete workflows', 'Anticipates common mistakes', 'Loads structured lesson recipes'].forEach((capability) => {
+      expect(html).toContain(capability);
+    });
     expect(html).toContain('Blender');
+    expect(html).toContain('modelling, animation, materials, rendering');
     expect(html).toContain('Photoshop');
+    expect(html).toContain('layers, masks, retouching, compositing');
     expect(html).toContain('DaVinci Resolve');
+    expect(html).toContain('editing, color, audio, delivery');
     expect(html).toContain('Figma');
-    expect(html).toContain('Any desktop software');
+    expect(html).toContain('layout, components, prototyping');
+    expect(html).toContain('And any other desktop software, even without a dedicated skill.');
   });
 
   test('states that learners can pause guidance', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
 
-    expect(html).toContain('You can pause guidance at any time.');
+    expect(html).toContain('Pause it anytime.');
   });
 
-  test('renders the approved learner-first narrative', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-
-    expect(html).toContain('Learn software by doing.');
-    expect(html).toContain('Not watching.');
-    expect(html).toContain('Example lesson / Blender');
-    expect(html).toContain('Tutorials show their screen. Kairo starts from yours.');
-    expect(html).toContain('Talk to Kairo.');
-    expect(html).toContain('Circle “this.”');
-    expect(html).toContain('The AI points. You act.');
-    expect(html).toContain('Kairo checks before moving on.');
-    expect(html).toContain('Photoshop');
-    expect(html).toContain('DaVinci Resolve');
-    expect(html).toContain('AI can make mistakes.');
-  });
-
-  test('positions Kairo as a tutor for any desktop software', () => {
+  test('renders one complete lesson in causal order', () => {
     const html = renderToStaticMarkup(createElement(LandingPage)).replaceAll('&#x27;', "'");
+    const beats = ['You ask or point', 'Kairo understands', 'One next step', 'You do it', 'Kairo checks'];
+    const beatPositions = beats.map((beat) => html.indexOf(beat));
 
-    expect(html).toContain('AI tutor for any desktop software / Mac alpha');
-    expect(html).toContain('whatever software you\'re learning');
-    expect(html).toContain('Example lesson / Blender');
-    expect(html).toContain('Why won\'t these cards resize with the frame?');
-    expect(html).toContain('Layers panel → Add layer mask');
-    expect(html).toContain('Add to Render Queue');
-    expect(html).toContain('Any desktop software');
-    expect(html).toContain('anything else on your screen');
-    expect(html).not.toContain('First live skill / Blender');
-    expect(html).not.toContain('Active / alpha');
-    expect(html).not.toContain('Kairo is beginning with Blender learners');
-    expect(html).not.toContain('Blender first.');
+    beatPositions.forEach((position) => expect(position).toBeGreaterThan(-1));
+    expect(beatPositions).toEqual([...beatPositions].sort((a, b) => a - b));
+    expect(html).toContain('A lesson moves only when you do.');
+    expect(html).toContain("Why won't these cards resize with the frame?");
+    expect(html).toContain('Cards / horizontal resizing');
+    expect(html).toContain('Set horizontal resizing to Fill container.');
+    expect(html).toContain('aria-label="Kairo spoken response"');
+    expect(html).toContain('Kairo answers aloud');
+    expect(html).toContain('Changed to Fill container.');
+    expect(html).toContain('Cards resize with the frame. Next step ready.');
+  });
+
+  test('places the learning distinction immediately after the hero', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage)).replaceAll('&#x27;', "'");
+    const previewEnd = html.indexOf('</figure>') + '</figure>'.length;
+    const distinction = 'Tutorials make you leave the work. Agents take over the work. Kairo teaches you inside it.';
+    const distinctionPosition = html.indexOf(distinction);
+    const lessonPosition = html.indexOf('A lesson moves only when you do.');
+
+    expect(distinctionPosition).toBeGreaterThan(previewEnd);
+    expect(distinctionPosition).toBeLessThan(lessonPosition);
+    expect(html).toContain('It starts from your screen, gives one move, waits while you try it, and checks before continuing.');
+  });
+
+  test('removes the old process strip, fabricated app stages, principles, and trust cards', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
+
+    expect(source).not.toContain('const learningLoop');
+    expect(source).not.toContain('styles.learningLoop');
+    expect(source).not.toContain('styles.chapter');
+    expect(source).not.toContain('styles.principles');
+    expect(source).not.toContain('styles.trustColumns');
+    expect(html).not.toContain('Layers panel → Add layer mask');
+    expect(html).not.toContain('Add to Render Queue');
+    expect(html).not.toContain('Built around learning, not task completion.');
+    expect(html).not.toContain('You choose when Kairo looks and listens.');
+    expect(html).not.toContain('You remain the operator.');
+    expect(html).not.toContain('Honest limits');
   });
 
   test('keeps Blender workflow steps inside the product preview', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     const previewStart = html.indexOf('<figure');
     const previewEnd = html.indexOf('</figure>') + '</figure>'.length;
-    const chaptersStart = html.indexOf('<section id="how"');
-    const chaptersEnd = html.indexOf('<section id="skills"');
+    const lessonStart = html.indexOf('<section id="lesson"');
+    const lessonEnd = html.indexOf('<section id="skills"');
     const productPreview = html.slice(previewStart, previewEnd);
-    const scrollChapters = html.slice(chaptersStart, chaptersEnd);
+    const lesson = html.slice(lessonStart, lessonEnd);
 
     ['Select cube', 'Insert keyframe', 'Move to frame 40'].forEach((step) => {
       expect(productPreview).toContain(step);
-      expect(scrollChapters).not.toContain(step);
+      expect(lesson).not.toContain(step);
     });
+  });
+
+  test('uses the revised waitlist invitation and keeps the mock disclosure', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+
+    expect(html).toContain('Bring the software you want to learn.');
+    expect(html).not.toContain('What software do you want to learn?');
+    expect(html).toContain('Join the Mac alpha and bring the software you already use.');
+    expect(html).toContain('<button type="submit">Join the alpha</button>');
+    expect(html).toContain('Preview mode. This form does not send or store your email yet.');
   });
 
   test('uses a high-resolution Blender source with cube-aligned overlays', () => {
@@ -187,63 +233,4 @@ describe('landing page', () => {
     expect(css).toMatch(/\.landingpage h1\s*\{[^}]*font-size:\s*clamp\(3\.5rem,\s*17cqi,\s*7rem\);/);
   });
 
-  test('defines semantic product and scroll motion choreography', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-
-    expect(html).toContain('data-motion="conversation"');
-    expect(html).toContain('data-motion="annotation"');
-    expect(html).toContain('data-motion="guidance"');
-    expect(html).toContain('data-motion="verification"');
-    expect(html).toContain('data-motion="skills"');
-    expect(html).toContain('<svg');
-    expect(css).toContain('@keyframes herodraw');
-    expect(css).toContain('@keyframes herotarget');
-    expect(css).toContain('@keyframes herocursor');
-    expect(css).toContain('@keyframes conversationin');
-    expect(css).toContain('@keyframes annotationdraw');
-    expect(css).toContain('@keyframes guidenotchin');
-    expect(css).toContain('@keyframes cursortravel');
-    expect(css).toContain('@keyframes verifyrow');
-    expect(css).toContain('@keyframes skillin');
-    expect(css).toContain("[data-demo-active='true'][data-page-visible='true']");
-  });
-
-  test('sequences conversation through learner action and final verification', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-    const beats = ['question', 'response', 'action', 'verification'];
-    const beatPositions = beats.map((beat) => html.indexOf(`data-conversation-beat="${beat}"`));
-
-    beatPositions.forEach((position) => expect(position).toBeGreaterThan(-1));
-    expect(beatPositions).toEqual([...beatPositions].sort((a, b) => a - b));
-    expect(html).toContain('Learner action / resize');
-    expect(html).toContain('Resize verified');
-    expect(css).toContain('@keyframes conversationquestion');
-    expect(css).toContain('@keyframes conversationresponse');
-    expect(css).toContain('@keyframes conversationaction');
-    expect(css).toContain('@keyframes conversationverify');
-    expect(css).toMatch(/\.conversationquestion\s*\{[^}]*animation:\s*conversationquestion 420ms 100ms/);
-    expect(css).toMatch(/\.conversationresponse\s*\{[^}]*animation:\s*conversationresponse 420ms 560ms/);
-    expect(css).toMatch(/\.conversationaction\s*\{[^}]*animation:\s*conversationaction 420ms 1040ms/);
-    expect(css).toMatch(/\.conversationverified\s*\{[^}]*animation:\s*conversationverify 420ms 1520ms/);
-  });
-
-  test('finishes annotation drawing before resolving its answer', () => {
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-
-    expect(css).toMatch(/\.drawncircle path\s*\{[^}]*animation:\s*annotationdraw 700ms 160ms/);
-    expect(css).toMatch(/\.annotationlabel\s*\{[^}]*animation:\s*annotationresolve 420ms 900ms/);
-    expect(css).toMatch(/\.groundedanswer\s*\{[^}]*animation:\s*annotationresolve 480ms 1080ms/);
-    expect(css).toMatch(/\.visualverification\s*\{[^}]*animation:\s*annotationresolve 420ms 1600ms/);
-  });
-
-  test('runs chapter wave bars only as finite visible entrances', () => {
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-
-    expect(css).not.toMatch(/\.wave i,\s*\.miniwave i\s*\{[^}]*animation:[^}]*infinite/);
-    expect(css).toContain('@keyframes chaptervoicebar');
-    expect(css).toMatch(/\[data-motion='conversation'\]\[data-visible='true'\] \.conversationresponse \.miniwave i\s*\{[^}]*animation:\s*chaptervoicebar [^;}]* 2 alternate both/);
-    expect(css).toMatch(/\[data-motion='guidance'\]\[data-visible='true'\] \.guidenotch \.miniwave i\s*\{[^}]*animation:\s*chaptervoicebar [^;}]* 2 alternate both/);
-  });
 });

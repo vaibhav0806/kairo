@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import styles from './LandingPage.module.css';
 
 type WaitlistRole = 'Student' | 'Creator' | 'Educator';
@@ -10,22 +10,42 @@ export function validateWaitlistEmail(value: string): string | null {
   return null;
 }
 
-const learningLoop = ['Talk', 'Draw', 'Understand', 'Guide', 'Verify'];
-
 const skills = [
-  ['Blender', '3D · animation · rendering'],
-  ['Photoshop', 'Layers · masks · retouching'],
-  ['DaVinci Resolve', 'Timeline · color · delivery'],
-  ['Figma', 'Frames · auto layout · components'],
-  ['Any desktop software', 'If it is on your screen, you can learn it with Kairo.']
+  ['Blender', 'modelling, animation, materials, rendering'],
+  ['Photoshop', 'layers, masks, retouching, compositing'],
+  ['DaVinci Resolve', 'editing, color, audio, delivery'],
+  ['Figma', 'layout, components, prototyping']
+] as const;
+
+const lessonSteps = [
+  ['You ask or point', '“Why won\'t these cards resize with the frame?”', 'learnerStep'],
+  ['Kairo understands', 'Cards / horizontal resizing', 'contextStep'],
+  ['One next step', 'Set horizontal resizing to Fill container.', 'guideStep'],
+  ['You do it', 'Changed to Fill container.', 'actionStep'],
+  ['Kairo checks', 'Cards resize with the frame. Next step ready.', 'verifiedStep']
+] as const;
+
+const baseTutorCapabilities = [
+  'Sees the current screen',
+  'Hears the question',
+  'Understands the annotation',
+  'Points to the next control',
+  'Checks the visible result'
+] as const;
+
+const productSkillCapabilities = [
+  'Knows app terminology',
+  'Teaches complete workflows',
+  'Anticipates common mistakes',
+  'Loads structured lesson recipes'
 ] as const;
 
 function ProductPreview() {
   return (
     <figure className={styles.productPreview} data-product-preview>
       <figcaption>
-        <span>Product preview</span>
-        <strong>Example lesson / Blender</strong>
+        <span>One lesson, shown in Blender</span>
+        <strong>Blender skill active</strong>
       </figcaption>
       <div className={styles.softwareFrame}>
         <img
@@ -35,14 +55,14 @@ function ProductPreview() {
         <svg className={styles.learnerAnnotation} viewBox="0 0 180 130" aria-hidden="true">
           <path d="M16 68 C9 25 130 5 163 46 C190 80 147 121 84 120 C28 118 1 91 16 68" />
         </svg>
-        <div className={styles.kairoTarget}><span>Cube · target</span></div>
+        <div className={styles.kairoTarget}><span>Kairo understood: cube</span></div>
         <div className={styles.kairoCursor} aria-hidden="true">➤</div>
         <div className={styles.notch}>
           <span className={styles.wave} aria-hidden="true"><i /><i /><i /><i /></span>
           <span>Good. The cube is selected. Press I and choose Location.</span>
         </div>
         <blockquote className={styles.learnerAsk}>
-          <b>You / voice + annotation</b>
+          <b>You asked + circled</b>
           “How do I start animating this cube?”
         </blockquote>
         <div className={styles.progressRail} aria-label="Example lesson progress">
@@ -125,186 +145,107 @@ export function LandingPage() {
       <header className={styles.header}>
         <a className={styles.wordmark} href="#top" aria-label="Kairo home">kairo</a>
         <nav aria-label="Landing page">
-          <a href="#how">How it works</a>
-          <a href="#skills">Skills</a>
+          <a href="#lesson">Lesson</a>
+          <a href="#skills">Product skills</a>
           <a href="#trust">Trust</a>
         </nav>
-        <a className={styles.headerCta} href="#access">Request access</a>
+        <a className={styles.headerCta} href="#access">Join alpha <span aria-hidden="true">↗</span></a>
       </header>
 
       <main id="top">
         <section className={styles.hero} aria-labelledby="landing-title">
           <div className={styles.heroCopy}>
             <div>
-              <p className={styles.eyebrow}>AI tutor for any desktop software / Mac alpha</p>
+              <p className={styles.eyebrow}>Kairo / a tutor inside your software</p>
               <h1 id="landing-title">Learn software by doing. <span>Not watching.</span></h1>
               <p className={styles.heroIntro}>
-                Kairo teaches you inside whatever software you're learning. Ask a question,
-                point to what you mean, do the step yourself, and let Kairo check the result.
+                Ask Kairo what to do next. Talk or circle what you mean. Kairo answers aloud with
+                one next step, waits while you do it, then checks the result before moving on.
               </p>
             </div>
             <div className={styles.heroActions}>
-              <a className={styles.primaryAction} href="#access">Request access</a>
-              <a className={styles.secondaryAction} href="#how">Watch Kairo teach <span aria-hidden="true">↓</span></a>
+              <a className={styles.primaryAction} href="#access">Join the Mac alpha <span aria-hidden="true">↗</span></a>
+              <a className={styles.secondaryAction} href="#lesson">See one complete lesson <span aria-hidden="true">↓</span></a>
             </div>
           </div>
           <ProductPreview />
         </section>
 
-        <ol className={styles.learningLoop} aria-label="Kairo learning loop">
-          {learningLoop.map((step, index) => (
-            <li key={step}><span>{String(index + 1).padStart(2, '0')}</span><b>{step}</b></li>
-          ))}
-        </ol>
-
-        <section className={styles.problem} aria-labelledby="problem-title" data-reveal>
-          <p>Why another way to learn?</p>
-          <div>
-            <h2 id="problem-title">Tutorials show their screen. Kairo starts from yours.</h2>
-            <p>There is no hunting for the right timestamp or translating someone else’s setup. Ask from the place where you are stuck and keep working in your own file.</p>
-          </div>
+        <section className={styles.distinction} aria-labelledby="distinction-title" data-reveal>
+          <h2 id="distinction-title">Tutorials make you leave the work. Agents take over the work. Kairo teaches you inside it.</h2>
+          <p>It starts from your screen, gives one move, waits while you try it, and checks before continuing.</p>
         </section>
 
-        <section id="how" className={styles.how} aria-labelledby="how-title">
-          <header className={styles.sectionHeader} data-reveal>
-            <p>How it works</p>
-            <h2 id="how-title">A question becomes your next clear action.</h2>
+        <section id="lesson" className={styles.lesson} aria-labelledby="lesson-title" data-reveal>
+          <header className={styles.sectionHeader}>
+            <p>One complete lesson in Figma</p>
+            <h2 id="lesson-title">A lesson moves only when you do.</h2>
           </header>
-
-          <article className={styles.chapter} data-reveal data-motion="conversation">
-            <div className={styles.chapterCopy}>
-              <span>01 / Ask naturally</span>
-              <h3>Talk to Kairo. <span>Hear the answer.</span></h3>
-              <p>Hold the shortcut and ask the question in your own words. Kairo answers aloud without pulling you away from the software.</p>
-            </div>
-            <div className={styles.chapterVisual} aria-label="Voice question and spoken guidance example">
-              <p className={styles.visualLabel}>Learner input / voice · Figma</p>
-              <blockquote className={styles.conversationQuestion} data-conversation-beat="question">“Why won't these cards resize with the frame?”</blockquote>
-              <div className={`${styles.voiceResponse} ${styles.conversationResponse}`} data-conversation-beat="response">
-                <span className={styles.miniWave} aria-hidden="true"><i /><i /><i /><i /><i /></span>
-                <p><b>Kairo guidance / voice</b>The cards have fixed widths. Set their horizontal resizing to Fill container.</p>
-              </div>
-              <p className={styles.conversationAction} data-conversation-beat="action"><b>Learner action / resize</b> Sets the cards to Fill container.</p>
-              <p className={`${styles.visualVerification} ${styles.conversationVerified}`} data-conversation-beat="verification"><b>Resize verified</b> The cards now resize with the frame. Ready for the next step.</p>
-            </div>
-          </article>
-
-          <article className={styles.chapter} data-reveal data-motion="annotation">
-            <div className={styles.chapterCopy}>
-              <span>02 / Point to context</span>
-              <h3>Circle “this.” <span>Kairo resolves what you mean.</span></h3>
-              <p>Draw around the control, object, or region you mean. Kairo combines your words with what is visible on your screen.</p>
-            </div>
-            <div className={styles.chapterVisual} aria-label="On-screen annotation grounding example">
-              <p className={styles.visualLabel}>Learner input / annotation · Photoshop</p>
-              <div className={styles.fakeToolbar}><span>Layers</span><span>Channels</span><span>Paths</span></div>
-              <svg className={styles.drawnCircle} viewBox="0 0 180 110" aria-hidden="true">
-                <path d="M13 58 C5 19 126 1 165 38 C199 70 149 107 87 104 C28 102 1 81 13 58" />
-              </svg>
-              <span className={styles.annotationLabel}>This icon</span>
-              <p className={styles.groundedAnswer}><b>Kairo guidance / resolved target</b>Layers panel → Add layer mask</p>
-              <p className={styles.visualVerification}><b>Verification</b> Target found on your screen</p>
-            </div>
-          </article>
-
-          <article className={styles.chapter} data-reveal data-motion="guidance">
-            <div className={styles.chapterCopy}>
-              <span>03 / Stay in control</span>
-              <h3 aria-label="The AI points. You act.">The AI points. <span>You act.</span></h3>
-              <p>Kairo marks the next control and explains the move. It does not take over your mouse, so the skill stays with you.</p>
-            </div>
-            <div className={styles.chapterVisual} aria-label="Kairo pointing to the learner's next action">
-              <p className={styles.visualLabel}>Kairo guidance / next control · DaVinci Resolve</p>
-              <div className={styles.guideNotch}>
-                <span className={styles.miniWave} aria-hidden="true"><i /><i /><i /><i /><i /></span>
-                <span>Add your timeline to the render queue before starting the export.</span>
-              </div>
-              <div className={styles.targetControl}><span>Deliver</span><b>Add to Render Queue</b></div>
-              <span className={styles.guideCursor} aria-hidden="true">➤</span>
-              <p className={styles.learnerAction}><b>Learner input / action</b> You click Add to Render Queue</p>
-              <p className={styles.visualVerification}><b>Verification</b> Action remains yours</p>
-            </div>
-          </article>
-
-          <article className={styles.chapter} data-reveal data-motion="verification">
-            <div className={styles.chapterCopy}>
-              <span>04 / Build real progress</span>
-              <h3 aria-label="Kairo checks before moving on.">Kairo checks <span>before moving on.</span></h3>
-              <p>Kairo looks for the result of each step before giving you the next one. If the screen does not match, it helps you recover.</p>
-            </div>
-            <div className={`${styles.chapterVisual} ${styles.verifyVisual}`} aria-label="Lesson step verification example">
-              <p className={styles.visualLabel}>Learner input / completed action</p>
-              <div className={styles.checkRow}><span>01</span><b>Find the control</b><em>Verified</em></div>
-              <div className={styles.checkRow}><span>02</span><b>Make the change</b><em>Verified</em></div>
-              <div className={`${styles.checkRow} ${styles.nextRow}`}><span>03</span><b>Check the result</b><em>Next</em></div>
-              <p className={styles.visualVerification}><b>Kairo guidance / verification</b> Two steps confirmed. Ready to continue.</p>
-            </div>
-          </article>
+          <ol className={styles.lessonSpine} aria-label="One Kairo lesson" data-motion="lesson">
+            {lessonSteps.map(([label, detail, className], index) => (
+              <li className={styles[className]} data-lesson-step={index + 1} key={label}>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <h3>{label}</h3>
+                  <p>{detail}</p>
+                  {index === 2 ? (
+                    <span className={styles.spokenResponse} aria-label="Kairo spoken response">
+                      <span className={styles.miniWave} aria-hidden="true"><i /><i /><i /><i /><i /></span>
+                      Kairo answers aloud
+                    </span>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section id="skills" className={styles.skills} aria-labelledby="skills-title">
           <header className={styles.sectionHeader} data-reveal>
-            <p>Software you can learn with Kairo</p>
+            <p>One tutor, two layers</p>
             <div>
-              <h2 id="skills-title">One tutor for whatever you open next.</h2>
-              <p className={styles.skillsIntro}>Blender, Photoshop, DaVinci Resolve, Figma, and anything else on your screen.</p>
+              <h2 id="skills-title">Works anywhere. Gets deeper with product skills.</h2>
+              <p className={styles.skillsIntro}>Kairo can guide from the screen alone. Add a product skill for lessons that know the software's tools, language, and workflows.</p>
             </div>
           </header>
-          <div className={styles.skillList} data-reveal data-motion="skills">
-            {skills.map(([software, knowledge], index) => (
-              <article className={styles.skillRow} key={software} style={{ '--skill-index': index } as CSSProperties}>
-                <span>{String(index + 1).padStart(2, '0')}</span>
+          <div className={styles.skillLayers} data-reveal>
+            <section className={styles.baseTutorLayer} aria-labelledby="base-tutor-title">
+              <h3 id="base-tutor-title">In any desktop app</h3>
+              <ul>
+                {baseTutorCapabilities.map((capability) => <li key={capability}>{capability}</li>)}
+              </ul>
+            </section>
+            <section className={styles.productSkillLayer} aria-labelledby="product-skill-title">
+              <h3 id="product-skill-title">With a product skill</h3>
+              <ul>
+                {productSkillCapabilities.map((capability) => <li key={capability}>{capability}</li>)}
+              </ul>
+            </section>
+          </div>
+          <ul className={styles.skillList} aria-label="Available product skill examples">
+            {skills.map(([software, knowledge]) => (
+              <li className={styles.skillRow} key={software}>
                 <h3>{software}</h3>
                 <p>{knowledge}</p>
-              </article>
+              </li>
             ))}
-          </div>
-        </section>
-
-        <section className={styles.difference} aria-labelledby="difference-title" data-reveal>
-          <div className={styles.differenceLead}>
-            <p>What makes Kairo different</p>
-            <h2 id="difference-title">Built around learning, not task completion.</h2>
-          </div>
-          <div className={styles.principles}>
-            <p><span>01</span><b>Your screen</b>Context starts with the work in front of you.</p>
-            <p><span>02</span><b>One step</b>Guidance stays small enough to understand.</p>
-            <p><span>03</span><b>Your action</b>Kairo points; it does not take over.</p>
-            <p><span>04</span><b>Real progress</b>Each move is checked before the lesson continues.</p>
-          </div>
+          </ul>
+          <p className={styles.anySoftware}>And any other desktop software, even without a dedicated skill.</p>
         </section>
 
         <section id="trust" className={styles.trust} aria-labelledby="trust-title" data-reveal>
-          <header className={styles.sectionHeader}>
-            <p>Trust</p>
-            <h2 id="trust-title">Quiet until you ask. Clear about its limits.</h2>
-          </header>
-          <div className={styles.trustColumns}>
-            <article>
-              <span>Activation</span>
-              <h3>You choose when Kairo looks and listens.</h3>
-              <p>Activate guidance with the shortcut. You can pause guidance at any time. The app stays visually quiet while you work.</p>
-            </article>
-            <article>
-              <span>Learner control</span>
-              <h3>You remain the operator.</h3>
-              <p>Kairo can point and explain, but it does not click through the software for you.</p>
-            </article>
-            <article>
-              <span>Honest limits</span>
-              <h3>AI can make mistakes.</h3>
-              <p>Check important guidance and use your judgment. Kairo verifies what it can see, not what it cannot know.</p>
-            </article>
-          </div>
+          <p>Trust</p>
+          <h2 id="trust-title">Kairo starts only when you ask. Pause it anytime. It points; it never clicks for you.</h2>
+          <p className={styles.trustLimit}>AI can make mistakes. Check important guidance and use your judgment.</p>
         </section>
 
         <section id="access" className={styles.access} aria-labelledby="access-title" data-reveal>
           <div>
             <p>Early access / Mac</p>
-            <h2 id="access-title">Learn inside the work.</h2>
+            <h2 id="access-title">Bring the software you want to learn.</h2>
           </div>
           <div className={styles.accessShell}>
-            <p>Kairo is opening early access for people learning desktop software. Join the list to hear when a place opens.</p>
+            <p>Join the Mac alpha and bring the software you already use.</p>
             {submittedEmail ? (
               <div className={styles.waitlistSuccess} aria-live="polite">
                 <strong>Preview complete.</strong>
@@ -329,13 +270,12 @@ export function LandingPage() {
                     aria-invalid={Boolean(emailError)}
                     onChange={(event) => { setEmail(event.target.value); setEmailError(null); }}
                   />
-                  <button type="submit">Request access</button>
+                  <button type="submit">Join the alpha</button>
                 </div>
                 {emailError ? <p id="waitlist-error" className={styles.waitlistError} role="alert">{emailError}</p> : null}
                 <p id="waitlist-note" className={styles.waitlistNote}>Preview mode. This form does not send or store your email yet.</p>
               </form>
             )}
-            <p><b>Bring the software you want to learn.</b> Kairo meets you in the work already on your screen.</p>
           </div>
         </section>
       </main>
