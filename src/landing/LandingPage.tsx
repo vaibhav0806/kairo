@@ -11,33 +11,16 @@ export function validateWaitlistEmail(value: string): string | null {
 }
 
 const skills = [
-  ['Blender', 'modelling, animation, materials, rendering'],
-  ['Photoshop', 'layers, masks, retouching, compositing'],
-  ['DaVinci Resolve', 'editing, color, audio, delivery'],
-  ['Figma', 'layout, components, prototyping']
+  ['Blender', 'modelling, animation, materials, rendering', 'model'],
+  ['Photoshop', 'layers, masks, retouching, compositing', 'image'],
+  ['DaVinci Resolve', 'editing, color, audio, delivery', 'edit'],
+  ['Figma', 'layout, components, prototyping', 'layout']
 ] as const;
 
-const lessonSteps = [
-  ['You ask or point', '“Why won\'t these cards resize with the frame?”', 'learnerStep'],
-  ['Kairo understands', 'Cards / horizontal resizing', 'contextStep'],
-  ['One next step', 'Set horizontal resizing to Fill container.', 'guideStep'],
-  ['You do it', 'Changed to Fill container.', 'actionStep'],
-  ['Kairo checks', 'Cards resize with the frame. Next step ready.', 'verifiedStep']
-] as const;
-
-const baseTutorCapabilities = [
-  'Sees the current screen',
-  'Hears the question',
-  'Understands the annotation',
-  'Points to the next control',
-  'Checks the visible result'
-] as const;
-
-const productSkillCapabilities = [
-  'Knows app terminology',
-  'Teaches complete workflows',
-  'Anticipates common mistakes',
-  'Loads structured lesson recipes'
+const learningScenes = [
+  ['01', 'Ask / Figma', 'layout', 'Circle the thing that doesn’t make sense.', 'learner'],
+  ['02', 'Guide / Photoshop', 'image', 'Kairo points to one next step.', 'kairo'],
+  ['03', 'Check / DaVinci Resolve', 'edit', 'You do it. Kairo checks what changed.', 'verified']
 ] as const;
 
 interface ProductPreviewProps {
@@ -49,8 +32,7 @@ function ProductPreview({ demoPaused, onToggleDemo }: ProductPreviewProps) {
   return (
     <figure className={styles.productPreview} data-product-preview>
       <figcaption>
-        <span>One lesson, shown in Blender</span>
-        <strong>Blender skill active</strong>
+        <span>Watch Kairo guide a lesson</span>
         <button
           className={styles.demoControl}
           type="button"
@@ -59,6 +41,11 @@ function ProductPreview({ demoPaused, onToggleDemo }: ProductPreviewProps) {
           {demoPaused ? 'Play demo' : 'Pause demo'}
         </button>
       </figcaption>
+      <ol className={styles.heroSignals} aria-label="How a Kairo lesson progresses">
+        <li className={styles.signalLearner}><span>01</span><b>You ask</b></li>
+        <li className={styles.signalKairo}><span>02</span><b>Kairo guides</b></li>
+        <li className={styles.signalVerified}><span>03</span><b>Step checked</b></li>
+      </ol>
       <div className={styles.softwareFrame}>
         <img
           src={`${import.meta.env.BASE_URL}kairo-blender-preview.webp`}
@@ -96,6 +83,40 @@ function ProductPreview({ demoPaused, onToggleDemo }: ProductPreviewProps) {
   );
 }
 
+function LearningRunway() {
+  return (
+    <section id="lesson" className={styles.runway} aria-labelledby="runway-title">
+      <header className={styles.runwayHeader} data-scroll="runway-header">
+        <p>See it work</p>
+        <h2 id="runway-title">Your screen becomes the lesson.</h2>
+        <p>One clear move at a time.</p>
+      </header>
+      <div className={styles.learningRunway}>
+        {learningScenes.map(([number, app, mode, copy, tone], index) => (
+          <article
+            className={styles.learningScene}
+            data-scroll="learning-scene"
+            data-scroll-index={index}
+            data-tone={tone}
+            key={app}
+          >
+            <div className={styles.sceneTopline}><span>{number}</span><b>{app}</b><em>Example</em></div>
+            <div className={styles.sceneVisual} data-mode={mode} aria-hidden="true">
+              <span className={styles.sceneMark} />
+              <span className={styles.sceneTarget} />
+              <span className={styles.sceneCursor}>➤</span>
+              <span className={styles.scenePanel}><i /><i /><i /></span>
+              <span className={styles.sceneBlocks}><i /><i /><i /><i /></span>
+              <span className={styles.sceneTimeline}><i /><i /><i /><i /></span>
+            </div>
+            <p>{copy}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function LandingPage() {
   const pageRef = useRef<HTMLDivElement>(null);
   const [demoPaused, setDemoPaused] = useState(false);
@@ -126,21 +147,37 @@ export function LandingPage() {
     const canObserve = 'IntersectionObserver' in window;
     let scrollObserver: IntersectionObserver | null = null;
     let previewObserver: IntersectionObserver | null = null;
+    let visibilityFrame: number | null = null;
+    const scrollTargets = [...page.querySelectorAll('[data-scroll]')] as HTMLElement[];
+
+    const showScrollTarget = (element: HTMLElement) => {
+      element.setAttribute('data-scroll-visible', 'true');
+      if (scrollObserver) scrollObserver.unobserve(element);
+    };
+
+    const reconcileVisibleScrollTargets = () => {
+      scrollTargets.forEach((element) => {
+        const rect = element.getBoundingClientRect();
+        if (rect.bottom > 0 && rect.top < window.innerHeight) showScrollTarget(element);
+      });
+    };
 
     if (!reducedMotion && canObserve) {
       page.dataset.motionReady = 'true';
       scrollObserver = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
-          const element = entry.target;
-          element.setAttribute('data-scroll-visible', 'true');
-          if (scrollObserver) scrollObserver.unobserve(element);
+          showScrollTarget(entry.target as HTMLElement);
         });
-      }, { threshold: 0.15, rootMargin: '0px 0px -50% 0px' });
+      }, { threshold: 0.05, rootMargin: '0px 0px -96px 0px' });
 
-      page.querySelectorAll('[data-scroll]').forEach((element) => {
+      scrollTargets.forEach((element) => {
         scrollObserver?.observe(element);
       });
+      visibilityFrame = window.requestAnimationFrame(reconcileVisibleScrollTargets);
+      window.addEventListener('pageshow', reconcileVisibleScrollTargets);
+      window.addEventListener('resize', reconcileVisibleScrollTargets);
+      window.addEventListener('scroll', reconcileVisibleScrollTargets, { passive: true });
     }
 
     if (canObserve) {
@@ -160,6 +197,10 @@ export function LandingPage() {
     return () => {
       scrollObserver?.disconnect();
       previewObserver?.disconnect();
+      if (visibilityFrame !== null) window.cancelAnimationFrame(visibilityFrame);
+      window.removeEventListener('pageshow', reconcileVisibleScrollTargets);
+      window.removeEventListener('resize', reconcileVisibleScrollTargets);
+      window.removeEventListener('scroll', reconcileVisibleScrollTargets);
       document.removeEventListener('visibilitychange', syncPageVisibility);
       delete page.dataset.motionReady;
       delete page.dataset.demoActive;
@@ -172,8 +213,8 @@ export function LandingPage() {
       <header className={styles.header}>
         <a className={styles.wordmark} href="#top" aria-label="Kairo home">kairo</a>
         <nav aria-label="Landing page">
-          <a href="#lesson">Lesson</a>
-          <a href="#skills">Product skills</a>
+          <a href="#lesson">See it work</a>
+          <a href="#skills">Apps</a>
           <a href="#trust">Trust</a>
         </nav>
         <a className={styles.headerCta} href="#access">Join alpha <span aria-hidden="true">↗</span></a>
@@ -183,99 +224,55 @@ export function LandingPage() {
         <section className={styles.hero} aria-labelledby="landing-title">
           <div className={styles.heroCopy}>
             <div>
-              <p className={styles.eyebrow}>Kairo / a tutor inside your software</p>
+              <p className={styles.eyebrow}>Meet Kairo</p>
               <h1 id="landing-title">
-                Learn software <span className={styles.headlineDoing}>by doing.</span>
+                Learn <span className={styles.headlineDoing}>by doing.</span>
                 {' '}<span className={styles.headlineContrast}>Not watching.</span>
               </h1>
-              <p className={styles.heroIntro}>
-                Ask Kairo what to do next. Talk or circle what you mean. Kairo answers aloud with
-                one next step, waits while you do it, then checks the result before moving on.
-              </p>
+              <p className={styles.heroIntro}>Ask. Point. Learn by doing.</p>
             </div>
             <div className={styles.heroActions}>
               <a className={styles.primaryAction} href="#access">Join the Mac alpha <span aria-hidden="true">↗</span></a>
-              <a className={styles.secondaryAction} href="#lesson">See one complete lesson <span aria-hidden="true">↓</span></a>
+              <a className={styles.secondaryAction} href="#lesson">See Kairo guide a lesson <span aria-hidden="true">↓</span></a>
             </div>
           </div>
           <ProductPreview demoPaused={demoPaused} onToggleDemo={() => setDemoPaused((paused) => !paused)} />
         </section>
 
-        <section className={styles.distinction} aria-labelledby="distinction-title">
-          <h2 id="distinction-title" data-scroll="distinction-heading">Tutorials make you leave the work. Agents take over the work. Kairo teaches you inside it.</h2>
-          <p data-scroll="distinction-support">It starts from your screen, gives one move, waits while you try it, and checks before continuing.</p>
-        </section>
-
-        <section id="lesson" className={styles.lesson} aria-labelledby="lesson-title">
-          <header className={styles.sectionHeader} data-scroll="lesson-header">
-            <p>One complete lesson in Figma</p>
-            <h2 id="lesson-title">A lesson moves only when you do.</h2>
-          </header>
-          <ol className={styles.lessonSpine} aria-label="One Kairo lesson" data-motion="lesson">
-            {lessonSteps.map(([label, detail, className], index) => (
-              <li className={styles[className]} data-lesson-step={index + 1} data-scroll="lesson-step" data-scroll-index={index} key={label}>
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <div>
-                  <h3>{label}</h3>
-                  <p>{detail}</p>
-                  {index === 2 ? (
-                    <span className={styles.spokenResponse} aria-label="Kairo spoken response">
-                      <span className={styles.miniWave} aria-hidden="true"><i /><i /><i /><i /><i /></span>
-                      Kairo answers aloud
-                    </span>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
+        <LearningRunway />
 
         <section id="skills" className={styles.skills} aria-labelledby="skills-title">
           <header className={styles.sectionHeader} data-scroll="skills-header">
-            <p>One tutor, two layers</p>
+            <p>Bring your own app</p>
             <div>
-              <h2 id="skills-title">Works anywhere. Gets deeper with product skills.</h2>
-              <p className={styles.skillsIntro}>Kairo can guide from the screen alone. Add a product skill for lessons that know the software's tools, language, and workflows.</p>
+              <h2 id="skills-title">Kairo can meet you where you work.</h2>
             </div>
           </header>
-          <div className={styles.skillLayers}>
-            <section className={styles.baseTutorLayer} data-scroll="skill-layer-base" aria-labelledby="base-tutor-title">
-              <h3 id="base-tutor-title">In any desktop app</h3>
-              <ul>
-                {baseTutorCapabilities.map((capability) => <li key={capability}>{capability}</li>)}
-              </ul>
-            </section>
-            <section className={styles.productSkillLayer} data-scroll="skill-layer-product" aria-labelledby="product-skill-title">
-              <h3 id="product-skill-title">With a product skill</h3>
-              <ul>
-                {productSkillCapabilities.map((capability) => <li key={capability}>{capability}</li>)}
-              </ul>
-            </section>
-          </div>
-          <ul className={styles.skillList} aria-label="Available product skill examples">
-            {skills.map(([software, knowledge], index) => (
-              <li className={styles.skillRow} data-scroll="skill-row" data-scroll-index={index} key={software}>
+          <ul className={styles.skillGrid} aria-label="Examples of apps Kairo can guide in">
+            {skills.map(([software, knowledge, mode], index) => (
+              <li className={styles.skillTile} data-scroll="skill-row" data-scroll-index={index} data-mode={mode} key={software}>
+                <span className={styles.skillTileMark} aria-hidden="true" />
                 <h3>{software}</h3>
                 <p>{knowledge}</p>
               </li>
             ))}
           </ul>
-          <p className={styles.anySoftware}>And any other desktop software, even without a dedicated skill.</p>
+          <p className={styles.anySoftware}>Don’t see your app? Kairo can still help from what’s on your screen.</p>
         </section>
 
         <section id="trust" className={styles.trust} data-scroll="trust" aria-labelledby="trust-title">
-          <p>Trust</p>
-          <h2 id="trust-title">Kairo starts only when you ask. Pause it anytime. It points; it never clicks for you.</h2>
-          <p className={styles.trustLimit}>AI can make mistakes. Check important guidance and use your judgment.</p>
+          <p>You stay in control</p>
+          <h2 id="trust-title">Kairo only helps when you ask. You can pause it whenever you want. It never takes over.</h2>
+          <p className={styles.trustLimit}>Double-check important work. AI can get things wrong.</p>
         </section>
 
         <section id="access" className={styles.access} aria-labelledby="access-title">
           <div data-scroll="access-heading">
-            <p>Early access / Mac</p>
-            <h2 id="access-title">Bring the software you want to learn.</h2>
+            <p>Early access for Mac</p>
+            <h2 id="access-title">What do you want to learn?</h2>
           </div>
           <div className={styles.accessShell} data-scroll="access-form">
-            <p>Join the Mac alpha and bring the software you already use.</p>
+            <p>Join the early group and tell us which app you want help with.</p>
             {submittedEmail ? (
               <div className={styles.waitlistSuccess} aria-live="polite">
                 <strong>Preview complete.</strong>
