@@ -24,17 +24,17 @@ describe('landing waitlist preview', () => {
   test('lets the learner pause and resume the hero demonstration', () => {
     const { container } = render(createElement(LandingPage));
 
-    const pause = screen.getByRole('button', { name: 'Pause demo' });
-    expect(pause.hasAttribute('aria-pressed')).toBe(false);
+    const pause = screen.getByRole('button', { name: 'Pause lesson' });
+    expect(pause.getAttribute('aria-pressed')).toBe('false');
     expect(container.querySelector('[data-demo-paused="false"]')).toBeTruthy();
 
     fireEvent.click(pause);
-    const play = screen.getByRole('button', { name: 'Play demo' });
-    expect(play.hasAttribute('aria-pressed')).toBe(false);
+    const play = screen.getByRole('button', { name: 'Play lesson' });
+    expect(play.getAttribute('aria-pressed')).toBe('true');
     expect(container.querySelector('[data-demo-paused="true"]')).toBeTruthy();
 
     fireEvent.click(play);
-    expect(screen.getByRole('button', { name: 'Pause demo' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pause lesson' })).toBeTruthy();
     expect(container.querySelector('[data-demo-paused="false"]')).toBeTruthy();
   });
 
@@ -64,35 +64,22 @@ describe('landing waitlist preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
 
     expect(screen.queryByLabelText('Email address')).toBeNull();
-    expect(screen.getByText('Preview complete.')).toBeTruthy();
-    expect(screen.getByText(
-      'learner@example.com was not sent or stored. Connect a waitlist provider before launch.'
-    )).toBeTruthy();
+    expect(screen.getByText('Preview complete')).toBeTruthy();
+    expect(screen.getByText('learner@example.com')).toBeTruthy();
+    expect(screen.getByText('Nothing was sent or stored.')).toBeTruthy();
   });
 
-  test('offers optional Student, Creator, and Educator role selection', () => {
+  test('lets the learner choose an app and a goal before joining', () => {
     render(createElement(LandingPage));
 
-    fireEvent.change(screen.getByLabelText('Email address'), {
-      target: { value: 'learner@example.com' }
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
+    const figma = screen.getByRole('button', { name: 'Learn in Figma' });
+    const finish = screen.getByRole('button', { name: 'Finish a project' });
+    expect(figma.getAttribute('aria-pressed')).toBe('false');
+    expect(finish.getAttribute('aria-pressed')).toBe('false');
 
-    const student = screen.getByRole('button', { name: 'Student' });
-    const creator = screen.getByRole('button', { name: 'Creator' });
-    const educator = screen.getByRole('button', { name: 'Educator' });
-    expect(screen.getByText('Optional')).toBeTruthy();
-    expect(student.getAttribute('aria-pressed')).toBe('false');
-    expect(creator.getAttribute('aria-pressed')).toBe('false');
-    expect(educator.getAttribute('aria-pressed')).toBe('false');
-
-    fireEvent.click(student);
-    expect(student.getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(creator);
-    expect(student.getAttribute('aria-pressed')).toBe('false');
-    expect(creator.getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(educator);
-    expect(creator.getAttribute('aria-pressed')).toBe('false');
-    expect(educator.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(figma);
+    fireEvent.click(finish);
+    expect(figma.getAttribute('aria-pressed')).toBe('true');
+    expect(finish.getAttribute('aria-pressed')).toBe('true');
   });
 });

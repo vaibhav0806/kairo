@@ -1,8 +1,35 @@
+// @vitest-environment jsdom
+
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, test } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { LandingPage, validateWaitlistEmail } from '../src/landing/LandingPage';
+
+class IntersectionObserverStub {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
+
+Object.defineProperty(window, 'IntersectionObserver', {
+  configurable: true,
+  value: IntersectionObserverStub
+});
+
+Object.defineProperty(window, 'matchMedia', {
+  configurable: true,
+  value: vi.fn().mockReturnValue({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn()
+  })
+});
+
+afterEach(() => {
+  cleanup();
+});
 
 describe('landing page', () => {
   test('validates the local preview email field', () => {
@@ -11,133 +38,114 @@ describe('landing page', () => {
     expect(validateWaitlistEmail(' learner@example.com ')).toBeNull();
   });
 
-  test('renders an accessible request-access form without an empty live region', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-    expect(html).toContain('<label for="waitlist-email">Email address</label>');
-    expect(html).toContain('type="email"');
-    expect(html).toContain('autoComplete="email"');
-    expect(html).not.toContain('<p aria-live="polite"');
-    expect(css).not.toContain('.sronly');
-  });
-
-  test('styles preview completion as neutral status copy', () => {
-    const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-
-    expect(source).toContain('<strong>Preview complete.</strong>');
-    expect(css).toMatch(/\.waitlistsuccess > strong\s*\{[^}]*color:\s*var\(--ink\);/);
-    expect(css).not.toMatch(/\.waitlistsuccess > strong\s*\{[^}]*color:\s*var\(--verified\);/);
-  });
-
-  test('uses friendly hero language and one neutral preview caption', () => {
+  test('leads with a concise live-lesson hero', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
 
-    expect(html).toContain('Meet Kairo');
-    expect(html).toContain('>Learn <');
-    expect(html).toContain('>by doing.</span>');
-    expect(html).toContain('Ask. Point. Learn by doing.');
-    expect(html).toContain('Join the Mac alpha');
-    expect(html).toContain('See Kairo guide a lesson');
-    expect(html).toContain('↗');
-    expect(html).toContain('↓');
-    expect(html).toContain('Watch Kairo guide a lesson');
-    expect(html).not.toContain('One lesson, shown in Blender');
+    expect(html).toContain('Help, right where you’re learning');
+    expect(html).toContain('Stuck? <span>Show Kairo.</span>');
+    expect(html).toContain('Ask out loud or circle the confusing bit.');
+    expect(html).toContain('See how it works');
+    expect(html).toContain('Pause lesson');
+    expect(html).toContain('data-hero-stage="true"');
+    expect(html).not.toContain('Learn by doing.');
     expect(html).not.toContain('Blender skill active');
-    expect(html).toContain('Kairo understood: cube');
-    expect(html).toContain('You asked + circled');
   });
 
-  test('keeps app examples visual and concise', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage)).replaceAll('&#x27;', "'");
-
-    expect(html).toContain('Kairo can meet you where you work.');
-    expect(html).toContain('aria-label="Examples of apps Kairo can guide in"');
-    expect(html).toContain('Blender');
-    expect(html).toContain('modelling, animation, materials, rendering');
-    expect(html).toContain('Photoshop');
-    expect(html).toContain('layers, masks, retouching, compositing');
-    expect(html).toContain('DaVinci Resolve');
-    expect(html).toContain('editing, color, audio, delivery');
-    expect(html).toContain('Figma');
-    expect(html).toContain('layout, components, prototyping');
-    expect(html).toContain('Don’t see your app? Kairo can still help from what’s on your screen.');
-  });
-
-  test('states that learners can pause guidance', () => {
+  test('shows the complete ask point try checked lesson loop', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
+    const chapters = ['Ask anything on screen.', 'Kairo shows the next step.', 'You make the move.', 'It checks before moving on.'];
+    const positions = chapters.map((chapter) => html.indexOf(chapter));
 
-    expect(html).toContain('You can pause it whenever you want.');
+    positions.forEach((position) => expect(position).toBeGreaterThan(-1));
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(html.match(/data-lesson-chapter=/g)).toHaveLength(4);
+    expect(html).toContain('aria-label="How a Kairo lesson works"');
+    expect(html).toContain('data-active-chapter="0"');
   });
 
-  test('renders a visual runway in causal order', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-    const beats = ['Ask / 3D', 'Guide / visual design', 'Check / video editing'];
-    const beatPositions = beats.map((beat) => html.indexOf(beat));
-
-    beatPositions.forEach((position) => expect(position).toBeGreaterThan(-1));
-    expect(beatPositions).toEqual([...beatPositions].sort((a, b) => a - b));
-    expect(html).toContain('Your screen becomes the lesson.');
-    expect(html).toContain('Circle the thing that doesn’t make sense.');
-    expect(html).toContain('Kairo points to one next step.');
-    expect(html).toContain('You do it. Kairo checks what changed.');
-  });
-
-  test('places the visual runway immediately after the hero', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-    const previewEnd = html.indexOf('</figure>') + '</figure>'.length;
-    const runway = 'Your screen becomes the lesson.';
-    const runwayPosition = html.indexOf(runway);
-    const skillsPosition = html.indexOf('Kairo can meet you where you work.');
-
-    expect(runwayPosition).toBeGreaterThan(previewEnd);
-    expect(runwayPosition).toBeLessThan(skillsPosition);
-  });
-
-  test('removes the old process strip, fabricated app stages, principles, and trust cards', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-    const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
-
-    expect(source).not.toContain('const learningLoop');
-    expect(source).not.toContain('styles.learningLoop');
-    expect(source).not.toContain('styles.chapter');
-    expect(source).not.toContain('styles.principles');
-    expect(source).not.toContain('styles.trustColumns');
-    expect(html).not.toContain('Layers panel → Add layer mask');
-    expect(html).not.toContain('Add to Render Queue');
-    expect(html).not.toContain('Built around learning, not task completion.');
-    expect(html).not.toContain('You choose when Kairo looks and listens.');
-    expect(html).not.toContain('You remain the operator.');
-    expect(html).not.toContain('Honest limits');
-  });
-
-  test('keeps Blender workflow steps inside the product preview', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-    const previewStart = html.indexOf('<figure');
-    const previewEnd = html.indexOf('</figure>') + '</figure>'.length;
-    const lessonStart = html.indexOf('<section id="lesson"');
-    const lessonEnd = html.indexOf('<section id="skills"');
-    const productPreview = html.slice(previewStart, previewEnd);
-    const lesson = html.slice(lessonStart, lessonEnd);
-
-    ['Select cube', 'Insert keyframe', 'Move to frame 40'].forEach((step) => {
-      expect(productPreview).toContain(step);
-      expect(lesson).not.toContain(step);
+  test('keeps the lesson workspace in sync with the chapter nearest the reading line', async () => {
+    let visibleChapter = 0;
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const index = Number(this.dataset.chapterIndex);
+      const top = Number.isInteger(index) ? 320 + (index - visibleChapter) * 520 : 0;
+      return {
+        top,
+        bottom: top + 360,
+        left: 0,
+        right: 800,
+        width: 800,
+        height: 360,
+        x: 0,
+        y: top,
+        toJSON: () => ({})
+      } as DOMRect;
     });
+    const animationFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      window.setTimeout(() => callback(0), 0);
+      return 1;
+    });
+
+    render(createElement(LandingPage));
+    visibleChapter = 3;
+    fireEvent.scroll(window);
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-active-chapter]')?.getAttribute('data-active-chapter')).toBe('3');
+      expect(document.querySelector('[data-workspace-state]')?.getAttribute('data-workspace-state')).toBe('checked');
+    });
+
+    animationFrame.mockRestore();
+    rectSpy.mockRestore();
   });
 
-  test('uses the revised waitlist invitation and keeps the mock disclosure', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
+  test('switches among cross-app lesson previews', () => {
+    render(createElement(LandingPage));
+    const switcher = screen.getByRole('region', { name: 'Help in the app you’re learning' });
 
-    expect(html).toContain('What do you want to learn?');
-    expect(html).toContain('Pick an app. We’ll start there.');
-    expect(html).toContain('<legend>What do you want to learn first?</legend>');
-    expect(html).toContain('aria-pressed="true">Blender</button>');
-    expect(html).toContain('<button type="submit">Join the alpha</button>');
-    expect(html).toContain('Preview mode. This form does not send or store your email yet.');
+    ['Blender', 'Figma', 'DaVinci Resolve', 'Photoshop', 'Any desktop app'].forEach((app) => {
+      expect(within(switcher).getByRole('button', { name: `${app} lesson` })).toBeTruthy();
+    });
+    expect(within(switcher).getByText('What does this control do?')).toBeTruthy();
+
+    fireEvent.click(within(switcher).getByRole('button', { name: 'Figma lesson' }));
+
+    expect(within(switcher).getByText('Why is this spacing uneven?')).toBeTruthy();
+    expect(within(switcher).getByText('Select the frame and open Auto layout.')).toBeTruthy();
+    expect(within(switcher).getByRole('button', { name: 'Figma lesson' }).getAttribute('aria-pressed')).toBe('true');
   });
 
-  test('uses local, credited creative-work imagery throughout the lesson wall', () => {
+  test('previews each trust promise with real buttons', () => {
+    render(createElement(LandingPage));
+    const consoleRegion = screen.getByRole('region', { name: 'You stay in control' });
+
+    expect(within(consoleRegion).getByText('No lesson runs until you begin one.')).toBeTruthy();
+    fireEvent.click(within(consoleRegion).getByRole('button', { name: 'Pause anytime' }));
+    expect(within(consoleRegion).getByText('Stop watching and listening with one click.')).toBeTruthy();
+    expect(within(consoleRegion).getByText('Lesson paused')).toBeTruthy();
+    fireEvent.click(within(consoleRegion).getByRole('button', { name: 'Point, never click' }));
+    expect(within(consoleRegion).getByText('Kairo guides the move. You stay in control.')).toBeTruthy();
+  });
+
+  test('builds a local-only waitlist receipt', () => {
+    render(createElement(LandingPage));
+    const builder = screen.getByRole('region', { name: 'What do you want to learn?' });
+
+    expect(within(builder).getByLabelText('Email address')).toBeTruthy();
+    fireEvent.click(within(builder).getByRole('button', { name: 'Learn in Figma' }));
+    fireEvent.click(within(builder).getByRole('button', { name: 'Finish a project' }));
+    fireEvent.click(within(builder).getByRole('button', { name: 'Join the alpha' }));
+    expect(within(builder).getByRole('alert').textContent).toBe('Enter your email address.');
+
+    fireEvent.change(within(builder).getByLabelText('Email address'), { target: { value: 'learner@example.com' } });
+    fireEvent.click(within(builder).getByRole('button', { name: 'Join the alpha' }));
+
+    expect(within(builder).getByText('Preview complete')).toBeTruthy();
+    expect(within(builder).getByText('Figma')).toBeTruthy();
+    expect(within(builder).getByText('Finish a project')).toBeTruthy();
+    expect(within(builder).getByText('Nothing was sent or stored.')).toBeTruthy();
+  });
+
+  test('uses local credited visual assets', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
 
     ['creative-3d.jpg', 'creative-design.jpg', 'creative-edit.jpg', 'creative-layout.jpg'].forEach((filename) => {
@@ -153,7 +161,7 @@ describe('landing page', () => {
     expect(html).toContain('/ Pexels');
   });
 
-  test('uses a high-resolution Blender source with cube-aligned overlays', () => {
+  test('uses the high-resolution Blender capture with cube-aligned overlays', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     const image = readFileSync('public/kairo-blender-preview.webp');
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
@@ -166,192 +174,84 @@ describe('landing page', () => {
     expect(((dimensions >>> 14) & 0x3fff) + 1).toBeGreaterThanOrEqual(1054);
     expect(image.byteLength).toBeLessThan(1_500_000);
     expect(html).toContain('Interface capture:');
-    expect(html).not.toContain('Blender Manual');
-    expect(css).toMatch(
-      /\.softwareFrame\s*\{[^}]*min-height:\s*0;[^}]*aspect-ratio:\s*3560 \/ 1972;/s
-    );
-    expect(css).not.toMatch(
-      /@media \(max-width:\s*980px\)[\s\S]*\.softwareFrame\s*\{[^}]*aspect-ratio:\s*16 \/ 11;/s
-    );
-    expect(css).toMatch(/\.softwareFrame > img\s*\{[^}]*opacity:\s*1;/s);
-    expect(css).toMatch(
-      /\.kairoTarget\s*\{[^}]*top:\s*40\.3%;[^}]*left:\s*44\.3%;[^}]*width:\s*11\.8%;[^}]*height:\s*23%;/s
-    );
-    expect(css).toMatch(
-      /\.learnerAnnotation\s*\{[^}]*top:\s*39\.8%;[^}]*left:\s*39\.35%;[^}]*width:\s*21%;/s
-    );
+    expect(css).toMatch(/\.heroViewport\s*\{[^}]*aspect-ratio:\s*3560 \/ 1972;/s);
+    expect(css).toMatch(/\.heroTarget\s*\{[^}]*top:\s*43%;[^}]*left:\s*45\.1%;[^}]*width:\s*10\.7%;[^}]*height:\s*21\.5%;/s);
   });
 
-  test('uses semantic color roles and accessible motion fallbacks', () => {
+  test('uses the approved crisp-white semantic palette', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 
-    expect(css).toContain('#fcfcfa');
-    expect(css).toContain('#151515');
-    expect(css).toContain('#ff6547');
-    expect(css).toContain('#8b79ff');
-    expect(css).toContain('#78caaa');
-    expect(css).toContain('#3078ff');
-    expect(css).toContain('prefers-reduced-motion: reduce');
-    expect(css).toContain("[data-motion-ready='true']");
-    expect(css).not.toContain('scroll-snap');
-    expect(css).not.toContain('linear-gradient');
-    expect(css).not.toContain('radial-gradient');
-  });
-
-  test('uses a scroll-responsive lesson canvas to make the teaching loop visual', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-
-    ['You ask', 'Kairo guides', 'Step checked', 'Ask / 3D', 'Guide / visual design', 'Check / video editing'].forEach((label) => {
-      expect(html).toContain(label);
+    ['#ffffff', '#f5f7ff', '#111217', '#ff5c45', '#7557ff', '#27c281', '#2477ff', '#ffd84d'].forEach((token) => {
+      expect(css).toContain(token);
     });
-    expect(html.match(/data-scroll="learning-scene"/g)).toHaveLength(3);
-    expect(html).toContain('aria-label="Kairo lesson sequence"');
-    expect(html).toContain('data-active="true"');
-    expect(css).toMatch(/\.lessonshowcase\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.25fr\) minmax\(300px,\s*0\.75fr\);/s);
-    expect(css).toContain(".lessonshowcase[data-active-scene='0']".toLowerCase());
-    expect(css).toContain('.canvasmedia');
-    expect(css).toContain('.canvastimeline');
-    expect(css).toContain(".learningScene[data-tone='learner']".toLowerCase());
-    expect(css).toContain(".learningScene[data-tone='kairo']".toLowerCase());
-    expect(css).toContain(".learningScene[data-tone='verified']".toLowerCase());
+    ['#fcfcfa', '#f2f1ed'].forEach((oldToken) => expect(css).not.toContain(oldToken));
+    expect(css).not.toMatch(/background:\s*var\(--graphite\)/);
   });
 
-  test('marks page-wide motion roles without hiding structural content', () => {
+  test('gates the hero animation without hiding structural content', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
 
-    expect((html.match(/data-scroll=/g) ?? []).length).toBeGreaterThanOrEqual(12);
-    expect(html).toContain('data-scroll="runway-header"');
-    expect(html).toContain('data-scroll="learning-scene"');
-    expect(html).toContain('data-scroll="trust"');
-    expect(html).toContain('data-scroll="access-form"');
-    expect(html.match(/data-scroll-index=/g) ?? []).toHaveLength(7);
-    expect(html).toContain('data-scroll-index="3"');
-    expect(source).toContain("page.querySelectorAll('[data-scroll]')");
-    expect(source).toContain("element.setAttribute('data-scroll-visible', 'true')");
-    expect(source).toContain('scrollObserver.unobserve(element)');
-    expect(source).toContain("rootMargin: '0px 0px -96px 0px'");
-    expect(source).toContain('requestAnimationFrame(reconcileVisibleScrollTargets)');
-    expect(source).toContain("window.addEventListener('pageshow', reconcileVisibleScrollTargets)");
-    expect(source).toContain("window.addEventListener('resize', reconcileVisibleScrollTargets)");
-    expect(source).not.toContain('lessonStepElements.slice');
-    expect(css).toContain("[data-scroll-visible='true']");
-    expect(css).not.toMatch(/\[data-motion-ready='true'\] \[data-scroll\]\s*\{[^}]*opacity:\s*0;/s);
-    [25, 50, 75, 100].forEach((delay, index) => {
-      expect(css).toMatch(new RegExp(`\\[data-scroll-index='${index + 1}'\\]\\[data-scroll-visible='true'\\]\\s*\\{[^}]*transition-delay:\\s*${delay}ms;`, 's'));
-    });
-    const scrollDelays = [...css.matchAll(/transition-delay:\s*(\d+)ms;/g)].map((match) => Number(match[1]));
-    expect(Math.max(...scrollDelays)).toBeLessThanOrEqual(210);
-  });
-
-  test('offers a demo control and gates every looping preview animation with its state', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-    const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
-    const runningRule = css.match(/\.landingPage\[data-motion-ready='true'\]\[data-demo-active='true'\]\[data-page-visible='true'\]\[data-demo-paused='false'\][\s\S]*?\{[^}]*animation-play-state:\s*running;[^}]*\}/s)?.[0] ?? '';
-
-    expect(html).toContain('type="button"');
-    expect(html).toContain('Pause demo');
-    expect(source).toContain('data-demo-paused={demoPaused}');
+    expect(html).toContain('data-demo-paused="false"');
     expect(source).toContain("page.dataset.demoActive = String(entry.isIntersecting)");
     expect(source).toContain("page.dataset.pageVisible = String(!document.hidden)");
-    ['learnerAsk', 'learnerAnnotation', 'kairoTarget', 'kairoCursor', 'wave'].forEach((className) => {
-      expect(runningRule).toContain(`.${className}`);
-    });
+    expect(css).toContain("[data-demo-paused='false']");
+    expect(css).toContain("[data-demo-active='true']");
+    expect(css).toContain("[data-page-visible='true']");
+    expect(css).not.toMatch(/\[data-lesson-chapter\][^{]*\{[^}]*opacity:\s*0;/s);
   });
 
-  test('renders the final lesson and preview state for reduced motion', () => {
+  test('runs ambient loops only while their product stage is visible', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
-    const reducedMotion = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
 
-    expect(reducedMotion).toMatch(/\[data-scroll\],[\s\S]*?\[data-scroll\]::after\s*\{[^}]*opacity:\s*1 !important;[^}]*transform:\s*none !important;[^}]*transition:\s*none !important;/s);
-    expect(reducedMotion).toMatch(/\.landingPage \.demoControl\s*\{[^}]*display:\s*none;/s);
-    expect(reducedMotion).toMatch(/\.landingPage \.learnerAsk,[\s\S]*?\.landingPage \.progressRail \.verified\s*\{[^}]*animation:\s*none !important;[^}]*opacity:\s*1 !important;/s);
-    expect(reducedMotion).toMatch(/\.landingPage \.learnerAnnotation path\s*\{[^}]*stroke-dashoffset:\s*0 !important;/s);
+    expect(html.match(/data-ambient-stage=/g)).toHaveLength(3);
+    expect(source).toContain("page.querySelectorAll('[data-ambient-stage]')");
+    expect(source).toContain("stage.dataset.ambientActive = String(entry.isIntersecting)");
+    expect(css).toContain("[data-ambient-active='true'][data-mode='edit']");
+    expect(css).toContain("[data-ambient-active='true'] .builderCardA");
   });
 
-  test('uses an asymmetric split hero that stacks below desktop', () => {
+  test('stacks complex scenes and preserves motion fallbacks on small screens', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+    const mobile = css.slice(css.indexOf('@media (max-width: 760px)'));
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+
+    expect(css).toMatch(/\.lessonworkspace\s*\{[^}]*position:\s*sticky;/s);
+    expect(css).toMatch(/\.hero\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:/s);
+    expect(css).toMatch(/\.heroviewport\s*\{[^}]*aspect-ratio:\s*3560 \/ 1972;/s);
+    expect(mobile).toMatch(/\.hero\s*\{[^}]*padding:/s);
+    expect(mobile).toMatch(/\.lessonfilm\s*\{[^}]*grid-template-columns:\s*1fr;/s);
+    expect(mobile).toMatch(/\.apptabs\s*\{[^}]*overflow-x:\s*auto;/s);
+    expect(reduced).toContain('animation: none !important');
+    expect(reduced).toContain('transition: none !important');
+    expect(reduced).toContain('transform: none !important');
+  });
+
+  test('renders the Figma example as a recognizable app canvas', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+
+    expect(css).toContain(".appStage[data-mode='layout'] .appMedia");
+    expect(css).toContain(".appStage[data-mode='layout'] .appMedia::before");
+    expect(css).toContain(".appStage[data-mode='layout'] .appMedia::after");
+  });
+
+  test('uses native controls, visible focus, and concise language', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
+    const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 
-    expect(html).toMatch(/class="[^"]*headlineDoing[^"]*"/);
-    expect(html).toMatch(/class="[^"]*headlineContrast[^"]*"/);
-    expect(html).toMatch(/by doing\.<\/span> <span class="[^"]*headlineContrast[^"]*">Not watching\.<\/span>/);
-    expect(css).toMatch(/@media \(min-width:\s*1180px\)[\s\S]*\.hero\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(390px,\s*0\.78fr\) minmax\(0,\s*1\.42fr\);/s);
-    expect(css).toMatch(/@media \(min-width:\s*1180px\)[\s\S]*\.headlinedoing\s*\{[^}]*display:\s*block;/s);
-    expect(css).toMatch(/@media \(max-width:\s*1179px\)[\s\S]*\.hero\s*\{[^}]*display:\s*block;/s);
-    expect(css).toMatch(/\.softwareframe\s*\{[^}]*aspect-ratio:\s*3560 \/ 1972;/s);
+    expect(source).not.toContain('<div onClick');
+    expect(source).not.toContain('<button className={styles.workspaceAction}');
+    expect(source).not.toContain('className={styles.lessonWorkspace} aria-live');
+    expect(source).not.toContain('data-ambient-stage aria-live');
+    expect(html).toMatch(/<label for="waitlist-email">[\s\S]*Email address<\/label>/);
+    expect(html).toContain('autoComplete="email"');
+    expect(css).toMatch(/\.landingpage :focus-visible\s*\{[^}]*outline:/s);
+    expect(css).toContain('min-height: 44px');
+    expect(html).not.toContain('screen-native');
+    expect(html).not.toContain('product skill');
   });
-
-  test('balances visual density with space in the hero, skills ending, and trust section', () => {
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-
-    expect(css).toMatch(/\.herocopy h1\s*\{[^}]*margin-bottom:\s*clamp\(52px,\s*5vw,\s*76px\);/s);
-    expect(css).toMatch(/\.anysoftware\s*\{[^}]*margin:\s*48px 0 0;[^}]*padding:\s*28px 0 0;[^}]*border-top:/s);
-    expect(css).toMatch(/\.trust\s*\{[^}]*padding:\s*96px 48px;[^}]*background:\s*var\(--graphite\);/s);
-    expect(css).toContain('.trustcontrol');
-    expect(css).toContain('.accessmarks');
-  });
-
-  test('reserves violet for Kairo product states instead of generic interactions', () => {
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-
-    expect(css).toMatch(/\.landingpage :focus-visible\s*\{[^}]*outline:\s*2px solid currentcolor;/s);
-    expect(css).not.toMatch(/\.landingpage :focus-visible\s*\{[^}]*var\(--kairo\)/s);
-    expect(css).not.toMatch(/\.header nav a:hover,[^}]*\{[^}]*color:\s*var\(--kairo(?:-ink)?\);/s);
-  });
-
-  test('styles one continuous lesson spine and connected skill layers', () => {
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-
-    expect(css).toMatch(/\.lessonspine\s*\{[^}]*border-left:\s*1px solid var\(--line-strong\);/s);
-    expect(css).toMatch(/\.skilllayers\s*\{[^}]*grid-template-columns:/s);
-    expect(css).toMatch(/\.productskilllayer\s*\{[^}]*border-left:\s*1px solid var\(--line\);/s);
-    expect(css).not.toContain('.chaptervisual');
-    expect(css).not.toContain('.faketoolbar');
-    expect(css).not.toContain('.trustcolumns');
-    expect(css).not.toContain('.principles');
-  });
-
-  test('styles waitlist messages through CSS module classes', () => {
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-
-    expect(css).toContain('.waitlisterror');
-    expect(css).toContain('.waitlistnote');
-    expect(css).not.toContain('#waitlist-error');
-    expect(css).not.toContain('#waitlist-note');
-  });
-
-  test('simplifies the native-ratio preview on mobile with a compact transcript', () => {
-    const html = renderToStaticMarkup(createElement(LandingPage));
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-    const mobileCss = css.slice(css.indexOf('@media (max-width: 640px)'));
-
-    expect(html).toContain('aria-label="Mobile lesson summary"');
-    expect(html).toContain('Ask');
-    expect(html).toContain('Step');
-    expect(html).toContain('Check');
-    expect(css).toMatch(/\.mobiletranscript\s*\{[^}]*display:\s*none;/s);
-    expect(mobileCss).toMatch(/\.mobiletranscript\s*\{[^}]*display:\s*grid;/s);
-    expect(mobileCss).toMatch(/\.softwareframe\s*\{[^}]*aspect-ratio:\s*3560 \/ 1972;/s);
-    expect(mobileCss).toMatch(/\.learnerask,[\s\S]*?\.progressrail\s*\{[^}]*display:\s*none;/s);
-    expect(mobileCss).toMatch(/\.skilllayers\s*\{[^}]*grid-template-columns:\s*1fr;/s);
-    expect(mobileCss).toMatch(/\.productskilllayer\s*\{[^}]*border-left:\s*0;/s);
-  });
-
-  test('keeps only the hero display-sized and scales it with the viewport', () => {
-    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
-    const heroRule = css.match(/\.landingpage h1\s*\{([^}]*)\}/s)?.[1] ?? '';
-    const viewportScale = Number(heroRule.match(/font-size:\s*clamp\([^,]+,\s*([\d.]+)vw,/)?.[1]);
-
-    expect(css).toMatch(/\.landingpage h1\s*\{[^}]*font-size:\s*clamp\(/s);
-    expect(css).toMatch(/\.sectionheader h2,[\s\S]*?\.access h2\s*\{[^}]*font-size:\s*clamp\(/s);
-    expect(heroRule).toMatch(/max-width:\s*none;/);
-    expect(heroRule).not.toContain('white-space: nowrap');
-    expect(viewportScale).toBeLessThanOrEqual(7.4);
-    expect(css).not.toContain('17cqi');
-  });
-
 });
