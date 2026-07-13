@@ -249,9 +249,14 @@ describe('landing page', () => {
 
   test('keeps only the hero display-sized and scales it with the viewport', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+    const heroRule = css.match(/\.landingpage h1\s*\{([^}]*)\}/s)?.[1] ?? '';
+    const viewportScale = Number(heroRule.match(/font-size:\s*clamp\([^,]+,\s*([\d.]+)vw,/)?.[1]);
 
     expect(css).toMatch(/\.landingpage h1\s*\{[^}]*font-size:\s*clamp\(/s);
     expect(css).toMatch(/\.sectionheader h2,[\s\S]*?\.access h2\s*\{[^}]*font-size:\s*clamp\(/s);
+    expect(heroRule).toMatch(/max-width:\s*none;/);
+    expect(heroRule).not.toContain('white-space: nowrap');
+    expect(viewportScale).toBeLessThanOrEqual(7.4);
     expect(css).not.toContain('17cqi');
   });
 

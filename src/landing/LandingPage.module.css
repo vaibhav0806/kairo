@@ -51,9 +51,9 @@
 }
 
 .landingPage h1 {
-  max-width: 13ch;
+  max-width: none;
   margin-bottom: 0;
-  font-size: clamp(4.25rem, 8.6vw, 8.5rem);
+  font-size: clamp(4.25rem, 7.25vw, 7.25rem);
   font-weight: 650;
   line-height: 0.88;
   letter-spacing: -0.072em;
