@@ -13,11 +13,11 @@ export function validateWaitlistEmail(value: string): string | null {
 const learningLoop = ['Talk', 'Draw', 'Understand', 'Guide', 'Verify'];
 
 const skills = [
-  ['Blender', 'Animation · materials · rendering', 'Active / alpha'],
-  ['Photoshop', 'Layers · masks · retouching', 'Next'],
-  ['DaVinci Resolve', 'Timeline · color · export', 'Planned'],
-  ['Figma', 'Frames · auto layout · components', 'Planned'],
-  ['Your institute', 'Curriculum · internal workflows', 'Custom skill / Not available yet']
+  ['Blender', '3D · animation · rendering'],
+  ['Photoshop', 'Layers · masks · retouching'],
+  ['DaVinci Resolve', 'Timeline · color · delivery'],
+  ['Figma', 'Frames · auto layout · components'],
+  ['Any desktop software', 'If it is on your screen, you can learn it with Kairo.']
 ] as const;
 
 function ProductPreview() {
@@ -25,7 +25,7 @@ function ProductPreview() {
     <figure className={styles.productPreview} data-product-preview>
       <figcaption>
         <span>Product preview</span>
-        <strong>First live skill / Blender</strong>
+        <strong>Example lesson / Blender</strong>
       </figcaption>
       <div className={styles.softwareFrame}>
         <img
@@ -136,9 +136,12 @@ export function LandingPage() {
         <section className={styles.hero} aria-labelledby="landing-title">
           <div className={styles.heroCopy}>
             <div>
-              <p className={styles.eyebrow}>Screen-native AI tutor / Mac alpha</p>
+              <p className={styles.eyebrow}>AI tutor for any desktop software / Mac alpha</p>
               <h1 id="landing-title">Learn software by doing. <span>Not watching.</span></h1>
-              <p className={styles.heroIntro}>Kairo turns the screen in front of you into a live lesson. Ask a question, point to what you mean, and follow one verified step at a time.</p>
+              <p className={styles.heroIntro}>
+                Kairo teaches you inside whatever software you're learning. Ask a question,
+                point to what you mean, do the step yourself, and let Kairo check the result.
+              </p>
             </div>
             <div className={styles.heroActions}>
               <a className={styles.primaryAction} href="#access">Request access</a>
@@ -175,14 +178,14 @@ export function LandingPage() {
               <p>Hold the shortcut and ask the question in your own words. Kairo answers aloud without pulling you away from the software.</p>
             </div>
             <div className={styles.chapterVisual} aria-label="Voice question and spoken guidance example">
-              <p className={styles.visualLabel}>Learner input / voice</p>
-              <blockquote className={styles.conversationQuestion} data-conversation-beat="question">“Why does this keyframe not move the cube?”</blockquote>
+              <p className={styles.visualLabel}>Learner input / voice · Figma</p>
+              <blockquote className={styles.conversationQuestion} data-conversation-beat="question">“Why won't these cards resize with the frame?”</blockquote>
               <div className={`${styles.voiceResponse} ${styles.conversationResponse}`} data-conversation-beat="response">
                 <span className={styles.miniWave} aria-hidden="true"><i /><i /><i /><i /><i /></span>
-                <p><b>Kairo guidance / voice</b>Your second keyframe is at the same position. Move the playhead, then move the cube.</p>
+                <p><b>Kairo guidance / voice</b>The cards have fixed widths. Set their horizontal resizing to Fill container.</p>
               </div>
-              <p className={styles.conversationAction} data-conversation-beat="action"><b>Learner action / move</b> Moves the cube at frame 40.</p>
-              <p className={`${styles.visualVerification} ${styles.conversationVerified}`} data-conversation-beat="verification"><b>Movement verified</b> The cube changed position. Ready for the next step.</p>
+              <p className={styles.conversationAction} data-conversation-beat="action"><b>Learner action / resize</b> Sets the cards to Fill container.</p>
+              <p className={`${styles.visualVerification} ${styles.conversationVerified}`} data-conversation-beat="verification"><b>Resize verified</b> The cards now resize with the frame. Ready for the next step.</p>
             </div>
           </article>
 
@@ -193,13 +196,13 @@ export function LandingPage() {
               <p>Draw around the control, object, or region you mean. Kairo combines your words with what is visible on your screen.</p>
             </div>
             <div className={styles.chapterVisual} aria-label="On-screen annotation grounding example">
-              <p className={styles.visualLabel}>Learner input / annotation</p>
-              <div className={styles.fakeToolbar}><span>Move</span><span>Rotate</span><span>Scale</span></div>
+              <p className={styles.visualLabel}>Learner input / annotation · Photoshop</p>
+              <div className={styles.fakeToolbar}><span>Layers</span><span>Channels</span><span>Paths</span></div>
               <svg className={styles.drawnCircle} viewBox="0 0 180 110" aria-hidden="true">
                 <path d="M13 58 C5 19 126 1 165 38 C199 70 149 107 87 104 C28 102 1 81 13 58" />
               </svg>
-              <span className={styles.annotationLabel}>This control</span>
-              <p className={styles.groundedAnswer}><b>Kairo guidance / resolved target</b>Object Properties → Transform → Location</p>
+              <span className={styles.annotationLabel}>This icon</span>
+              <p className={styles.groundedAnswer}><b>Kairo guidance / resolved target</b>Layers panel → Add layer mask</p>
               <p className={styles.visualVerification}><b>Verification</b> Target found on your screen</p>
             </div>
           </article>
@@ -211,14 +214,14 @@ export function LandingPage() {
               <p>Kairo marks the next control and explains the move. It does not take over your mouse, so the skill stays with you.</p>
             </div>
             <div className={styles.chapterVisual} aria-label="Kairo pointing to the learner's next action">
-              <p className={styles.visualLabel}>Kairo guidance / next control</p>
+              <p className={styles.visualLabel}>Kairo guidance / next control · DaVinci Resolve</p>
               <div className={styles.guideNotch}>
                 <span className={styles.miniWave} aria-hidden="true"><i /><i /><i /><i /><i /></span>
-                <span>Choose Location to save the cube’s position.</span>
+                <span>Add your timeline to the render queue before starting the export.</span>
               </div>
-              <div className={styles.targetControl}><span>Insert keyframe</span><b>Location</b></div>
+              <div className={styles.targetControl}><span>Deliver</span><b>Add to Render Queue</b></div>
               <span className={styles.guideCursor} aria-hidden="true">➤</span>
-              <p className={styles.learnerAction}><b>Learner input / action</b> You choose and click Location</p>
+              <p className={styles.learnerAction}><b>Learner input / action</b> You click Add to Render Queue</p>
               <p className={styles.visualVerification}><b>Verification</b> Action remains yours</p>
             </div>
           </article>
@@ -231,9 +234,9 @@ export function LandingPage() {
             </div>
             <div className={`${styles.chapterVisual} ${styles.verifyVisual}`} aria-label="Lesson step verification example">
               <p className={styles.visualLabel}>Learner input / completed action</p>
-              <div className={styles.checkRow}><span>01</span><b>Select cube</b><em>Verified</em></div>
-              <div className={styles.checkRow}><span>02</span><b>Insert keyframe</b><em>Verified</em></div>
-              <div className={`${styles.checkRow} ${styles.nextRow}`}><span>03</span><b>Move to frame 40</b><em>Next</em></div>
+              <div className={styles.checkRow}><span>01</span><b>Find the control</b><em>Verified</em></div>
+              <div className={styles.checkRow}><span>02</span><b>Make the change</b><em>Verified</em></div>
+              <div className={`${styles.checkRow} ${styles.nextRow}`}><span>03</span><b>Check the result</b><em>Next</em></div>
               <p className={styles.visualVerification}><b>Kairo guidance / verification</b> Two steps confirmed. Ready to continue.</p>
             </div>
           </article>
@@ -241,16 +244,18 @@ export function LandingPage() {
 
         <section id="skills" className={styles.skills} aria-labelledby="skills-title">
           <header className={styles.sectionHeader} data-reveal>
-            <p>Skills</p>
-            <h2 id="skills-title">Deep in one tool first. More as Kairo learns them well.</h2>
+            <p>Software you can learn with Kairo</p>
+            <div>
+              <h2 id="skills-title">One tutor for whatever you open next.</h2>
+              <p className={styles.skillsIntro}>Blender, Photoshop, DaVinci Resolve, Figma, and anything else on your screen.</p>
+            </div>
           </header>
           <div className={styles.skillList} data-reveal data-motion="skills">
-            {skills.map(([software, knowledge, status], index) => (
+            {skills.map(([software, knowledge], index) => (
               <article className={styles.skillRow} key={software} style={{ '--skill-index': index } as CSSProperties}>
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <h3>{software}</h3>
                 <p>{knowledge}</p>
-                <strong data-status={status}>{status}</strong>
               </article>
             ))}
           </div>
@@ -299,7 +304,7 @@ export function LandingPage() {
             <h2 id="access-title">Learn inside the work.</h2>
           </div>
           <div className={styles.accessShell}>
-            <p>Kairo is beginning with Blender learners. Join the early-access list to hear when a place opens.</p>
+            <p>Kairo is opening early access for people learning desktop software. Join the list to hear when a place opens.</p>
             {submittedEmail ? (
               <div className={styles.waitlistSuccess} aria-live="polite">
                 <strong>Preview complete.</strong>
@@ -330,7 +335,7 @@ export function LandingPage() {
                 <p id="waitlist-note" className={styles.waitlistNote}>Preview mode. This form does not send or store your email yet.</p>
               </form>
             )}
-            <p><b>Blender first.</b> Photoshop, DaVinci Resolve, and Figma follow.</p>
+            <p><b>Bring the software you want to learn.</b> Kairo meets you in the work already on your screen.</p>
           </div>
         </section>
       </main>

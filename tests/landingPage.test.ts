@@ -36,13 +36,14 @@ describe('landing page', () => {
     expect(html).toContain('Watch Kairo teach');
   });
 
-  test('offers concise institute custom-skill direction', () => {
+  test('presents equal compatibility across desktop software', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
 
-    expect(html).toContain('Your institute');
-    expect(html).toContain('Curriculum · internal workflows');
-    expect(html).toContain('Custom skill');
-    expect(html).toContain('Not available yet');
+    expect(html).toContain('Blender');
+    expect(html).toContain('Photoshop');
+    expect(html).toContain('DaVinci Resolve');
+    expect(html).toContain('Figma');
+    expect(html).toContain('Any desktop software');
   });
 
   test('states that learners can pause guidance', () => {
@@ -56,7 +57,7 @@ describe('landing page', () => {
 
     expect(html).toContain('Learn software by doing.');
     expect(html).toContain('Not watching.');
-    expect(html).toContain('First live skill / Blender');
+    expect(html).toContain('Example lesson / Blender');
     expect(html).toContain('Tutorials show their screen. Kairo starts from yours.');
     expect(html).toContain('Talk to Kairo.');
     expect(html).toContain('Circle “this.”');
@@ -65,6 +66,38 @@ describe('landing page', () => {
     expect(html).toContain('Photoshop');
     expect(html).toContain('DaVinci Resolve');
     expect(html).toContain('AI can make mistakes.');
+  });
+
+  test('positions Kairo as a tutor for any desktop software', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage)).replaceAll('&#x27;', "'");
+
+    expect(html).toContain('AI tutor for any desktop software / Mac alpha');
+    expect(html).toContain('whatever software you\'re learning');
+    expect(html).toContain('Example lesson / Blender');
+    expect(html).toContain('Why won\'t these cards resize with the frame?');
+    expect(html).toContain('Layers panel → Add layer mask');
+    expect(html).toContain('Add to Render Queue');
+    expect(html).toContain('Any desktop software');
+    expect(html).toContain('anything else on your screen');
+    expect(html).not.toContain('First live skill / Blender');
+    expect(html).not.toContain('Active / alpha');
+    expect(html).not.toContain('Kairo is beginning with Blender learners');
+    expect(html).not.toContain('Blender first.');
+  });
+
+  test('keeps Blender workflow steps inside the product preview', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    const previewStart = html.indexOf('<figure');
+    const previewEnd = html.indexOf('</figure>') + '</figure>'.length;
+    const chaptersStart = html.indexOf('<section id="how"');
+    const chaptersEnd = html.indexOf('<section id="skills"');
+    const productPreview = html.slice(previewStart, previewEnd);
+    const scrollChapters = html.slice(chaptersStart, chaptersEnd);
+
+    ['Select cube', 'Insert keyframe', 'Move to frame 40'].forEach((step) => {
+      expect(productPreview).toContain(step);
+      expect(scrollChapters).not.toContain(step);
+    });
   });
 
   test('uses semantic color roles and accessible motion fallbacks', () => {
@@ -149,8 +182,8 @@ describe('landing page', () => {
 
     beatPositions.forEach((position) => expect(position).toBeGreaterThan(-1));
     expect(beatPositions).toEqual([...beatPositions].sort((a, b) => a - b));
-    expect(html).toContain('Learner action / move');
-    expect(html).toContain('Movement verified');
+    expect(html).toContain('Learner action / resize');
+    expect(html).toContain('Resize verified');
     expect(css).toContain('@keyframes conversationquestion');
     expect(css).toContain('@keyframes conversationresponse');
     expect(css).toContain('@keyframes conversationaction');
