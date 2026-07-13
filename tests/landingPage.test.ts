@@ -215,7 +215,7 @@ describe('landing page', () => {
     const runningRule = css.match(/\.landingPage\[data-motion-ready='true'\]\[data-demo-active='true'\]\[data-page-visible='true'\]\[data-demo-paused='false'\][\s\S]*?\{[^}]*animation-play-state:\s*running;[^}]*\}/s)?.[0] ?? '';
 
     expect(html).toContain('type="button"');
-    expect(html).toContain('aria-pressed="false"');
+    expect(html).not.toContain('aria-pressed="false"');
     expect(html).toContain('Pause demo');
     expect(source).toContain('data-demo-paused={demoPaused}');
     expect(source).toContain("page.dataset.demoActive = String(entry.isIntersecting)");
@@ -230,6 +230,7 @@ describe('landing page', () => {
     const reducedMotion = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
 
     expect(reducedMotion).toMatch(/\[data-lesson-step\]\s*\{[^}]*opacity:\s*1 !important;[^}]*transform:\s*none !important;/s);
+    expect(reducedMotion).toMatch(/\.landingPage \.demoControl\s*\{[^}]*display:\s*none;/s);
     expect(reducedMotion).toMatch(/\.landingPage \.learnerAsk,[\s\S]*?\.landingPage \.progressRail \.verified\s*\{[^}]*animation:\s*none !important;[^}]*opacity:\s*1 !important;/s);
     expect(reducedMotion).toMatch(/\.landingPage \.learnerAnnotation path\s*\{[^}]*stroke-dashoffset:\s*0 !important;/s);
   });

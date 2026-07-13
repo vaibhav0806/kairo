@@ -22,17 +22,20 @@ afterEach(cleanup);
 
 describe('landing waitlist preview', () => {
   test('lets the learner pause and resume the hero demonstration', () => {
-    render(createElement(LandingPage));
+    const { container } = render(createElement(LandingPage));
 
     const pause = screen.getByRole('button', { name: 'Pause demo' });
-    expect(pause.getAttribute('aria-pressed')).toBe('false');
+    expect(pause.hasAttribute('aria-pressed')).toBe(false);
+    expect(container.querySelector('[data-demo-paused="false"]')).toBeTruthy();
 
     fireEvent.click(pause);
     const play = screen.getByRole('button', { name: 'Play demo' });
-    expect(play.getAttribute('aria-pressed')).toBe('true');
+    expect(play.hasAttribute('aria-pressed')).toBe(false);
+    expect(container.querySelector('[data-demo-paused="true"]')).toBeTruthy();
 
     fireEvent.click(play);
-    expect(screen.getByRole('button', { name: 'Pause demo' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Pause demo' })).toBeTruthy();
+    expect(container.querySelector('[data-demo-paused="false"]')).toBeTruthy();
   });
 
   test('keeps and focuses invalid input with accessible error state', () => {

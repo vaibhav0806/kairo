@@ -1233,6 +1233,10 @@
     scroll-behavior: auto;
   }
 
+  .landingPage .demoControl {
+    display: none;
+  }
+
   .landingPage *,
   .landingPage *::before,
   .landingPage *::after {

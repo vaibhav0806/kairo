@@ -54,7 +54,6 @@ function ProductPreview({ demoPaused, onToggleDemo }: ProductPreviewProps) {
         <button
           className={styles.demoControl}
           type="button"
-          aria-pressed={demoPaused}
           onClick={onToggleDemo}
         >
           {demoPaused ? 'Play demo' : 'Pause demo'}
