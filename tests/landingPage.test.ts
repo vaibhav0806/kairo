@@ -67,4 +67,13 @@ describe('landing page', () => {
     expect(css).not.toContain('#waitlist-error');
     expect(css).not.toContain('#waitlist-note');
   });
+
+  test('keeps mobile product-preview labels readable', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+    const mobileCss = css.slice(css.indexOf('@media (max-width: 760px)'));
+
+    expect(mobileCss).toMatch(/\.learnerask b\s*\{[^}]*font-size:\s*0\.55rem;/);
+    expect(mobileCss).toMatch(/\.progressrail\s*\{[^}]*font-size:\s*0\.55rem;/);
+    expect(mobileCss).toMatch(/\.kairotarget span\s*\{[^}]*font-size:\s*0\.55rem;/);
+  });
 });

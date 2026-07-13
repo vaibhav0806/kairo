@@ -1110,7 +1110,7 @@
 
   .learnerAsk b {
     margin-bottom: 2px;
-    font-size: 0.48rem;
+    font-size: 0.55rem;
   }
 
   .progressRail {
@@ -1118,7 +1118,7 @@
     bottom: 8px;
     width: 39%;
     padding: 6px;
-    font-size: 0.46rem;
+    font-size: 0.55rem;
   }
 
   .progressRail > p {
@@ -1132,7 +1132,7 @@
   }
 
   .kairoTarget span {
-    font-size: 0.45rem;
+    font-size: 0.55rem;
   }
 
   .kairoCursor {
