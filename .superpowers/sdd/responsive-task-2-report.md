@@ -238,3 +238,45 @@ Result:
 - No Tauri command, native build, or `.app` launch was run.
 
 Follow-up self-review found no new dependencies, scroll listeners, native/routing/waitlist changes, gradients, or unrelated redesign. The remaining concern is still subjective pacing only; causal order and finite completion are now contract- and browser-verified.
+
+## Final review follow-up: trust, access, and skills copy
+
+Five independent contracts were added before implementation for the final scoped review items: neutral preview-completion styling, the exact secondary CTA, institute/custom-skill direction, explicit pause control, and removal of the unused empty live region.
+
+### RED
+
+Command:
+
+```text
+npm test -- tests/landingPage.test.ts
+```
+
+Result: exit 1; the 5 new contracts failed as expected while the previous 11 landing tests passed. The failures identified the verified-green completion copy, old CTA wording, missing institute row, missing pause statement, and redundant empty `aria-live` node.
+
+### Implementation
+
+- Changed `Preview complete.` from verified green to normal ink; the submitted-state container remains a legitimate polite live region.
+- Changed the secondary CTA to the exact wording `Watch Kairo teach`.
+- Added `Your institute / Curriculum · internal workflows / Custom skill` as a fifth row in the existing skills presentation.
+- Added the explicit trust statement `You can pause guidance at any time.`
+- Removed the initial empty polite live-region node and its now-unused `.srOnly` rule.
+
+### GREEN and full verification
+
+Focused command `npm test -- tests/landingPage.test.ts` passed 16/16.
+
+Final verification command:
+
+```text
+npm run typecheck && npm test && npm run build && git diff --check
+```
+
+Result:
+
+- TypeScript: exit 0.
+- Full Vitest suite: 36 files passed, 197 tests passed.
+- Production website build: exit 0; 81 modules transformed.
+- Diff whitespace check: exit 0.
+- No Tauri command, native build, or `.app` launch was run.
+
+Self-review found the changes limited to the requested content/accessibility contracts, existing landing-page structures, tests, and this report. The pre-existing untracked `test-results/` directory was left untouched.

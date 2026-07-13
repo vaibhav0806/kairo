@@ -16,7 +16,8 @@ const skills = [
   ['Blender', 'Animation · materials · rendering', 'Active / alpha'],
   ['Photoshop', 'Layers · masks · retouching', 'Next'],
   ['DaVinci Resolve', 'Timeline · color · export', 'Planned'],
-  ['Figma', 'Frames · auto layout · components', 'Planned']
+  ['Figma', 'Frames · auto layout · components', 'Planned'],
+  ['Your institute', 'Curriculum · internal workflows', 'Custom skill']
 ] as const;
 
 function ProductPreview() {
@@ -141,7 +142,7 @@ export function LandingPage() {
             </div>
             <div className={styles.heroActions}>
               <a className={styles.primaryAction} href="#access">Request access</a>
-              <a className={styles.secondaryAction} href="#how">See how it works <span aria-hidden="true">↓</span></a>
+              <a className={styles.secondaryAction} href="#how">Watch Kairo teach <span aria-hidden="true">↓</span></a>
             </div>
           </div>
           <ProductPreview />
@@ -277,7 +278,7 @@ export function LandingPage() {
             <article>
               <span>Activation</span>
               <h3>You choose when Kairo looks and listens.</h3>
-              <p>Activate guidance with the shortcut. The app stays visually quiet while you work.</p>
+              <p>Activate guidance with the shortcut. You can pause guidance at any time. The app stays visually quiet while you work.</p>
             </article>
             <article>
               <span>Learner control</span>
@@ -327,7 +328,6 @@ export function LandingPage() {
                 </div>
                 {emailError ? <p id="waitlist-error" className={styles.waitlistError} role="alert">{emailError}</p> : null}
                 <p id="waitlist-note" className={styles.waitlistNote}>Preview mode. This form does not send or store your email yet.</p>
-                <p aria-live="polite" className={styles.srOnly} />
               </form>
             )}
             <p><b>Blender first.</b> Photoshop, DaVinci Resolve, and Figma follow.</p>

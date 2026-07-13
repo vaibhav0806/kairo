@@ -1000,7 +1000,7 @@
 .waitlistSuccess > strong {
   display: block;
   margin-bottom: 8px;
-  color: var(--verified);
+  color: var(--ink);
 }
 
 .waitlistSuccess fieldset {
@@ -1023,16 +1023,6 @@
 
 .waitlistSuccess button[aria-pressed='true'] {
   background: var(--kairo);
-}
-
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  clip-path: inset(50%);
 }
 
 .landingPage[data-motion-ready='true'] [data-reveal] {

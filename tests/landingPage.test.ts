@@ -11,12 +11,43 @@ describe('landing page', () => {
     expect(validateWaitlistEmail(' learner@example.com ')).toBeNull();
   });
 
-  test('renders an accessible request-access form', () => {
+  test('renders an accessible request-access form without an empty live region', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
     expect(html).toContain('<label for="waitlist-email">Email address</label>');
     expect(html).toContain('type="email"');
     expect(html).toContain('autoComplete="email"');
-    expect(html).toContain('aria-live="polite"');
+    expect(html).not.toContain('<p aria-live="polite"');
+    expect(css).not.toContain('.sronly');
+  });
+
+  test('styles preview completion as neutral status copy', () => {
+    const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+
+    expect(source).toContain('<strong>Preview complete.</strong>');
+    expect(css).toMatch(/\.waitlistsuccess > strong\s*\{[^}]*color:\s*var\(--ink\);/);
+    expect(css).not.toMatch(/\.waitlistsuccess > strong\s*\{[^}]*color:\s*var\(--verified\);/);
+  });
+
+  test('uses the approved secondary CTA wording', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+
+    expect(html).toContain('Watch Kairo teach');
+  });
+
+  test('offers concise institute custom-skill direction', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+
+    expect(html).toContain('Your institute');
+    expect(html).toContain('Curriculum · internal workflows');
+    expect(html).toContain('Custom skill');
+  });
+
+  test('states that learners can pause guidance', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+
+    expect(html).toContain('You can pause guidance at any time.');
   });
 
   test('renders the approved learner-first narrative', () => {
