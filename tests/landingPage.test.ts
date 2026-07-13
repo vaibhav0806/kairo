@@ -196,8 +196,17 @@ describe('landing page', () => {
     expect(css).toContain('--graphite:');
     expect(css).toMatch(/\.hero\s*\{[^}]*display:\s*block;/s);
     expect(css).not.toMatch(/\.hero\s*\{[^}]*grid-template-columns:/s);
+    expect(css).toMatch(/\.herocopy\s*\{[^}]*display:\s*block;/s);
     expect(css).toMatch(/\.primaryaction,[\s\S]*?\.secondaryaction\s*\{[^}]*background:\s*transparent;[^}]*border:\s*0;/s);
     expect(css).toMatch(/\.landingpage button,[\s\S]*?min-height:\s*44px;/s);
+  });
+
+  test('reserves violet for Kairo product states instead of generic interactions', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+
+    expect(css).toMatch(/\.landingpage :focus-visible\s*\{[^}]*outline:\s*2px solid currentcolor;/s);
+    expect(css).not.toMatch(/\.landingpage :focus-visible\s*\{[^}]*var\(--kairo\)/s);
+    expect(css).not.toMatch(/\.header nav a:hover,[^}]*\{[^}]*color:\s*var\(--kairo(?:-ink)?\);/s);
   });
 
   test('styles one continuous lesson spine and connected skill layers', () => {

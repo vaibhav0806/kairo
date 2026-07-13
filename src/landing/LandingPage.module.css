@@ -33,7 +33,7 @@
 }
 
 .landingPage :focus-visible {
-  outline: 3px solid var(--kairo);
+  outline: 2px solid currentColor;
   outline-offset: 4px;
 }
 
@@ -112,13 +112,10 @@
 }
 
 .heroCopy {
-  display: flex;
+  display: block;
   width: min(100%, 1440px);
   margin: 0 auto;
   padding: 96px 48px 72px;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 64px;
 }
 
 .heroCopy > div:first-child {
@@ -144,11 +141,9 @@
 
 .heroActions {
   display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
+  margin-top: 44px;
   align-items: flex-start;
-  gap: 8px;
-  padding-bottom: 4px;
+  gap: 28px;
 }
 
 .primaryAction,
@@ -936,7 +931,8 @@
   .header nav a:hover,
   .primaryAction:hover,
   .emailRow button:hover {
-    color: var(--kairo-ink);
+    color: var(--ink);
+    border-bottom-color: var(--ink);
   }
 
   .secondaryAction:hover,
@@ -947,14 +943,7 @@
 
 @media (max-width: 980px) {
   .heroCopy {
-    display: block;
     padding-top: 80px;
-  }
-
-  .heroActions {
-    margin-top: 44px;
-    flex-direction: row;
-    gap: 28px;
   }
 
   .distinction,
