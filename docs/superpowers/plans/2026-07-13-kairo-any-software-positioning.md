@@ -12,7 +12,9 @@
 
 - Kairo is an AI tutor for learning any desktop software, not a desktop automation agent.
 - Preserve `Learn software by doing. Not watching.` and `The AI points. You act.`
-- Blender is allowed only as the labeled hero example and its attribution.
+- Blender-specific lesson/workflow copy is allowed only in the labeled hero
+  example and its attribution. Blender may be named equally with other tools in
+  the compatibility section.
 - Preserve animation timing, observer lifecycle, reduced motion, routing, and mock waitlist behavior.
 - Use verified green only for confirmed learning progress.
 - Do not add dependencies, run Tauri, build a native application, or create/open a Kairo `.app`.
@@ -290,4 +292,3 @@ Review the complete revision range against
 `docs/superpowers/specs/2026-07-13-kairo-any-software-positioning-design.md`.
 Fix every Critical or Important issue, rerun Step 3, and obtain approval before
 claiming completion.
-
