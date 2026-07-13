@@ -100,6 +100,35 @@ describe('landing page', () => {
     });
   });
 
+  test('uses a high-resolution Blender source with cube-aligned overlays', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    const image = readFileSync('public/kairo-blender-preview.webp');
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+    const dimensions = image.readUInt32LE(21);
+
+    expect(html).toContain('kairo-blender-preview.webp');
+    expect(image.toString('ascii', 0, 4)).toBe('RIFF');
+    expect(image.toString('ascii', 8, 16)).toBe('WEBPVP8L');
+    expect((dimensions & 0x3fff) + 1).toBeGreaterThanOrEqual(1698);
+    expect(((dimensions >>> 14) & 0x3fff) + 1).toBeGreaterThanOrEqual(1054);
+    expect(image.byteLength).toBeLessThan(1_500_000);
+    expect(html).toContain('Interface capture:');
+    expect(html).not.toContain('Blender Manual');
+    expect(css).toMatch(
+      /\.softwareFrame\s*\{[^}]*min-height:\s*0;[^}]*aspect-ratio:\s*3560 \/ 1972;/s
+    );
+    expect(css).not.toMatch(
+      /@media \(max-width:\s*980px\)[\s\S]*\.softwareFrame\s*\{[^}]*aspect-ratio:\s*16 \/ 11;/s
+    );
+    expect(css).toMatch(/\.softwareFrame > img\s*\{[^}]*opacity:\s*1;/s);
+    expect(css).toMatch(
+      /\.kairoTarget\s*\{[^}]*top:\s*40\.3%;[^}]*left:\s*44\.3%;[^}]*width:\s*11\.8%;[^}]*height:\s*23%;/s
+    );
+    expect(css).toMatch(
+      /\.learnerAnnotation\s*\{[^}]*top:\s*39\.8%;[^}]*left:\s*39\.35%;[^}]*width:\s*21%;/s
+    );
+  });
+
   test('uses semantic color roles and accessible motion fallbacks', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 
@@ -151,12 +180,11 @@ describe('landing page', () => {
     expect(mobileCss).toMatch(/\.voiceresponse\s*\{[^}]*bottom:\s*116px;/);
   });
 
-  test('keeps the desktop hero responsive to its column and viewport height', () => {
+  test('keeps the desktop hero heading responsive to its column', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
 
     expect(css).toMatch(/\.herocopy\s*\{[^}]*container-type:\s*inline-size;/);
     expect(css).toMatch(/\.landingpage h1\s*\{[^}]*font-size:\s*clamp\(3\.5rem,\s*17cqi,\s*7rem\);/);
-    expect(css).toMatch(/\.softwareframe\s*\{[^}]*min-height:\s*clamp\(480px,\s*calc\(100svh - 240px\),\s*640px\);/);
   });
 
   test('defines semantic product and scroll motion choreography', () => {

@@ -29,7 +29,7 @@ function ProductPreview() {
       </figcaption>
       <div className={styles.softwareFrame}>
         <img
-          src={`${import.meta.env.BASE_URL}kairo-blender-preview.png`}
+          src={`${import.meta.env.BASE_URL}kairo-blender-preview.webp`}
           alt="Blender startup scene used to demonstrate Kairo's on-screen guidance"
         />
         <svg className={styles.learnerAnnotation} viewBox="0 0 180 130" aria-hidden="true">
@@ -53,7 +53,7 @@ function ProductPreview() {
         </div>
       </div>
       <small>
-        Interface image: <a href="https://docs.blender.org/manual/en/latest/editors/3dview/startup_scene.html">Blender Manual</a>, CC BY-SA. Kairo overlays are a product preview.
+        Interface capture: <a href="https://www.blender.org/">Blender</a>. Kairo overlays are a product preview.
       </small>
     </figure>
   );
