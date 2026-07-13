@@ -190,22 +190,23 @@ describe('landing page', () => {
     expect(css).not.toContain('radial-gradient');
   });
 
-  test('keeps marketing static and reveals each lesson state at its reading position', () => {
+  test('marks page-wide motion roles and reveals each one with a shared observer', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     const source = readFileSync('src/landing/LandingPage.tsx', 'utf8');
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
 
-    expect(html.match(/data-lesson-step=/g)).toHaveLength(5);
-    expect(html).not.toContain('data-reveal');
-    expect(source).not.toContain('revealObserver');
-    expect(source).toContain("querySelectorAll('[data-lesson-step]')");
-    expect(source).toMatch(/querySelectorAll\('\[data-lesson-step\]'\)[\s\S]*\.map\(\(step\) =>[\s\S]*new IntersectionObserver/);
-    expect(source).toContain("rootMargin: '0px 0px -45% 0px'");
-    expect(source).toContain('lessonStepElements.slice(0, stepIndex + 1)');
-    expect(css).not.toContain('[data-reveal]');
-    expect(css).not.toMatch(/\.skillRow\s*\{[^}]*animation:/s);
-    expect(css).toMatch(/\[data-lesson-step\]\s*\{[^}]*opacity:\s*0;[^}]*transform:\s*translateY\(12px\);/s);
-    expect(css).toMatch(/\[data-lesson-step\]\[data-step-visible='true'\]\s*\{[^}]*transition:\s*opacity 320ms ease-out, transform 320ms ease-out;/s);
+    expect((html.match(/data-scroll=/g) ?? []).length).toBeGreaterThanOrEqual(14);
+    expect(html).toContain('data-scroll="distinction-heading"');
+    expect(html).toContain('data-scroll="lesson-step"');
+    expect(html).toContain('data-scroll="skill-layer-base"');
+    expect(html).toContain('data-scroll="skill-layer-product"');
+    expect(html).toContain('data-scroll="trust"');
+    expect(html).toContain('data-scroll="access-form"');
+    expect(source).toContain("page.querySelectorAll('[data-scroll]')");
+    expect(source).toContain("element.setAttribute('data-scroll-visible', 'true')");
+    expect(source).toContain('scrollObserver.unobserve(element)');
+    expect(source).not.toContain('lessonStepElements.slice');
+    expect(css).toContain("[data-scroll-visible='true']");
   });
 
   test('offers a demo control and gates every looping preview animation with its state', () => {
@@ -229,7 +230,7 @@ describe('landing page', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
     const reducedMotion = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
 
-    expect(reducedMotion).toMatch(/\[data-lesson-step\]\s*\{[^}]*opacity:\s*1 !important;[^}]*transform:\s*none !important;/s);
+    expect(reducedMotion).toMatch(/\[data-scroll\],[\s\S]*?\[data-scroll\]::after\s*\{[^}]*opacity:\s*1 !important;[^}]*transform:\s*none !important;[^}]*transition:\s*none !important;/s);
     expect(reducedMotion).toMatch(/\.landingPage \.demoControl\s*\{[^}]*display:\s*none;/s);
     expect(reducedMotion).toMatch(/\.landingPage \.learnerAsk,[\s\S]*?\.landingPage \.progressRail \.verified\s*\{[^}]*animation:\s*none !important;[^}]*opacity:\s*1 !important;/s);
     expect(reducedMotion).toMatch(/\.landingPage \.learnerAnnotation path\s*\{[^}]*stroke-dashoffset:\s*0 !important;/s);

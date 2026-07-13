@@ -124,25 +124,23 @@ export function LandingPage() {
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const canObserve = 'IntersectionObserver' in window;
-    const lessonStepObservers: IntersectionObserver[] = [];
+    let scrollObserver: IntersectionObserver | null = null;
     let previewObserver: IntersectionObserver | null = null;
 
     if (!reducedMotion && canObserve) {
       page.dataset.motionReady = 'true';
-      const lessonStepElements = Array.from(page.querySelectorAll('[data-lesson-step]'));
-      lessonStepObservers.push(...lessonStepElements.map((step) => {
-        const stepIndex = lessonStepElements.indexOf(step);
-        const observer = new IntersectionObserver(([entry]) => {
-          if (entry?.isIntersecting) {
-            lessonStepElements.slice(0, stepIndex + 1).forEach((visibleStep) => {
-              visibleStep.setAttribute('data-step-visible', 'true');
-            });
-            observer.unobserve(step);
-          }
-        }, { threshold: 0.28, rootMargin: '0px 0px -45% 0px' });
-        observer.observe(step);
-        return observer;
-      }));
+      scrollObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const element = entry.target;
+          element.setAttribute('data-scroll-visible', 'true');
+          if (scrollObserver) scrollObserver.unobserve(element);
+        });
+      }, { threshold: 0.15, rootMargin: '0px 0px -12% 0px' });
+
+      page.querySelectorAll('[data-scroll]').forEach((element) => {
+        scrollObserver?.observe(element);
+      });
     }
 
     if (canObserve) {
@@ -160,7 +158,7 @@ export function LandingPage() {
     document.addEventListener('visibilitychange', syncPageVisibility);
 
     return () => {
-      lessonStepObservers.forEach((observer) => observer.disconnect());
+      scrollObserver?.disconnect();
       previewObserver?.disconnect();
       document.removeEventListener('visibilitychange', syncPageVisibility);
       delete page.dataset.motionReady;
@@ -204,18 +202,18 @@ export function LandingPage() {
         </section>
 
         <section className={styles.distinction} aria-labelledby="distinction-title">
-          <h2 id="distinction-title">Tutorials make you leave the work. Agents take over the work. Kairo teaches you inside it.</h2>
-          <p>It starts from your screen, gives one move, waits while you try it, and checks before continuing.</p>
+          <h2 id="distinction-title" data-scroll="distinction-heading">Tutorials make you leave the work. Agents take over the work. Kairo teaches you inside it.</h2>
+          <p data-scroll="distinction-support">It starts from your screen, gives one move, waits while you try it, and checks before continuing.</p>
         </section>
 
         <section id="lesson" className={styles.lesson} aria-labelledby="lesson-title">
-          <header className={styles.sectionHeader}>
+          <header className={styles.sectionHeader} data-scroll="lesson-header">
             <p>One complete lesson in Figma</p>
             <h2 id="lesson-title">A lesson moves only when you do.</h2>
           </header>
           <ol className={styles.lessonSpine} aria-label="One Kairo lesson" data-motion="lesson">
             {lessonSteps.map(([label, detail, className], index) => (
-              <li className={styles[className]} data-lesson-step={index + 1} key={label}>
+              <li className={styles[className]} data-lesson-step={index + 1} data-scroll="lesson-step" key={label}>
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <div>
                   <h3>{label}</h3>
@@ -233,7 +231,7 @@ export function LandingPage() {
         </section>
 
         <section id="skills" className={styles.skills} aria-labelledby="skills-title">
-          <header className={styles.sectionHeader}>
+          <header className={styles.sectionHeader} data-scroll="skills-header">
             <p>One tutor, two layers</p>
             <div>
               <h2 id="skills-title">Works anywhere. Gets deeper with product skills.</h2>
@@ -241,13 +239,13 @@ export function LandingPage() {
             </div>
           </header>
           <div className={styles.skillLayers}>
-            <section className={styles.baseTutorLayer} aria-labelledby="base-tutor-title">
+            <section className={styles.baseTutorLayer} data-scroll="skill-layer-base" aria-labelledby="base-tutor-title">
               <h3 id="base-tutor-title">In any desktop app</h3>
               <ul>
                 {baseTutorCapabilities.map((capability) => <li key={capability}>{capability}</li>)}
               </ul>
             </section>
-            <section className={styles.productSkillLayer} aria-labelledby="product-skill-title">
+            <section className={styles.productSkillLayer} data-scroll="skill-layer-product" aria-labelledby="product-skill-title">
               <h3 id="product-skill-title">With a product skill</h3>
               <ul>
                 {productSkillCapabilities.map((capability) => <li key={capability}>{capability}</li>)}
@@ -256,7 +254,7 @@ export function LandingPage() {
           </div>
           <ul className={styles.skillList} aria-label="Available product skill examples">
             {skills.map(([software, knowledge]) => (
-              <li className={styles.skillRow} key={software}>
+              <li className={styles.skillRow} data-scroll="skill-row" key={software}>
                 <h3>{software}</h3>
                 <p>{knowledge}</p>
               </li>
@@ -265,18 +263,18 @@ export function LandingPage() {
           <p className={styles.anySoftware}>And any other desktop software, even without a dedicated skill.</p>
         </section>
 
-        <section id="trust" className={styles.trust} aria-labelledby="trust-title">
+        <section id="trust" className={styles.trust} data-scroll="trust" aria-labelledby="trust-title">
           <p>Trust</p>
           <h2 id="trust-title">Kairo starts only when you ask. Pause it anytime. It points; it never clicks for you.</h2>
           <p className={styles.trustLimit}>AI can make mistakes. Check important guidance and use your judgment.</p>
         </section>
 
         <section id="access" className={styles.access} aria-labelledby="access-title">
-          <div>
+          <div data-scroll="access-heading">
             <p>Early access / Mac</p>
             <h2 id="access-title">Bring the software you want to learn.</h2>
           </div>
-          <div className={styles.accessShell}>
+          <div className={styles.accessShell} data-scroll="access-form">
             <p>Join the Mac alpha and bring the software you already use.</p>
             {submittedEmail ? (
               <div className={styles.waitlistSuccess} aria-live="polite">

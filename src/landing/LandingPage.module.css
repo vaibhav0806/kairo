@@ -510,6 +510,7 @@
 }
 
 .lessonSpine {
+  position: relative;
   max-width: 820px;
   margin: 6px 0 0;
   padding: 0;
@@ -540,6 +541,21 @@
   border: 2px solid var(--paper);
   background: var(--ink);
   content: "";
+}
+
+.lessonSpine li::after {
+  position: absolute;
+  top: 14px;
+  bottom: 0;
+  left: -1px;
+  width: 1px;
+  background: var(--ink);
+  content: "";
+  transform-origin: top;
+}
+
+.lessonSpine li:last-child::after {
+  display: none;
 }
 
 .lessonSpine li > span {
@@ -733,6 +749,7 @@
 }
 
 .trust {
+  position: relative;
   display: grid;
   width: min(100% - 96px, 1344px);
   margin: 0 auto;
@@ -741,6 +758,17 @@
   align-items: start;
   gap: 48px;
   border-bottom: 1px solid var(--line-strong);
+}
+
+.trust::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  background: var(--ink);
+  content: "";
+  transform-origin: left;
 }
 
 .trust > p:first-child {
@@ -885,15 +913,53 @@
   border-bottom-color: var(--ink);
 }
 
-.landingPage[data-motion-ready='true'] [data-lesson-step] {
+.landingPage[data-motion-ready='true'] [data-scroll] {
   opacity: 0;
-  transform: translateY(12px);
+  transform: translateY(24px);
 }
 
-.landingPage[data-motion-ready='true'] [data-lesson-step][data-step-visible='true'] {
+.landingPage[data-motion-ready='true'] [data-scroll='skill-layer-base'] {
+  transform: translateX(-24px);
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll='skill-layer-product'] {
+  transform: translateX(24px);
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll='skill-row'] {
+  transform: translateY(18px);
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll='lesson-step']::before {
+  transform: scale(0);
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll='lesson-step']::after {
+  transform: scaleY(0);
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll='trust']::after {
+  transform: scaleX(0);
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll][data-scroll-visible='true'] {
   opacity: 1;
   transform: none;
-  transition: opacity 320ms ease-out, transform 320ms ease-out;
+  transition: opacity 380ms cubic-bezier(0, 0, 0.2, 1),
+    transform 380ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll='lesson-step'][data-scroll-visible='true']::before,
+.landingPage[data-motion-ready='true'] [data-scroll='lesson-step'][data-scroll-visible='true']::after,
+.landingPage[data-motion-ready='true'] [data-scroll='trust'][data-scroll-visible='true']::after {
+  transform: none;
+  transition: transform 380ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.landingPage[data-motion-ready='true'] [data-scroll='distinction-support'][data-scroll-visible='true'],
+.landingPage[data-motion-ready='true'] [data-scroll='skill-layer-product'][data-scroll-visible='true'],
+.landingPage[data-motion-ready='true'] [data-scroll='access-form'][data-scroll-visible='true'] {
+  transition-delay: 80ms;
 }
 
 @keyframes voiceBar {
@@ -1290,9 +1356,12 @@
     transition-duration: 0.001ms !important;
   }
 
-  .landingPage [data-lesson-step] {
+  .landingPage [data-scroll],
+  .landingPage [data-scroll]::before,
+  .landingPage [data-scroll]::after {
     opacity: 1 !important;
     transform: none !important;
+    transition: none !important;
   }
 
   .landingPage .learnerAsk,
