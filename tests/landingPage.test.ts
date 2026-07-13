@@ -58,4 +58,13 @@ describe('landing page', () => {
       /\.landingpage\s+\[data-reveal\]\s+\.chaptervisual\s*>\s*\*\s*\{[^}]*opacity:\s*1\s*!important;[^}]*transform:\s*none\s*!important;[^}]*transition:\s*none\s*!important;[^}]*\}/
     );
   });
+
+  test('styles waitlist messages through CSS module classes', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
+
+    expect(css).toContain('.waitlisterror');
+    expect(css).toContain('.waitlistnote');
+    expect(css).not.toContain('#waitlist-error');
+    expect(css).not.toContain('#waitlist-note');
+  });
 });

@@ -910,13 +910,13 @@
   font-weight: 650;
 }
 
-.waitlistForm #waitlist-error {
+.waitlistError {
   margin: 10px 0 0;
   color: #a42f1c;
   font-size: 0.8rem;
 }
 
-.waitlistForm #waitlist-note {
+.waitlistNote {
   margin: 10px 0 0;
   font-size: 0.75rem;
 }

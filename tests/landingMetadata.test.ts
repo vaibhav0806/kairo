@@ -13,6 +13,7 @@ describe('landing metadata and brand', () => {
   test('records the approved semantic brand roles', () => {
     const brand = readFileSync('brand.md', 'utf8');
     expect(brand).toContain('#F5F4EF');
+    expect(brand).toContain('#151515');
     expect(brand).toContain('#FF6547');
     expect(brand).toContain('#8B79FF');
     expect(brand).toContain('#78CAAA');

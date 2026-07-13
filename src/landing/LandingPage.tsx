@@ -292,7 +292,7 @@ export function LandingPage() {
             {submittedEmail ? (
               <div className={styles.waitlistSuccess} aria-live="polite">
                 <strong>Preview complete.</strong>
-                <p>{submittedEmail} was not sent. Connect a waitlist provider before launch.</p>
+                <p>{submittedEmail} was not sent or stored. Connect a waitlist provider before launch.</p>
                 <fieldset>
                   <legend>Which best describes you? <span>Optional</span></legend>
                   {(['Student', 'Creator', 'Educator'] as const).map((option) => (
@@ -315,8 +315,8 @@ export function LandingPage() {
                   />
                   <button type="submit">Request access</button>
                 </div>
-                {emailError ? <p id="waitlist-error" role="alert">{emailError}</p> : null}
-                <p id="waitlist-note">Preview mode. This form does not send or store your email yet.</p>
+                {emailError ? <p id="waitlist-error" className={styles.waitlistError} role="alert">{emailError}</p> : null}
+                <p id="waitlist-note" className={styles.waitlistNote}>Preview mode. This form does not send or store your email yet.</p>
                 <p aria-live="polite" className={styles.srOnly} />
               </form>
             )}
