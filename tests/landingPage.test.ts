@@ -115,6 +115,13 @@ describe('landing page', () => {
     expect(css).not.toContain('radial-gradient');
   });
 
+  test('gives verification states responsive inner spacing', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+
+    expect(css).toMatch(/\.checkRow\s*\{[^}]*padding:\s*22px 24px;/s);
+    expect(css).toMatch(/@media \(max-width:\s*640px\)[\s\S]*\.checkRow\s*\{[^}]*padding:\s*18px 16px;/);
+  });
+
   test('keeps chapter visual details visible when reduced motion is enabled', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8').toLowerCase();
     const reducedMotionCss = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));

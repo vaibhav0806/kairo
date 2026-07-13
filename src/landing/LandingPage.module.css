@@ -765,7 +765,7 @@
   display: grid;
   max-width: 600px;
   margin: 0 auto;
-  padding: 22px 0;
+  padding: 22px 24px;
   grid-template-columns: 48px 1fr auto;
   gap: 16px;
   border-bottom: 1px solid #4a4c54;
@@ -1609,6 +1609,12 @@
 
   .accessShell {
     align-self: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .checkRow {
+    padding: 18px 16px;
   }
 }
 
