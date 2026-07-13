@@ -871,6 +871,98 @@
   font-size: 0.84rem;
 }
 
+.waitlistForm {
+  margin: 32px 0;
+}
+
+.waitlistForm label,
+.waitlistSuccess legend {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.emailRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.emailRow input,
+.emailRow button,
+.waitlistSuccess button {
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  font: inherit;
+}
+
+.emailRow input {
+  min-width: 0;
+  padding: 0 14px;
+  background: transparent;
+  color: var(--ink);
+}
+
+.emailRow button {
+  padding: 0 18px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 650;
+}
+
+.waitlistForm #waitlist-error {
+  margin: 10px 0 0;
+  color: #a42f1c;
+  font-size: 0.8rem;
+}
+
+.waitlistForm #waitlist-note {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+}
+
+.waitlistSuccess {
+  margin: 32px 0;
+}
+
+.waitlistSuccess > strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--verified);
+}
+
+.waitlistSuccess fieldset {
+  margin: 24px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.waitlistSuccess legend span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.waitlistSuccess button {
+  margin: 0 8px 8px 0;
+  padding: 0 14px;
+  background: transparent;
+  color: var(--ink);
+}
+
+.waitlistSuccess button[aria-pressed='true'] {
+  background: var(--kairo);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 .landingPage[data-motion-ready='true'] [data-reveal] {
   opacity: 0;
   transform: translateY(34px);

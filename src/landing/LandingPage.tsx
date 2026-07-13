@@ -1,5 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import styles from './LandingPage.module.css';
+
+type WaitlistRole = 'Student' | 'Creator' | 'Educator';
+
+export function validateWaitlistEmail(value: string): string | null {
+  const email = value.trim();
+  if (!email) return 'Enter your email address.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid email address.';
+  return null;
+}
 
 const learningLoop = ['Talk', 'Draw', 'Understand', 'Guide', 'Verify'];
 
@@ -49,6 +58,24 @@ function ProductPreview() {
 
 export function LandingPage() {
   const pageRef = useRef<HTMLDivElement>(null);
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<WaitlistRole | null>(null);
+
+  const handleWaitlistSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const error = validateWaitlistEmail(email);
+    if (error) {
+      setEmailError(error);
+      const emailInput = event.currentTarget.elements.namedItem('waitlist-email');
+      if (emailInput instanceof HTMLInputElement) emailInput.focus();
+      return;
+    }
+
+    setEmailError(null);
+    setSubmittedEmail(email.trim());
+  };
 
   useEffect(() => {
     const page = pageRef.current;
@@ -262,6 +289,37 @@ export function LandingPage() {
           </div>
           <div className={styles.accessShell}>
             <p>Kairo is beginning with Blender learners. Join the early-access list to hear when a place opens.</p>
+            {submittedEmail ? (
+              <div className={styles.waitlistSuccess} aria-live="polite">
+                <strong>Preview complete.</strong>
+                <p>{submittedEmail} was not sent. Connect a waitlist provider before launch.</p>
+                <fieldset>
+                  <legend>Which best describes you? <span>Optional</span></legend>
+                  {(['Student', 'Creator', 'Educator'] as const).map((option) => (
+                    <button key={option} type="button" aria-pressed={role === option} onClick={() => setRole(option)}>{option}</button>
+                  ))}
+                </fieldset>
+              </div>
+            ) : (
+              <form className={styles.waitlistForm} onSubmit={handleWaitlistSubmit} noValidate>
+                <label htmlFor="waitlist-email">Email address</label>
+                <div className={styles.emailRow}>
+                  <input
+                    id="waitlist-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    aria-describedby={emailError ? 'waitlist-error waitlist-note' : 'waitlist-note'}
+                    aria-invalid={Boolean(emailError)}
+                    onChange={(event) => { setEmail(event.target.value); setEmailError(null); }}
+                  />
+                  <button type="submit">Request access</button>
+                </div>
+                {emailError ? <p id="waitlist-error" role="alert">{emailError}</p> : null}
+                <p id="waitlist-note">Preview mode. This form does not send or store your email yet.</p>
+                <p aria-live="polite" className={styles.srOnly} />
+              </form>
+            )}
             <p><b>Blender first.</b> Photoshop, DaVinci Resolve, and Figma follow.</p>
           </div>
         </section>

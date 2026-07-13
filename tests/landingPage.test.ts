@@ -2,9 +2,23 @@ import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, test } from 'vitest';
-import { LandingPage } from '../src/landing/LandingPage';
+import { LandingPage, validateWaitlistEmail } from '../src/landing/LandingPage';
 
 describe('landing page', () => {
+  test('validates the local preview email field', () => {
+    expect(validateWaitlistEmail('')).toBe('Enter your email address.');
+    expect(validateWaitlistEmail('learner@')).toBe('Enter a valid email address.');
+    expect(validateWaitlistEmail(' learner@example.com ')).toBeNull();
+  });
+
+  test('renders an accessible request-access form', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    expect(html).toContain('<label for="waitlist-email">Email address</label>');
+    expect(html).toContain('type="email"');
+    expect(html).toContain('autoComplete="email"');
+    expect(html).toContain('aria-live="polite"');
+  });
+
   test('renders the approved learner-first narrative', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
 
