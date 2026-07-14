@@ -4,27 +4,68 @@ import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { LandingPage, validateWaitlistEmail } from '../src/landing/LandingPage';
 
-class IntersectionObserverStub {
+class IntersectionObserverHarness {
+  static instances: IntersectionObserverHarness[] = [];
+
+  constructor(private callback: IntersectionObserverCallback) {
+    IntersectionObserverHarness.instances.push(this);
+  }
+
   observe = vi.fn();
-  unobserve = vi.fn();
   disconnect = vi.fn();
+
+  trigger(target: Element, isIntersecting: boolean) {
+    this.callback(
+      [{ target, isIntersecting }] as IntersectionObserverEntry[],
+      this as unknown as IntersectionObserver
+    );
+  }
 }
 
-Object.defineProperty(window, 'IntersectionObserver', {
-  configurable: true,
-  value: IntersectionObserverStub
-});
+let prefersReducedMotion = false;
+const motionPreferenceListeners = new Set<(event: MediaQueryListEvent) => void>();
 
-Object.defineProperty(window, 'matchMedia', {
-  configurable: true,
-  value: vi.fn().mockReturnValue({
-    matches: false,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn()
-  })
+function setReducedMotion(matches: boolean) {
+  prefersReducedMotion = matches;
+  const event = { matches, media: '(prefers-reduced-motion: reduce)' } as MediaQueryListEvent;
+  motionPreferenceListeners.forEach((listener) => listener(event));
+}
+
+function observerFor(target: Element): IntersectionObserverHarness {
+  const observer = IntersectionObserverHarness.instances.find((instance) => (
+    instance.observe.mock.calls.some(([observedTarget]) => observedTarget === target)
+  ));
+  if (!observer) throw new Error('No observer found for target');
+  return observer;
+}
+
+beforeEach(() => {
+  IntersectionObserverHarness.instances = [];
+  prefersReducedMotion = false;
+  motionPreferenceListeners.clear();
+
+  Object.defineProperty(window, 'IntersectionObserver', {
+    configurable: true,
+    value: IntersectionObserverHarness
+  });
+
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: vi.fn().mockImplementation(() => ({
+      get matches() {
+        return prefersReducedMotion;
+      },
+      addEventListener: vi.fn((eventName: string, listener: (event: MediaQueryListEvent) => void) => {
+        if (eventName === 'change') motionPreferenceListeners.add(listener);
+      }),
+      removeEventListener: vi.fn((eventName: string, listener: (event: MediaQueryListEvent) => void) => {
+        if (eventName === 'change') motionPreferenceListeners.delete(listener);
+      })
+    }))
+  });
 });
 
 afterEach(() => {
@@ -115,6 +156,86 @@ describe('landing page', () => {
       window.dispatchEvent(new Event(eventName));
     });
     expect(frames).toHaveLength(scheduledFrames);
+  });
+
+  test('reveals a visual chapter once it enters the viewport', () => {
+    const { container } = render(createElement(LandingPage));
+    const page = container.querySelector<HTMLElement>('[data-field-notes]');
+    const chapter = container.querySelector<HTMLElement>('#tools');
+
+    expect(page?.dataset.motionReady).toBe('true');
+    expect(page?.dataset.pageVisible).toBe('true');
+    expect(page?.dataset.reducedMotion).toBe('false');
+    expect(chapter?.dataset.revealed).toBeUndefined();
+
+    act(() => observerFor(chapter as HTMLElement).trigger(chapter as HTMLElement, true));
+    expect(chapter?.dataset.revealed).toBe('true');
+
+    act(() => observerFor(chapter as HTMLElement).trigger(chapter as HTMLElement, false));
+    expect(chapter?.dataset.revealed).toBe('true');
+  });
+
+  test('stops ambient motion when a photographic stage leaves the viewport', () => {
+    const { container } = render(createElement(LandingPage));
+    const stage = container.querySelector<HTMLElement>('[data-ambient-stage]');
+
+    expect(stage).toBeTruthy();
+    act(() => observerFor(stage as HTMLElement).trigger(stage as HTMLElement, true));
+    expect(stage?.dataset.ambientActive).toBe('true');
+
+    act(() => observerFor(stage as HTMLElement).trigger(stage as HTMLElement, false));
+    expect(stage?.dataset.ambientActive).toBe('false');
+  });
+
+  test('keeps every chapter visible when reduced motion is enabled', () => {
+    const { container } = render(createElement(LandingPage));
+    const page = container.querySelector<HTMLElement>('[data-field-notes]');
+
+    act(() => setReducedMotion(true));
+
+    expect(page?.dataset.motionReady).toBeUndefined();
+    expect(page?.dataset.reducedMotion).toBe('true');
+    ['top', 'how-it-works', 'tools', 'practice', 'trust', 'access'].forEach((id) => {
+      expect(container.querySelector(`#${id}`)).toBeTruthy();
+    });
+    expect(container.querySelectorAll('[data-reveal]')).toHaveLength(6);
+  });
+
+  test('provides complete reduced motion and pointer fallbacks', () => {
+    const pageCss = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+    const heroCss = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const sequenceCss = readFileSync('src/landing/LearningSequence.module.css', 'utf8');
+
+    expect(pageCss).toMatch(/\[data-motion-ready='true'\]\s+\[data-reveal\]:not\(\[data-revealed='true'\]\)/);
+    expect(pageCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*animation:\s*none\s*!important;[\s\S]*clip-path:\s*none\s*!important;/);
+    expect(heroCss).toMatch(/@media\s*\(hover:\s*none\)/);
+    expect(sequenceCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*position:\s*static;/);
+  });
+
+  test('reveals every visual chapter when the observer is unavailable', () => {
+    Object.defineProperty(window, 'IntersectionObserver', {
+      configurable: true,
+      value: undefined
+    });
+
+    const { container } = render(createElement(LandingPage));
+    const chapters = [...container.querySelectorAll<HTMLElement>('[data-reveal]')];
+
+    expect(chapters).toHaveLength(6);
+    chapters.forEach((chapter) => expect(chapter.dataset.revealed).toBe('true'));
+  });
+
+  test('tracks page visibility and keeps native controls available', () => {
+    const { container } = render(createElement(LandingPage));
+    const page = container.querySelector<HTMLElement>('[data-field-notes]');
+
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+
+    expect(page?.dataset.pageVisible).toBe('false');
+    expect(screen.getByRole('button', { name: 'Pause lesson' }).getAttribute('type')).toBe('button');
+    expect(screen.getByLabelText('Email address').getAttribute('type')).toBe('email');
+    expect(screen.getByRole('button', { name: 'Join the alpha' }).getAttribute('type')).toBe('submit');
   });
 
   test('gives the wordmark a full-height touch target', () => {

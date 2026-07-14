@@ -156,6 +156,9 @@
   stroke-width: 8;
   stroke-linecap: round;
   stroke-linejoin: round;
+  stroke-dasharray: 700;
+  stroke-dashoffset: 700;
+  transition: stroke-dashoffset 520ms cubic-bezier(.2,.7,.2,1);
 }
 
 .target {
@@ -263,6 +266,11 @@
 .workspace[data-workspace-state='point'] .learnerMark {
   opacity: 1;
   transform: rotate(-7deg) translate3d(0, 0, 0);
+}
+
+.workspace[data-workspace-state='ask'] .learnerMark path,
+.workspace[data-workspace-state='point'] .learnerMark path {
+  stroke-dashoffset: 0;
 }
 
 .status {
@@ -385,6 +393,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .film {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace {
+    position: static;
+  }
+
+  .chapter {
+    min-height: auto;
+  }
+
   .layer {
     transition: none;
   }

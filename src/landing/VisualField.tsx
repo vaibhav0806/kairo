@@ -28,9 +28,9 @@ export function VisualField() {
           <p className={styles.toolCoverage}>and any desktop tool you are learning</p>
         </div>
 
-        <div className={styles.toolField}>
+        <div className={styles.toolField} data-ambient-stage>
           <img
-            className={styles.sketches}
+            className={`${styles.sketches} ${styles.ambientPhoto}`}
             src={asset('field-notes/sketches.webp')}
             alt="Pencil concept sketches spread across a desk"
             width="2200"
@@ -111,8 +111,9 @@ export function VisualField() {
           <h2 id="practice-title">Ask, try, learn</h2>
         </div>
 
-        <div className={styles.practiceEnvironment}>
+        <div className={styles.practiceEnvironment} data-ambient-stage>
           <img
+            className={styles.ambientPhoto}
             src={asset('field-notes/workbench.webp')}
             alt="A designer drawing with a stylus on a tablet"
             width="1600"

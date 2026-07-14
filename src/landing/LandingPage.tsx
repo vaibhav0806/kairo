@@ -12,20 +12,56 @@ export function LandingPage() {
 
   useEffect(() => {
     const page = pageRef.current;
-    if (
-      !page
-      || window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      || !('IntersectionObserver' in window)
-    ) return undefined;
+    if (!page) return undefined;
 
-    page.dataset.motionReady = 'true';
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) (entry.target as HTMLElement).dataset.revealed = 'true';
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const revealTargets = page.querySelectorAll<HTMLElement>('[data-reveal]');
+    const ambientStages = page.querySelectorAll<HTMLElement>('[data-ambient-stage]');
+
+    const syncMotionPreference = () => {
+      page.dataset.reducedMotion = String(reducedMotion.matches);
+      if (reducedMotion.matches) delete page.dataset.motionReady;
+      else page.dataset.motionReady = 'true';
+    };
+    const syncPageVisibility = () => {
+      page.dataset.pageVisible = String(!document.hidden);
+    };
+
+    syncMotionPreference();
+    syncPageVisibility();
+    reducedMotion.addEventListener('change', syncMotionPreference);
+    document.addEventListener('visibilitychange', syncPageVisibility);
+
+    let revealObserver: IntersectionObserver | null = null;
+    let ambientObserver: IntersectionObserver | null = null;
+    const Observer = window.IntersectionObserver;
+
+    if (typeof Observer === 'function') {
+      revealObserver = new Observer((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) (entry.target as HTMLElement).dataset.revealed = 'true';
+        });
+      }, { threshold: 0.14 });
+      revealTargets.forEach((element) => revealObserver?.observe(element));
+
+      ambientObserver = new Observer((entries) => {
+        entries.forEach((entry) => {
+          (entry.target as HTMLElement).dataset.ambientActive = String(entry.isIntersecting);
+        });
+      }, { threshold: 0.08 });
+      ambientStages.forEach((element) => ambientObserver?.observe(element));
+    } else {
+      revealTargets.forEach((element) => {
+        element.dataset.revealed = 'true';
       });
-    }, { threshold: 0.14 });
-    page.querySelectorAll('[data-reveal]').forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
+    }
+
+    return () => {
+      revealObserver?.disconnect();
+      ambientObserver?.disconnect();
+      reducedMotion.removeEventListener('change', syncMotionPreference);
+      document.removeEventListener('visibilitychange', syncPageVisibility);
+    };
   }, []);
 
   return (

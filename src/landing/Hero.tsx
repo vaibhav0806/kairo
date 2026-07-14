@@ -28,8 +28,9 @@ export function Hero() {
     document.addEventListener('visibilitychange', syncPageVisibility);
 
     let observer: IntersectionObserver | null = null;
-    if ('IntersectionObserver' in window) {
-      observer = new IntersectionObserver(([entry]) => {
+    const Observer = window.IntersectionObserver;
+    if (typeof Observer === 'function') {
+      observer = new Observer(([entry]) => {
         if (entry) hero.dataset.demoActive = String(entry.isIntersecting);
       }, { threshold: 0.08 });
       const stage = hero.querySelector('[data-hero-stage]');
@@ -64,10 +65,11 @@ export function Hero() {
         <a href="#access">Join the alpha <span aria-hidden="true">↗</span></a>
       </div>
 
-      <div className={styles.environment}>
+      <div className={styles.environment} data-ambient-stage>
         <picture className={styles.fieldPhoto}>
           <source media="(max-width: 760px)" srcSet={asset('field-notes/field-hero-mobile.webp')} />
           <img
+            className={styles.ambientPhoto}
             src={asset('field-notes/field-hero.webp')}
             alt="A creative workbench with paper and drawing tools"
             width="2200"

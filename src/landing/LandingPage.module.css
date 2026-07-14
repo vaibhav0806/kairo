@@ -47,6 +47,16 @@
   outline-offset: 4px;
 }
 
+[data-reveal] {
+  transition: opacity 700ms ease, transform 800ms cubic-bezier(.2,.7,.2,1), clip-path 800ms cubic-bezier(.2,.7,.2,1);
+}
+
+[data-motion-ready='true'] [data-reveal]:not([data-revealed='true']) {
+  opacity: 0;
+  transform: translate3d(0, 28px, 0);
+  clip-path: inset(0 0 10% 0);
+}
+
 .header {
   display: grid;
   min-height: 72px;
@@ -160,5 +170,24 @@
   .footer a {
     min-width: 0;
     width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    scroll-behavior: auto;
+  }
+
+  .page *,
+  .page *::before,
+  .page *::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    clip-path: none !important;
+  }
+
+  [data-reveal] {
+    opacity: 1 !important;
   }
 }
