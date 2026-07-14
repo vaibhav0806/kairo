@@ -3,7 +3,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { LandingPage, validateWaitlistEmail } from '../src/landing/LandingPage';
 
@@ -300,23 +300,29 @@ describe('landing page', () => {
     expect(pageCss).toMatch(/\[data-motion-ready='true'\]\s+\[data-reveal\]:not\(\[data-revealed='true'\]\)/);
     expect(pageCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*animation:\s*none\s*!important;[\s\S]*clip-path:\s*none\s*!important;/);
     expect(heroCss).toMatch(/@media\s*\(hover:\s*none\)/);
-    expect(heroCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.instruction\s*\{[^}]*display:\s*(?:grid|block);/);
+    expect(heroCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.mobileTranscript\s*\{[^}]*display:\s*grid;/);
     expect(heroCss).toMatch(/:global\(\[data-page-visible='false'\]\)\s+\.ambientPhoto\s*\{[^}]*transition:\s*none;/);
     expect(sequenceCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*position:\s*static;/);
     expect(visualCss).toMatch(/:global\(\[data-page-visible='false'\]\)\s+\.ambientPhoto\s*\{[^}]*transition:\s*none;/);
   });
 
-  test('shows one static hero instruction and no dead pause control for reduced motion', () => {
+  test('shows a three-row transcript and no animated hero overlays in static fallbacks', () => {
     const heroCss = readFileSync('src/landing/Hero.module.css', 'utf8');
     const mobileRules = heroCss.match(/@media\s*\(max-width:\s*760px\)[\s\S]*?(?=@media\s*\(prefers-reduced-motion:\s*no-preference\))/)?.[0] ?? '';
     const reducedRules = heroCss.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*$/)?.[0] ?? '';
+    const { container } = render(createElement(LandingPage));
+    const transcript = container.querySelector('[aria-label="Mobile lesson summary"]') as HTMLElement;
+    const rows = within(transcript).getAllByRole('listitem');
 
     expect(heroCss.indexOf(reducedRules)).toBeGreaterThan(heroCss.indexOf(mobileRules));
-    expect(mobileRules).toMatch(/\.question,\s*\.annotation,\s*\.target,\s*\.instruction\s*\{[^}]*display:\s*none;/);
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => row.querySelector('span')?.textContent)).toEqual(['Ask', 'Do', 'Check']);
+    expect(mobileRules).toMatch(/\.question,\s*\.annotation,\s*\.target,\s*\.instruction,\s*\.learnerAction,\s*\.verified\s*\{[^}]*display:\s*none;/);
     expect(mobileRules).toMatch(/\.productWindow button\s*\{[^}]*display:\s*none;/);
-    expect(reducedRules).toMatch(/\.question,\s*\.annotation,\s*\.target\s*\{[^}]*display:\s*none;/);
+    expect(mobileRules).toMatch(/\.mobileTranscript\s*\{[^}]*display:\s*grid;/);
+    expect(reducedRules).toMatch(/\.question,\s*\.annotation,\s*\.target,\s*\.instruction,\s*\.learnerAction,\s*\.verified\s*\{[^}]*display:\s*none;/);
     expect(reducedRules).toMatch(/\.productWindow button\s*\{[^}]*display:\s*none;/);
-    expect(reducedRules).toMatch(/\.instruction\s*\{[^}]*display:\s*(?:grid|block);/);
+    expect(reducedRules).toMatch(/\.mobileTranscript\s*\{[^}]*display:\s*grid;/);
   });
 
   test('reveals every visual chapter when the observer is unavailable', () => {
@@ -375,9 +381,19 @@ describe('landing page', () => {
     expect(html).toContain('data-hero-stage="true"');
     expect(html).toContain('kairo-blender-preview.webp');
     expect(html).toContain('field-notes/field-hero.webp');
-    expect(html).toContain('Pause lesson');
+    expect(html).toContain('Goal');
+    expect(html).toContain('Add your first keyframe');
+    expect(html).toContain('How do I add a keyframe here?');
+    expect(html).toContain('You did');
+    expect(html).toContain('Keyframe added');
+    expect(html).toContain('Move to frame 40');
     expect(html).not.toContain('Blender skill active');
     const { container } = render(createElement(LandingPage));
+    const pause = screen.getByRole('button', { name: 'Pause lesson' });
+    expect(pause.textContent).toBe('Ⅱ');
+    fireEvent.click(pause);
+    const play = screen.getByRole('button', { name: 'Play lesson' });
+    expect(play.textContent).toBe('▶');
     expect(container.querySelector('[data-hero-environment]')?.hasAttribute('data-reveal')).toBe(false);
   });
 

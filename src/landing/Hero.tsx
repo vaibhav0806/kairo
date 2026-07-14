@@ -60,7 +60,7 @@ export function Hero() {
       <div className={styles.copy}>
         <p className={styles.kicker}>Help, right where you are learning</p>
         <h1 id="landing-title">Turn stuck into your next move.</h1>
-        <p>Ask out loud or point to the confusing bit. Kairo shows one step and stays while you try it.</p>
+        <p>Ask about what’s on your screen. Kairo shows one move, watches you do it, and checks that it worked.</p>
         <a href="#access">Join the alpha <span aria-hidden="true">↗</span></a>
       </div>
 
@@ -92,8 +92,10 @@ export function Hero() {
               type="button"
               onClick={() => setPaused((value) => !value)}
               aria-pressed={paused}
+              aria-label={paused ? 'Play lesson' : 'Pause lesson'}
+              title={paused ? 'Play lesson' : 'Pause lesson'}
             >
-              {paused ? 'Play lesson' : 'Pause lesson'}
+              <span aria-hidden="true">{paused ? '▶' : 'Ⅱ'}</span>
             </button>
           </figcaption>
 
@@ -104,9 +106,10 @@ export function Hero() {
               width="3560"
               height="1972"
             />
+            <div className={styles.goal}>Goal · Add your first keyframe</div>
             <div className={styles.question}>
               <span>You asked</span>
-              How do I animate this?
+              How do I add a keyframe here?
             </div>
             <svg className={styles.annotation} viewBox="0 0 240 180" aria-hidden="true">
               <path d="M18 102C24 36 92 16 164 30c60 12 78 78 26 110-50 31-146 21-172-38Z" />
@@ -119,12 +122,21 @@ export function Hero() {
               <span>Next move</span>
               <p data-instruction-copy>Press <kbd>I</kbd>, then choose <b>Location</b>.</p>
             </div>
+            <div className={styles.learnerAction} aria-hidden="true">
+              <span>You did</span>
+              <b><kbd>I</kbd> → Location</b>
+            </div>
+            <div className={styles.verified} aria-hidden="true">
+              <span>Checked</span>
+              <b>Keyframe added</b>
+              <small>Next · Move to frame 40</small>
+            </div>
           </div>
 
           <ol className={styles.mobileTranscript} aria-label="Mobile lesson summary">
-            <li><span>Ask</span><p>How do I animate this cube?</p></li>
-            <li><span>Point</span><p>Press I, then choose Location.</p></li>
-            <li><span>Checked</span><p>Cube selected. Ready for the next move.</p></li>
+            <li><span>Ask</span><p>How do I add a keyframe here?</p></li>
+            <li><span>Do</span><p>Press I, then choose Location.</p></li>
+            <li><span>Check</span><p>Keyframe added. Next · Move to frame 40.</p></li>
           </ol>
         </figure>
 
