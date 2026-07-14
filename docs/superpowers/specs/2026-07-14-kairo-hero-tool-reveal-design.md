@@ -32,4 +32,3 @@ Tighten the landing page's first-screen rhythm across viewport sizes, make the t
 - Add regression coverage for four independently observed tool prints and motion-safe CSS.
 - Update copy assertions for the new practice heading.
 - Run tests, typecheck, production build, and `git diff --check`.
-

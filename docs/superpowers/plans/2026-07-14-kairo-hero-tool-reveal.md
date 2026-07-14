@@ -66,4 +66,3 @@
 - [ ] Run `npm run typecheck`, `npm run build`, and `git diff --check`.
 - [ ] Review at 375 px, 768 px, and 1280 px, including reduced motion.
 - [ ] Commit the implementation without co-author trailers.
-
