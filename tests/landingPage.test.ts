@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { LandingPage, validateWaitlistEmail } from '../src/landing/LandingPage';
 
@@ -136,7 +136,7 @@ describe('landing page', () => {
 
   test('ships optimized local tactile photography with visible credits', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
-    ['field-hero.webp', 'field-hero-mobile.webp', 'meadow-edge.webp'].forEach((name) => {
+    ['field-hero.webp', 'field-hero-mobile.webp', 'meadow-edge.webp', 'sketches.webp', 'workbench.webp'].forEach((name) => {
       const image = readFileSync(`public/field-notes/${name}`);
       expect(image.toString('ascii', 0, 4)).toBe('RIFF');
       expect(image.toString('ascii', 8, 12)).toBe('WEBP');
@@ -186,5 +186,37 @@ describe('landing page', () => {
     expect((dimensions & 0x3fff) + 1).toBeGreaterThanOrEqual(1698);
     expect(((dimensions >>> 14) & 0x3fff) + 1).toBeGreaterThanOrEqual(1054);
     expect(image.byteLength).toBeLessThan(1_500_000);
+  });
+
+  test('shows Kairo across multiple tools in one visual composition', () => {
+    render(createElement(LandingPage));
+    const region = screen.getByRole('region', { name: 'Learn across your tools' });
+
+    ['Blender', 'Figma', 'VS Code', 'Photoshop'].forEach((tool) => {
+      expect(within(region).getByText(tool)).toBeTruthy();
+    });
+    expect(region.querySelectorAll('[data-tool-print]')).toHaveLength(4);
+    expect(region.querySelectorAll('[data-tool-focus]')).toHaveLength(4);
+    expect(region.querySelector('img[src*="kairo-blender-preview.webp"]')).toBeTruthy();
+    expect(region.querySelector('[data-tool-connector]')?.getAttribute('aria-hidden')).toBe('true');
+    expect(within(region).getByRole('link', { name: 'Karol D' }).getAttribute('href')).toContain('/1111692/');
+  });
+
+  test('shows three concise practice moments in one environment', () => {
+    render(createElement(LandingPage));
+    const region = screen.getByRole('region', { name: 'Ask, try, learn' });
+    const panels = within(region).getAllByRole('article');
+
+    expect(panels).toHaveLength(3);
+    expect(panels.map((panel) => panel.querySelector('h3')?.textContent)).toEqual(['Ask', 'Try', 'Learn']);
+    expect(panels.map((panel) => panel.querySelector('p')?.textContent)).toEqual([
+      'Say what is confusing or point straight at it.',
+      'Follow one clear move while Kairo stays with you.',
+      'See what changed, then keep going with confidence.'
+    ]);
+    const workbench = region.querySelectorAll('img[src*="field-notes/workbench.webp"]');
+    expect(workbench).toHaveLength(1);
+    expect(workbench[0]?.getAttribute('loading')).toBe('lazy');
+    expect(within(region).getByRole('link', { name: 'Michael Burrows' }).getAttribute('href')).toContain('/7147730/');
   });
 });

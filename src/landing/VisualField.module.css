@@ -1,79 +1,647 @@
 .tools,
 .practice {
   position: relative;
-  min-height: 80svh;
   padding: clamp(80px, 10vw, 160px) clamp(20px, 5vw, 80px);
   overflow: clip;
   border-bottom: 1px solid var(--line);
 }
 
-.tools h2,
-.practice h2 {
+.sectionIntro {
+  display: grid;
+  max-width: 1500px;
+  margin: 0 auto;
+  gap: 16px;
+}
+
+.kicker {
+  color: var(--violet);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sectionIntro h2 {
   max-width: 12ch;
   font-size: clamp(4rem, 8vw, 8rem);
   line-height: 0.9;
   letter-spacing: -0.05em;
 }
 
-.tools > .toolCoverage {
-  margin-top: 24px;
+.toolCoverage {
+  max-width: 34rem;
   color: var(--muted);
   font-size: clamp(1rem, 1.6vw, 1.3rem);
+  line-height: 1.5;
 }
 
-.tools > div {
+.toolField {
   position: relative;
-  z-index: 1;
   display: grid;
-  margin-top: 72px;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 18px;
+  max-width: 1500px;
+  min-height: clamp(820px, 78vw, 1140px);
+  margin: clamp(56px, 8vw, 112px) auto 0;
+  padding: clamp(32px, 5vw, 72px);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(280px, 1fr));
+  gap: clamp(28px, 5vw, 72px) 0;
+  isolation: isolate;
 }
 
-.tools figure {
-  min-height: 240px;
-  padding: 20px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  box-shadow: 8px 8px 0 var(--paper-cool);
-}
-
-.tools > svg {
+.sketches {
   position: absolute;
-  inset: auto 3% 6%;
+  inset: 0;
+  z-index: -3;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--line);
+  filter: contrast(0.9) brightness(1.15);
+  object-fit: cover;
+  opacity: 0.22;
+}
+
+.toolField::after {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 82%, transparent), color-mix(in srgb, var(--paper) 25%, transparent));
+  content: '';
+}
+
+.connector {
+  position: absolute;
+  top: -8%;
+  left: 3%;
+  z-index: -1;
   width: 94%;
+  height: 140%;
   fill: none;
   stroke: var(--violet);
-  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-width: 5;
+  filter: drop-shadow(0 2px 0 var(--paper));
+  opacity: 0.9;
+}
+
+.toolPrint {
+  position: relative;
+  min-width: 0;
+  padding: clamp(8px, 1.2vw, 14px);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  box-shadow: 14px 16px 0 color-mix(in srgb, var(--ink) 10%, var(--paper-cool));
+}
+
+.toolPrint figcaption {
+  display: flex;
+  min-height: 44px;
+  padding: 0 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.toolPrint figcaption span {
+  color: var(--muted);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.toolPrint figcaption strong {
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+
+.blenderPrint {
+  z-index: 1;
+  grid-column: 1 / span 7;
+  grid-row: 1;
+  transform: rotate(-1.8deg);
+}
+
+.figmaPrint {
+  z-index: 2;
+  margin: 14% 0 -8% -7%;
+  grid-column: 8 / span 5;
+  grid-row: 1;
+  transform: rotate(2.2deg);
+}
+
+.codePrint {
+  z-index: 3;
+  margin: -12% -2% 12% 6%;
+  grid-column: 1 / span 6;
+  grid-row: 2;
+  transform: rotate(1.3deg);
+}
+
+.photoPrint {
+  z-index: 4;
+  margin: 5% 0 -5% -4%;
+  grid-column: 7 / span 6;
+  grid-row: 2;
+  transform: rotate(-1.5deg);
+}
+
+.toolCanvas {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  border: 1px solid color-mix(in srgb, var(--ink) 72%, var(--line));
+  isolation: isolate;
+}
+
+.blenderCanvas {
+  background: var(--ink);
+}
+
+.blenderCanvas > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.canvasPrompt {
+  position: absolute;
+  right: 4%;
+  bottom: 5%;
+  display: grid;
+  padding: 10px 14px;
+  gap: 3px;
+  border-left: 3px solid var(--violet);
+  background: color-mix(in srgb, var(--ink) 94%, transparent);
+  color: var(--paper);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--ink) 34%, transparent);
+  font-size: clamp(0.58rem, 1vw, 0.82rem);
+}
+
+.canvasPrompt span {
+  color: color-mix(in srgb, var(--violet) 58%, var(--paper));
+  font-size: 0.65em;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.focusMark {
+  position: absolute;
+  z-index: 5;
+  width: 32%;
+  height: auto;
+  fill: none;
+  inset: 27% auto auto 37%;
+  pointer-events: none;
+  stroke: var(--coral);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 6;
+  filter: drop-shadow(0 2px 0 color-mix(in srgb, var(--paper) 76%, transparent));
+  transform: rotate(-8deg);
+}
+
+.lightCanvas {
+  background: var(--paper-cool);
+}
+
+.appBar {
+  display: flex;
+  min-height: 30px;
+  padding: 0 10px;
+  align-items: center;
+  gap: 5px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--muted);
+  font-size: clamp(0.42rem, 0.7vw, 0.62rem);
+}
+
+.appBar i {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+}
+
+.appBar b {
+  margin-left: auto;
+  margin-right: auto;
+  font-weight: 600;
+}
+
+.figmaShell,
+.codeShell,
+.photoShell {
+  display: grid;
+  height: calc(100% - 30px);
+}
+
+.figmaShell {
+  grid-template-columns: 22% minmax(0, 1fr) 23%;
+}
+
+.layerPanel,
+.propertyPanel,
+.filePanel,
+.photoLayers {
+  display: grid;
+  padding: clamp(7px, 1vw, 12px);
+  align-content: start;
+  gap: clamp(5px, 0.7vw, 9px);
+  background: var(--paper);
+  color: var(--muted);
+  font-size: clamp(0.42rem, 0.66vw, 0.6rem);
+}
+
+.layerPanel,
+.filePanel {
+  border-right: 1px solid var(--line);
+}
+
+.propertyPanel,
+.photoLayers {
+  border-left: 1px solid var(--line);
+}
+
+.layerPanel b,
+.propertyPanel b,
+.filePanel b,
+.photoLayers b {
+  color: var(--ink);
+  font-size: 0.92em;
+}
+
+.figmaStage {
+  display: grid;
+  padding: 8%;
+  place-items: center;
+  background-image: radial-gradient(color-mix(in srgb, var(--muted) 26%, transparent) 0.7px, transparent 0.7px);
+  background-size: 9px 9px;
+}
+
+.figmaFrame {
+  display: grid;
+  width: 88%;
+  aspect-ratio: 1.3;
+  padding: 9%;
+  align-content: center;
+  background: var(--paper);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
+.figmaFrame small {
+  color: var(--violet);
+  font-size: clamp(0.38rem, 0.55vw, 0.52rem);
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.figmaFrame strong {
+  margin-top: 4%;
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: clamp(0.72rem, 1.5vw, 1.55rem);
+  font-weight: 400;
+  line-height: 0.95;
+}
+
+.figmaFrame i {
+  width: 40%;
+  height: 10%;
+  margin-top: 10%;
+  background: var(--ink);
+}
+
+.codeCanvas {
+  background: color-mix(in srgb, var(--ink) 95%, var(--violet));
+  color: var(--paper);
+}
+
+.codeCanvas .appBar {
+  border-color: color-mix(in srgb, var(--paper) 14%, transparent);
+  background: color-mix(in srgb, var(--ink) 92%, var(--violet));
+  color: color-mix(in srgb, var(--paper) 68%, transparent);
+}
+
+.codeCanvas .appBar i {
+  border-color: color-mix(in srgb, var(--paper) 46%, transparent);
+}
+
+.codeShell {
+  grid-template-columns: 24% minmax(0, 1fr);
+}
+
+.filePanel {
+  border-color: color-mix(in srgb, var(--paper) 12%, transparent);
+  background: color-mix(in srgb, var(--ink) 90%, var(--violet));
+  color: color-mix(in srgb, var(--paper) 58%, transparent);
+}
+
+.filePanel b {
+  color: var(--paper);
+}
+
+.codeShell pre {
+  margin: 0;
+  padding: clamp(12px, 2vw, 28px);
+  overflow: hidden;
+  color: color-mix(in srgb, var(--paper) 82%, var(--violet));
+  font-size: clamp(0.48rem, 0.9vw, 0.84rem);
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+
+.codeShell code span {
+  color: color-mix(in srgb, var(--coral) 72%, var(--paper));
+}
+
+.codeShell code em {
+  color: color-mix(in srgb, var(--violet) 48%, var(--paper));
+  font-style: normal;
+}
+
+.photoCanvas {
+  background: color-mix(in srgb, var(--ink) 88%, var(--paper));
+  color: var(--paper);
+}
+
+.photoCanvas .appBar {
+  border-color: color-mix(in srgb, var(--paper) 12%, transparent);
+  background: var(--ink);
+  color: color-mix(in srgb, var(--paper) 68%, transparent);
+}
+
+.photoCanvas .appBar i {
+  border-color: color-mix(in srgb, var(--paper) 46%, transparent);
+}
+
+.photoShell {
+  grid-template-columns: 8% minmax(0, 1fr) 21%;
+}
+
+.toolRail {
+  display: grid;
+  padding: 10px 0;
+  align-content: start;
+  justify-items: center;
+  gap: 8px;
+  border-right: 1px solid color-mix(in srgb, var(--paper) 12%, transparent);
+  background: var(--ink);
+  color: color-mix(in srgb, var(--paper) 72%, transparent);
+  font-size: clamp(0.38rem, 0.65vw, 0.6rem);
+}
+
+.photoStage {
+  display: grid;
+  padding: 8%;
+  place-items: center;
+  background-image: linear-gradient(45deg, color-mix(in srgb, var(--paper) 10%, transparent) 25%, transparent 25%), linear-gradient(-45deg, color-mix(in srgb, var(--paper) 10%, transparent) 25%, transparent 25%);
+  background-size: 12px 12px;
+}
+
+.photoStage > div {
+  position: relative;
+  display: grid;
+  width: 80%;
+  aspect-ratio: 1.4;
+  place-items: center;
+  overflow: hidden;
+  background: var(--paper-cool);
+  color: var(--ink);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+.photoStage i {
+  position: absolute;
+  width: 60%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--violet) 55%, var(--paper));
+}
+
+.photoStage i:first-child {
+  top: -24%;
+  left: -12%;
+}
+
+.photoStage i:nth-child(2) {
+  right: -18%;
+  bottom: -34%;
+  background: color-mix(in srgb, var(--coral) 66%, var(--paper));
+}
+
+.photoStage strong {
+  z-index: 1;
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: clamp(0.72rem, 1.6vw, 1.55rem);
+  font-weight: 400;
+  line-height: 0.8;
+}
+
+.photoLayers {
+  border-color: color-mix(in srgb, var(--paper) 12%, transparent);
+  background: var(--ink);
+  color: color-mix(in srgb, var(--paper) 58%, transparent);
+}
+
+.photoLayers b {
+  color: var(--paper);
+}
+
+.credits {
+  display: block;
+  max-width: 1500px;
+  margin: 20px auto 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.credits a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: inherit;
+  text-underline-offset: 3px;
 }
 
 .practice {
+  min-height: 100svh;
+}
+
+.practiceEnvironment {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--line);
+  max-width: 1500px;
+  min-height: clamp(660px, 62vw, 920px);
+  margin: clamp(56px, 8vw, 112px) auto 0;
+  padding: clamp(20px, 4vw, 64px);
+  align-items: end;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--paper-cool);
+  isolation: isolate;
 }
 
-.practice h2 {
-  grid-column: 1 / -1;
-  margin-bottom: 64px;
+.practiceEnvironment::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to bottom, transparent 22%, color-mix(in srgb, var(--ink) 26%, transparent));
+  content: '';
 }
 
-.practice article {
-  min-height: 320px;
-  padding: 28px;
-  background: var(--paper);
+.practiceEnvironment > img {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 47%;
 }
 
-.practice h3 {
+.practiceMoments {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: clamp(10px, 1.4vw, 20px);
+}
+
+.practiceMoments article {
+  display: grid;
+  min-height: clamp(240px, 22vw, 320px);
+  padding: clamp(24px, 3vw, 40px);
+  align-content: end;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--paper) 96%, transparent);
+  color: var(--ink);
+}
+
+.practiceMoments article:nth-child(2) {
+  transform: translateY(-12%);
+}
+
+.practiceMoments article:nth-child(3) {
+  transform: translateY(-24%);
+}
+
+.practiceMoments article > span {
+  color: var(--violet);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.practiceMoments h3 {
   margin: 0;
-  font-size: clamp(2rem, 4vw, 4rem);
-  font-weight: 500;
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: clamp(2.8rem, 5vw, 5rem);
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: -0.045em;
 }
 
-@media (max-width: 760px) {
-  .tools > div,
-  .practice {
+.practiceMoments p {
+  max-width: 27ch;
+  color: var(--muted);
+  font-size: clamp(0.9rem, 1.25vw, 1.08rem);
+  line-height: 1.55;
+}
+
+@media (max-width: 700px) {
+  .toolField {
+    min-height: clamp(1000px, 235vw, 1540px);
+    padding-inline: clamp(16px, 3vw, 32px);
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    gap: 0;
+  }
+
+  .blenderPrint,
+  .figmaPrint,
+  .codePrint,
+  .photoPrint {
+    width: min(88%, 620px);
+    margin: 0;
+    grid-column: 1 / -1;
+  }
+
+  .blenderPrint { grid-row: 1; justify-self: start; }
+  .figmaPrint { grid-row: 2; justify-self: end; margin-top: -6%; }
+  .codePrint { grid-row: 3; justify-self: start; margin-top: -10%; }
+  .photoPrint { grid-row: 4; justify-self: end; margin-top: -14%; }
+
+  .connector {
+    top: -31%;
+    left: calc(50% - 28px);
+    width: 56px;
+    height: 180%;
+  }
+
+  .practiceEnvironment {
+    min-height: 1040px;
+    padding: 16px;
+  }
+
+  .practiceEnvironment > img {
+    object-position: 48% 50%;
+  }
+
+  .practiceMoments {
     grid-template-columns: 1fr;
+  }
+
+  .practiceMoments article {
+    min-height: 220px;
+  }
+
+  .practiceMoments article:nth-child(2),
+  .practiceMoments article:nth-child(3) {
+    transform: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .toolField {
+    margin-inline: -8px;
+    width: calc(100% + 16px);
+  }
+
+  .blenderPrint,
+  .figmaPrint,
+  .codePrint,
+  .photoPrint {
+    width: 94%;
+    padding: 8px;
+    box-shadow: 8px 10px 0 color-mix(in srgb, var(--ink) 10%, var(--paper-cool));
+  }
+
+  .figmaPrint { margin-top: -4%; }
+  .codePrint { margin-top: -8%; }
+  .photoPrint { margin-top: -12%; }
+
+  .toolPrint figcaption {
+    min-height: 36px;
+  }
+
+  .appBar {
+    min-height: 24px;
+  }
+
+  .figmaShell,
+  .codeShell,
+  .photoShell {
+    height: calc(100% - 24px);
+  }
+
+  .layerPanel,
+  .propertyPanel,
+  .filePanel,
+  .photoLayers {
+    padding: 6px;
   }
 }
