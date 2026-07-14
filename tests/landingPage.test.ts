@@ -228,12 +228,26 @@ describe('landing page', () => {
     expect(html).toContain('Points, never clicks');
     expect(html).toContain('AI can get things wrong');
     expect(html).not.toMatch(/military-grade|zero data retention|SOC 2/i);
+
+    render(createElement(LandingPage));
+    const trust = screen.getByRole('region', { name: 'You stay in control.' });
+
+    expect(within(trust).getAllByRole('article')).toHaveLength(3);
+    expect(within(trust).queryAllByRole('button')).toHaveLength(0);
+    expect(trust.querySelector('[aria-roledescription="carousel"], [data-carousel]')).toBeNull();
   });
 
   test('renders one local-only waitlist field and a structured footer', () => {
     render(createElement(LandingPage));
 
-    expect(screen.getAllByLabelText('Email address')).toHaveLength(1);
+    const waitlist = screen.getByRole('region', { name: 'Learn what you want to make.' });
+    const submitButtons = waitlist.querySelectorAll('button[type="submit"]');
+    const css = readFileSync('src/landing/TrustWaitlist.module.css', 'utf8');
+
+    expect(within(waitlist).getAllByLabelText('Email address')).toHaveLength(1);
+    expect(submitButtons).toHaveLength(1);
+    expect(within(waitlist).getByRole('button', { name: 'Join the alpha' })).toBe(submitButtons[0]);
+    expect(css).toMatch(/\.waitlist\s*\{[^}]*background:\s*var\(--paper\);/s);
     expect(screen.getByRole('contentinfo')).toBeTruthy();
     expect(screen.getByRole('contentinfo').querySelector('[data-footer-wordmark]')?.textContent).toBe('kairo');
   });

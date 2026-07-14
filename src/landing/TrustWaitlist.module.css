@@ -98,7 +98,7 @@
   min-height: 78svh;
   padding: clamp(80px, 10vw, 160px) clamp(20px, 5vw, 80px);
   border-bottom: 1px solid var(--line);
-  background: var(--paper-cool);
+  background: var(--paper);
 }
 
 .waitlist h2 {
