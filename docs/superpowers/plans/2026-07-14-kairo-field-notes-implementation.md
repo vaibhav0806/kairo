@@ -58,6 +58,7 @@
 - Create: `src/landing/TrustWaitlist.tsx`
 - Create: `src/landing/TrustWaitlist.module.css`
 - Modify: `tests/landingPage.test.ts`
+- Modify: `tests/landingWaitlist.test.ts`
 
 **Interfaces:**
 - Produces: `Hero(): JSX.Element`, `LearningSequence(): JSX.Element`, `VisualField(): JSX.Element`, `TrustWaitlist(): JSX.Element`, `validateWaitlistEmail(value: string): string | null`.
@@ -87,6 +88,8 @@ test('renders the approved field-notes chapters in order', () => {
   expect(html).toContain('data-field-notes="true"');
 });
 ```
+
+At the same time, remove the outgoing implementation-coupled tests for app-tab switching, the trust carousel, old creative JPEG names, exact legacy CSS coordinates, the old ambient-stage count, the Figma-specific selector, and the saturated eight-color palette. Keep email validation, website-only metadata, pause behavior, waitlist accessibility, and the high-resolution Blender source check. Remove the app/goal selector test from `tests/landingWaitlist.test.ts` because the approved waitlist has one email field.
 
 - [ ] **Step 2: Run the focused test and verify the red state**
 
@@ -418,6 +421,7 @@ Build `Hero.tsx` around this final structure:
       <source media="(max-width: 760px)" srcSet={asset('field-notes/field-hero-mobile.webp')} />
       <img src={asset('field-notes/field-hero.webp')} alt="A creative workbench with paper and drawing tools" width="2200" height="1467" fetchPriority="high" />
     </picture>
+    <img className={styles.meadowEdge} src={asset('field-notes/meadow-edge.webp')} alt="" width="2200" height="1467" aria-hidden="true" />
     <figure className={styles.productWindow} data-hero-stage>
       <figcaption><span>Live lesson</span><button type="button" onClick={() => setPaused((value) => !value)} aria-pressed={paused}>{paused ? 'Play lesson' : 'Pause lesson'}</button></figcaption>
       <div className={styles.blenderViewport}>
@@ -669,7 +673,7 @@ test('renders one local-only waitlist field and a structured footer', () => {
 });
 ```
 
-Delete the outgoing app/goal selector test from `tests/landingWaitlist.test.ts`; keep the pause, invalid email, trimmed email, and honest disclosure tests.
+Confirm the outgoing app/goal selector test is absent from `tests/landingWaitlist.test.ts`; keep the pause, invalid email, trimmed email, and honest disclosure tests.
 
 - [ ] **Step 2: Run the conversion-chapter tests**
 
@@ -908,7 +912,7 @@ git add src tests public README.md package.json package-lock.json
 git commit -m "feat: complete field notes landing rebuild"
 ```
 
-- [ ] **Step 7: Push the finished website**
+- [ ] **Step 7: Leave the verified branch ready for final review**
 
-Run: `git push kairo main`  
-Expected: remote `vaibhav0806/kairo` advances to the final verified commit.
+Run: `git status --short`
+Expected: no output. Do not push before the required whole-branch review and branch-finishing workflow.
