@@ -429,6 +429,15 @@ describe('landing page', () => {
     expect(css).toMatch(/\.hero\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/s);
   });
 
+  test('uses a taller focal crop for the Blender scene on mobile', () => {
+    const css = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const mobileRules = css.match(/@media\s*\(max-width:\s*760px\)[\s\S]*?(?=@media\s*\(prefers-reduced-motion:\s*no-preference\))/)?.[0] ?? '';
+
+    expect(mobileRules).toMatch(/\.blenderViewport\s*\{[^}]*aspect-ratio:\s*4\s*\/\s*3;/s);
+    expect(mobileRules).toMatch(/\.blenderViewport\s*>\s*img\s*\{[^}]*width:\s*150%;[^}]*height:\s*150%;/s);
+    expect(mobileRules).toMatch(/\.blenderViewport\s*>\s*img\s*\{[^}]*object-position:\s*50%\s+top;[^}]*transform:\s*translateX\(-50%\);/s);
+  });
+
   test('uses the high-resolution Blender capture', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     const image = readFileSync('public/kairo-blender-preview.webp');
@@ -497,6 +506,54 @@ describe('landing page', () => {
     const workspace = container.querySelector('[data-learning-workspace]');
 
     expect(workspace?.querySelector('[aria-live]')).toBeNull();
+  });
+
+  test('hides inactive visual lesson overlays from assistive technology', () => {
+    const { container } = render(createElement(LandingPage));
+    const workspace = container.querySelector('[data-learning-workspace]');
+    const visualOverlays = [...(workspace?.querySelectorAll('figure > div') ?? [])];
+
+    expect(visualOverlays).toHaveLength(5);
+    visualOverlays.forEach((overlay) => expect(overlay.getAttribute('aria-hidden')).toBe('true'));
+    expect(within(workspace as HTMLElement).getByAltText('Blender with a cube selected in the 3D viewport')).toBeTruthy();
+    expect(within(workspace as HTMLElement).getByText('Ask: How do I animate this cube?').getAttribute('aria-hidden')).not.toBe('true');
+    expect(screen.getByRole('list', { name: 'How a Kairo lesson works' })).toBeTruthy();
+  });
+
+  test('scrolls a cold hash target into view after the landing DOM mounts', () => {
+    const originalHash = window.location.hash;
+    const frames: FrameRequestCallback[] = [];
+    const scrollIntoView = vi.fn(() => {
+      expect(document.documentElement.style.scrollBehavior).toBe('auto');
+    });
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+
+    window.history.replaceState(null, '', '/#access');
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView
+    });
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    try {
+      render(createElement(LandingPage));
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      act(() => frames.shift()?.(0));
+
+      expect(scrollIntoView).toHaveBeenCalledOnce();
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'start' });
+      expect(document.documentElement.style.scrollBehavior).toBe('');
+    } finally {
+      window.history.replaceState(null, '', `/${originalHash}`);
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: originalScrollIntoView
+      });
+    }
   });
 
   test('states the three control promises without unsupported claims', () => {

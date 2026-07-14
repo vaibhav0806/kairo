@@ -145,7 +145,7 @@ export function LearningSequence() {
               decoding="async"
             />
 
-            <div className={`${styles.layer} ${styles.question}`}>
+            <div className={`${styles.layer} ${styles.question}`} aria-hidden="true">
               <span aria-hidden="true">You asked</span>
               How do I animate this cube?
             </div>
@@ -155,23 +155,23 @@ export function LearningSequence() {
               <path d="m193 145 35 25-9-38" />
             </svg>
 
-            <div className={`${styles.layer} ${styles.target}`}>
+            <div className={`${styles.layer} ${styles.target}`} aria-hidden="true">
               <span aria-hidden="true">Cube found</span>
               <i /><i /><i /><i />
             </div>
 
-            <div className={`${styles.layer} ${styles.instruction}`}>
+            <div className={`${styles.layer} ${styles.instruction}`} aria-hidden="true">
               <span aria-hidden="true">Next move</span>
               <p data-instruction-copy>Press <kbd>I</kbd>, then choose <b>Location</b>.</p>
             </div>
 
-            <div className={`${styles.layer} ${styles.action}`}>
+            <div className={`${styles.layer} ${styles.action}`} aria-hidden="true">
               <span aria-hidden="true">Your move</span>
               <b><kbd>I</kbd> Insert keyframe</b>
               <small>You choose Location.</small>
             </div>
 
-            <div className={`${styles.layer} ${styles.verified}`}>
+            <div className={`${styles.layer} ${styles.verified}`} aria-hidden="true">
               <span aria-hidden="true">Checked</span>
               <b>Keyframe added</b>
               <small>Ready for the next move.</small>

@@ -21,6 +21,15 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe('landing waitlist preview', () => {
+  test('discloses the preview-only form before submission', () => {
+    render(createElement(LandingPage));
+    const input = screen.getByLabelText('Email address');
+    const note = screen.getByText('Preview only. This form does not send or store your email yet.');
+
+    expect(note.id).toBe('waitlist-note');
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(note.id);
+  });
+
   test('lets the learner pause and resume the hero demonstration', () => {
     const { container } = render(createElement(LandingPage));
 

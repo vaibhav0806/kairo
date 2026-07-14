@@ -64,6 +64,27 @@ export function LandingPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const targetId = window.location.hash.slice(1);
+    if (!targetId) return undefined;
+
+    let pendingFrame: number | null = window.requestAnimationFrame(() => {
+      pendingFrame = null;
+      const target = document.getElementById(targetId);
+      if (!target) return;
+
+      const root = document.documentElement;
+      const previousScrollBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = 'auto';
+      target.scrollIntoView({ behavior: 'auto', block: 'start' });
+      root.style.scrollBehavior = previousScrollBehavior;
+    });
+
+    return () => {
+      if (pendingFrame !== null) window.cancelAnimationFrame(pendingFrame);
+    };
+  }, []);
+
   return (
     <div ref={pageRef} className={styles.page} data-field-notes>
       <header className={styles.header}>

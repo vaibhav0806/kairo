@@ -434,6 +434,20 @@
     display: none;
   }
 
+  .blenderViewport {
+    aspect-ratio: 4 / 3;
+  }
+
+  .blenderViewport > img {
+    right: auto;
+    bottom: auto;
+    left: 50%;
+    width: 150%;
+    height: 150%;
+    object-position: 50% top;
+    transform: translateX(-50%);
+  }
+
   .question,
   .annotation,
   .target,
