@@ -382,6 +382,7 @@ describe('landing page', () => {
   test('uses readable text-only signal colors and a legible hero instruction', () => {
     const sequenceCss = readFileSync('src/landing/LearningSequence.module.css', 'utf8');
     const heroCss = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const mobileHeroCss = heroCss.match(/@media \(max-width: 760px\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
     const contrastOnWhite = (hex: string) => {
       const luminance = hex.match(/[a-f\d]{2}/gi)!.map((channel) => parseInt(channel, 16) / 255)
         .map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
@@ -397,6 +398,7 @@ describe('landing page', () => {
     expect(sequenceCss).toMatch(/\.verified\s*>\s*span\s*\{[^}]*color:\s*var\(--green-ink\);/s);
     expect(sequenceCss).toMatch(/\.chapter\[aria-current='step'\]\s+p\s*\{[^}]*color:\s*var\(--coral-ink\);/s);
     expect(heroCss).toMatch(/\.instruction\s*\{[^}]*font-size:\s*clamp\(0\.75rem,/s);
+    expect(mobileHeroCss).toMatch(/\.instruction\s*\{[^}]*font-size:\s*0\.75rem;/s);
   });
 
   test('describes the lesson sequence truthfully in every layout', () => {

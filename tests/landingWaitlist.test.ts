@@ -64,10 +64,10 @@ describe('landing waitlist preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
 
     expect(screen.queryByLabelText('Email address')).toBeNull();
-    const status = screen.getByText('Preview complete. Your email was not submitted or stored.').parentElement;
+    const status = screen.getByRole('status');
 
-    expect(status).toBeTruthy();
-    expect(status?.getAttribute('tabindex')).toBe('-1');
+    expect(status.textContent).toContain('Preview complete. Your email was not submitted or stored.');
+    expect(status.getAttribute('tabindex')).toBe('-1');
     expect(screen.getByText('learner@example.com')).toBeTruthy();
     expect(document.activeElement).toBe(status);
   });
