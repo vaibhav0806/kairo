@@ -7,6 +7,10 @@ import styles from './LandingPage.module.css';
 
 export { validateWaitlistEmail };
 
+function asset(filename: string): string {
+  return `${import.meta.env.BASE_URL}${filename}`;
+}
+
 export function LandingPage() {
   const pageRef = useRef<HTMLDivElement>(null);
 
@@ -102,7 +106,17 @@ export function LandingPage() {
         <VisualField />
         <TrustWaitlist />
       </main>
-      <footer className={styles.footer}>
+      <footer className={styles.footer} data-ambient-stage>
+        <img
+          className={styles.footerWildflower}
+          data-footer-wildflower
+          src={asset('field-notes/footer-wildflower.webp')}
+          alt=""
+          width="2048"
+          height="2048"
+          loading="lazy"
+          decoding="async"
+        />
         <div className={styles.footerTop}>
           <p>Learn by doing.</p>
         </div>

@@ -15,7 +15,7 @@ Add one oversized wildflower specimen to the right side of the black footer. It 
 - Place the wildflower on the footer's right half and crop part of it beyond the right edge.
 - Keep it behind the footer content so it never blocks text.
 - Use an off-white botanical engraving with a restrained acid-green fringe.
-- Let it occupy roughly 45–60% of the footer width on desktop.
+- Let it occupy roughly 55–65% of the footer width on desktop.
 - On small screens, move it lower and keep the left message unobstructed.
 
 ## Motion
@@ -28,7 +28,7 @@ Add one oversized wildflower specimen to the right side of the black footer. It 
 
 - Use a locally stored transparent raster asset.
 - The flower must be visibly halftoned or dithered rather than photorealistic.
-- Include one crooked stem, leaves, and one expressive bloom.
+- Use one connected, asymmetrical plant with several crooked branches, abundant leaves, two or three blooms, and a few buds.
 - Do not include text, logos, a background, insects, pots, or additional objects.
 
 ## Acceptance Criteria

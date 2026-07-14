@@ -707,7 +707,11 @@ describe('landing page', () => {
     expect(submitButtons).toHaveLength(1);
     expect(within(waitlist).getByRole('button', { name: 'Join the alpha' })).toBe(submitButtons[0]);
     expect(css).toMatch(/\.waitlist\s*\{[^}]*background:\s*var\(--paper\);/s);
-    expect(screen.getByRole('contentinfo')).toBeTruthy();
-    expect(screen.getByRole('contentinfo').querySelector('[data-footer-wordmark]')?.textContent).toBe('kairo');
+    const footer = screen.getByRole('contentinfo');
+    const wildflower = footer.querySelector('[data-footer-wildflower]');
+    expect(footer.textContent).toContain('Learn by doing.');
+    expect(wildflower?.getAttribute('src')).toContain('field-notes/footer-wildflower.webp');
+    expect(wildflower?.getAttribute('alt')).toBe('');
+    expect(footer.querySelector('[data-footer-wordmark]')?.textContent).toBe('kairo');
   });
 });

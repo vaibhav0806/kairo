@@ -12,7 +12,7 @@
 
 - Preserve `Learn by doing.` exactly as written and in its current position.
 - Preserve the large `kairo` wordmark.
-- Use one crooked stem, leaves, and one expressive bloom rendered as monochrome halftone.
+- Use one connected, asymmetrical plant with several crooked branches, abundant leaves, two or three blooms, and a few buds rendered as monochrome halftone.
 - Use only a restrained acid-green fringe.
 - Do not add a background, text, logos, insects, pots, or other objects.
 - Keep the image behind footer content and disable motion for reduced-motion visitors.
@@ -25,7 +25,7 @@
 **Files:**
 - Create: `public/field-notes/footer-wildflower.webp`
 
-- [ ] Generate a square source on a perfectly flat `#ff6000` chroma-key background: one tall crooked wildflower stem with leaves and one expressive bloom, viewed like a scanned nineteenth-century botanical specimen, black and off-white archival engraving, visibly coarse bitmap halftone and ordered dithering, faint acid-green fringe only around the silhouette, generous padding, no shadow, text, logo, frame, insect, pot, scenery, or extra object.
+- [ ] Generate a square source on a perfectly flat `#ff6000` chroma-key background: one wide, asymmetrical connected wildflower plant with several crooked branches, abundant leaves, two or three blooms at different heights, and a few buds, viewed like a scanned nineteenth-century botanical specimen, black and off-white archival engraving, visibly coarse bitmap halftone and ordered dithering, faint acid-green fringe only around the silhouette, generous padding, no shadow, text, logo, frame, insect, pot, scenery, or extra object.
 - [ ] Remove the key with `${CODEX_HOME:-$HOME/.codex}/skills/.system/imagegen/scripts/remove_chroma_key.py` using border auto-key, soft matte, thresholds `12` and `220`, and despill.
 - [ ] Export a transparent WebP at least `1600px` wide to the exact project path.
 - [ ] Verify with `sips -g pixelWidth -g pixelHeight -g hasAlpha public/field-notes/footer-wildflower.webp`; dimensions must be at least `1600` and `hasAlpha` must be `yes`.
