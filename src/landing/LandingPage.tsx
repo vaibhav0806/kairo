@@ -12,9 +12,9 @@ function asset(filename: string): string {
 }
 
 const navItems = [
-  { number: '1.1', label: 'How it works', href: '#how-it-works' },
-  { number: '1.2', label: 'Tools', href: '#tools' },
-  { number: '1.3', label: 'Trust', href: '#trust' },
+  { label: 'How it works', href: '#how-it-works' },
+  { label: 'Tools', href: '#tools' },
+  { label: 'Trust', href: '#trust' },
 ];
 
 export function LandingPage() {
@@ -102,7 +102,6 @@ export function LandingPage() {
         <nav aria-label="Landing page">
           {navItems.map((item) => (
             <a key={item.href} href={item.href} aria-label={item.label}>
-              <span className={styles.navNumber} data-nav-number aria-hidden="true">{item.number}</span>
               <span className={styles.navLabelWindow} aria-hidden="true">
                 <span className={styles.navLabelTrack}>
                   <span className={styles.navLabel} data-nav-label>{item.label}</span>

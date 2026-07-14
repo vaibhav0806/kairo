@@ -100,14 +100,7 @@
 }
 
 .header nav a {
-  gap: 8px;
   color: var(--muted);
-}
-
-.navNumber {
-  flex: 0 0 auto;
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
 }
 
 .navLabelWindow {

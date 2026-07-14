@@ -90,15 +90,15 @@ afterEach(() => {
 });
 
 describe('landing page', () => {
-  test('rolls navbar labels while keeping their link numbers stationary', () => {
+  test('rolls navbar labels without adding visible link numbers', () => {
     render(createElement(LandingPage));
     const nav = screen.getByRole('navigation', { name: 'Landing page' });
     const links = within(nav).getAllByRole('link');
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
 
     expect(links).toHaveLength(3);
-    links.forEach((link, index) => {
-      expect(link.querySelector('[data-nav-number]')?.textContent).toBe(`1.${index + 1}`);
+    links.forEach((link) => {
+      expect(link.querySelector('[data-nav-number]')).toBeNull();
       const labels = link.querySelectorAll('[data-nav-label]');
       expect(labels).toHaveLength(2);
       expect(labels[0]?.textContent).toBe(link.getAttribute('aria-label'));
