@@ -1,6 +1,6 @@
 # Kairo Field Notes Landing Page
 
-**Status:** Approved design direction  
+**Status:** Approved design direction
 **Date:** 2026-07-14
 
 ## Objective

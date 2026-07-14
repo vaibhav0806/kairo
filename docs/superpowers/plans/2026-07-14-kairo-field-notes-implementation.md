@@ -93,12 +93,12 @@ At the same time, remove the outgoing implementation-coupled tests for app-tab s
 
 - [ ] **Step 2: Run the focused test and verify the red state**
 
-Run: `npm test -- tests/landingPage.test.ts -t "renders the approved field-notes chapters in order"`  
+Run: `npm test -- tests/landingPage.test.ts -t "renders the approved field-notes chapters in order"`
 Expected: FAIL because `tools`, `practice`, and the footer are absent.
 
 - [ ] **Step 3: Install the licensed editorial serif**
 
-Run: `npm install @fontsource/instrument-serif@5.2.8`  
+Run: `npm install @fontsource/instrument-serif@5.2.8`
 Expected: `package.json` and `package-lock.json` add the OFL-1.1 Fontsource package without any other dependency change.
 
 Add the import to `src/main.tsx`:
@@ -332,7 +332,7 @@ Start `LandingPage.module.css` with the final shared contract:
 
 - [ ] **Step 6: Run the architecture and baseline behavior tests**
 
-Run: `npm test -- tests/landingPage.test.ts tests/landingWaitlist.test.ts`  
+Run: `npm test -- tests/landingPage.test.ts tests/landingWaitlist.test.ts`
 Expected: PASS for the new architecture, pause control, email validation, focus-on-error, and local-only success disclosure.
 
 - [ ] **Step 7: Commit the architecture**
@@ -387,7 +387,7 @@ test('ships optimized local tactile photography with visible credits', () => {
 
 - [ ] **Step 2: Run the hero test and verify the red state**
 
-Run: `npm test -- tests/landingPage.test.ts -t "editorial hero|optimized local tactile"`  
+Run: `npm test -- tests/landingPage.test.ts -t "editorial hero|optimized local tactile"`
 Expected: FAIL because the field-note images and environment wrapper do not exist.
 
 - [ ] **Step 3: Download and encode the licensed photography**
@@ -443,8 +443,8 @@ In `Hero.module.css`, use a two-column grid only at `min-width: 1180px`. Stack c
 
 - [ ] **Step 6: Verify hero behavior and assets**
 
-Run: `npm test -- tests/landingPage.test.ts -t "editorial hero|optimized local tactile|high-resolution Blender"`  
-Run: `npm test -- tests/landingWaitlist.test.ts -t "pause and resume"`  
+Run: `npm test -- tests/landingPage.test.ts -t "editorial hero|optimized local tactile|high-resolution Blender"`
+Run: `npm test -- tests/landingWaitlist.test.ts -t "pause and resume"`
 Expected: PASS.
 
 - [ ] **Step 7: Commit the hero**
@@ -485,7 +485,7 @@ Keep the existing `getBoundingClientRect` plus `requestAnimationFrame` test and 
 
 - [ ] **Step 2: Run the focused sequence tests**
 
-Run: `npm test -- tests/landingPage.test.ts -t "anchored scene|keeps the lesson workspace in sync"`  
+Run: `npm test -- tests/landingPage.test.ts -t "anchored scene|keeps the lesson workspace in sync"`
 Expected: first test FAIL until the new workspace contract is rendered; scroll-sync test may fail during the component split.
 
 - [ ] **Step 3: Implement the reading-line state calculation**
@@ -526,7 +526,7 @@ For narrower or shorter viewports, place the complete workspace above four reada
 
 - [ ] **Step 6: Run the sequence tests**
 
-Run: `npm test -- tests/landingPage.test.ts -t "learning loop|anchored scene|lesson workspace"`  
+Run: `npm test -- tests/landingPage.test.ts -t "learning loop|anchored scene|lesson workspace"`
 Expected: PASS.
 
 - [ ] **Step 7: Commit the sequence**
@@ -580,7 +580,7 @@ test('shows three concise practice moments in one environment', () => {
 
 - [ ] **Step 2: Run the visual-field tests and verify the red state**
 
-Run: `npm test -- tests/landingPage.test.ts -t "multiple tools|practice moments"`  
+Run: `npm test -- tests/landingPage.test.ts -t "multiple tools|practice moments"`
 Expected: FAIL until the old app tabs are replaced.
 
 - [ ] **Step 3: Create the two continuous environmental assets**
@@ -624,7 +624,7 @@ Use square or lightly rounded white panels, hairline borders, and photographic c
 
 - [ ] **Step 6: Verify imagery and visual-field behavior**
 
-Run: `npm test -- tests/landingPage.test.ts -t "multiple tools|practice moments|optimized local tactile"`  
+Run: `npm test -- tests/landingPage.test.ts -t "multiple tools|practice moments|optimized local tactile"`
 Expected: PASS with all local images under the per-image budget.
 
 - [ ] **Step 7: Commit the visual field**
@@ -677,7 +677,7 @@ Confirm the outgoing app/goal selector test is absent from `tests/landingWaitlis
 
 - [ ] **Step 2: Run the conversion-chapter tests**
 
-Run: `npm test -- tests/landingPage.test.ts -t "control promises|local-only waitlist"`  
+Run: `npm test -- tests/landingPage.test.ts -t "control promises|local-only waitlist"`
 Expected: FAIL until the trust carousel and builder are replaced.
 
 - [ ] **Step 3: Encode the dark organic texture**
@@ -714,8 +714,8 @@ Add `data-footer-wordmark` to the footer `<strong>`. Use a near-black field, num
 
 - [ ] **Step 7: Run trust and waitlist tests**
 
-Run: `npm test -- tests/landingPage.test.ts -t "control promises|local-only waitlist"`  
-Run: `npm test -- tests/landingWaitlist.test.ts`  
+Run: `npm test -- tests/landingPage.test.ts -t "control promises|local-only waitlist"`
+Run: `npm test -- tests/landingWaitlist.test.ts`
 Expected: PASS.
 
 - [ ] **Step 8: Commit the conversion chapters**
@@ -764,7 +764,7 @@ Add tests that trigger a reveal target and ambient target, assert their data att
 
 - [ ] **Step 2: Run the observer tests and verify the red state**
 
-Run: `npm test -- tests/landingPage.test.ts -t "reveals a visual chapter|stops ambient motion|reduced motion"`  
+Run: `npm test -- tests/landingPage.test.ts -t "reveals a visual chapter|stops ambient motion|reduced motion"`
 Expected: FAIL until the page controller sets the complete contract.
 
 - [ ] **Step 3: Implement the page-level lifecycle**
@@ -812,7 +812,7 @@ In the hero, show one intentional static state instead of every timeline layer. 
 
 - [ ] **Step 6: Run motion and accessibility tests**
 
-Run: `npm test -- tests/landingPage.test.ts -t "reveals a visual chapter|ambient motion|reduced motion|native controls"`  
+Run: `npm test -- tests/landingPage.test.ts -t "reveals a visual chapter|ambient motion|reduced motion|native controls"`
 Expected: PASS.
 
 - [ ] **Step 7: Commit the motion system**
@@ -860,7 +860,7 @@ test('keeps the field-notes system responsive and within its image budget', () =
 
 - [ ] **Step 2: Run the contract and fix only concrete failures**
 
-Run: `npm test -- tests/landingPage.test.ts -t "responsive and within its image budget"`  
+Run: `npm test -- tests/landingPage.test.ts -t "responsive and within its image budget"`
 Expected: PASS after missing dimension, lazy-loading, breakpoint, and asset-budget failures are resolved.
 
 - [ ] **Step 3: Run the full automated verification**
@@ -876,7 +876,7 @@ Expected: 3 test files pass, TypeScript reports no errors, Vite creates `dist`, 
 
 - [ ] **Step 4: Run the production preview and inspect target viewports**
 
-Run: `npm run dev -- --host 127.0.0.1`  
+Run: `npm run dev -- --host 127.0.0.1`
 Inspect in a real browser at 1440×900, 1280×800 at 100% zoom, 1024×768, and 390×844. Verify:
 
 - Hero line breaks remain intentional and the Blender UI remains legible.
