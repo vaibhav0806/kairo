@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { cleanup } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { LandingPage, validateWaitlistEmail } from '../src/landing/LandingPage';
 
@@ -29,6 +29,7 @@ Object.defineProperty(window, 'matchMedia', {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
 });
 
 describe('landing page', () => {
@@ -55,6 +56,65 @@ describe('landing page', () => {
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(html).toContain('data-field-notes="true"');
     expect(html).toContain('and any desktop tool you are learning');
+  });
+
+  test('shows one anchored scene through the complete learning loop', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    expect(html.match(/data-learning-workspace=/g)).toHaveLength(1);
+    expect([...html.matchAll(/data-lesson-chapter="([^"]+)"/g)].map((match) => match[1]))
+      .toEqual(['ask', 'point', 'try', 'checked']);
+    ['Ask', 'Point', 'Try', 'Check'].forEach((label) => expect(html).toContain(label));
+    expect(html).toContain('data-active-chapter="0"');
+    expect(html).toContain('data-workspace-state="ask"');
+  });
+
+  test('keeps the lesson workspace in sync with the reading line', () => {
+    const frames: FrameRequestCallback[] = [];
+    const chapterTops = [400, 650, 1200, 1700];
+
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(1400);
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame');
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const top = chapterTops[Number(this.dataset.chapterIndex)] ?? 0;
+      return {
+        bottom: top + 200,
+        height: 200,
+        left: 0,
+        right: 100,
+        top,
+        width: 100,
+        x: 0,
+        y: top,
+        toJSON: () => undefined
+      };
+    });
+
+    const { container, unmount } = render(createElement(LandingPage));
+
+    act(() => frames.shift()?.(0));
+    expect(container.querySelector('[data-active-chapter]')?.getAttribute('data-active-chapter')).toBe('0');
+    expect(container.querySelector('[data-learning-workspace]')?.getAttribute('data-workspace-state')).toBe('ask');
+
+    chapterTops.splice(0, chapterTops.length, -1200, -700, -100, 650);
+    act(() => window.dispatchEvent(new Event('scroll')));
+    act(() => frames.shift()?.(16));
+
+    expect(container.querySelector('[data-active-chapter]')?.getAttribute('data-active-chapter')).toBe('3');
+    expect(container.querySelector('[data-learning-workspace]')?.getAttribute('data-workspace-state')).toBe('checked');
+
+    act(() => window.dispatchEvent(new Event('scroll')));
+    unmount();
+    expect(cancelFrame).toHaveBeenCalled();
+
+    const scheduledFrames = frames.length;
+    ['scroll', 'resize', 'hashchange', 'pageshow'].forEach((eventName) => {
+      window.dispatchEvent(new Event(eventName));
+    });
+    expect(frames).toHaveLength(scheduledFrames);
   });
 
   test('gives the wordmark a full-height touch target', () => {
