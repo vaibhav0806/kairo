@@ -429,6 +429,20 @@ describe('landing page', () => {
     expect(css).toMatch(/\.hero\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/s);
   });
 
+  test('top-aligns the hero with viewport-aware optical spacing on desktop', () => {
+    const css = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const heroRules = css.match(/\.hero\s*\{([^}]*)\}/s)?.[1] ?? '';
+    const copyRules = css.match(/\.copy\s*\{([^}]*)\}/s)?.[1] ?? '';
+    const environmentRules = css.match(/\.environment\s*\{([^}]*)\}/s)?.[1] ?? '';
+    const desktopRules = css.match(/@media\s*\(min-width:\s*1180px\)\s*\{([\s\S]*?)(?=@media|$)/)?.[1] ?? '';
+
+    expect(heroRules).toMatch(/align-items:\s*start;/);
+    expect(heroRules).toMatch(/padding:\s*clamp\([^,]+,\s*[^,]*svh,[^)]+\)/);
+    expect(environmentRules).toMatch(/padding:\s*clamp\([^,]+,\s*[^,]*svh,[^)]+\)/);
+    expect(copyRules).not.toMatch(/padding-top:/);
+    expect(desktopRules).toMatch(/\.copy\s*\{[^}]*padding-top:\s*clamp\([^,]+,\s*[^,]*svh,[^)]+\);/s);
+  });
+
   test('uses a taller focal crop for the Blender scene on mobile', () => {
     const css = readFileSync('src/landing/Hero.module.css', 'utf8');
     const mobileRules = css.match(/@media\s*\(max-width:\s*760px\)[\s\S]*?(?=@media\s*\(prefers-reduced-motion:\s*no-preference\))/)?.[0] ?? '';
