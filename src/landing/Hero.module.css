@@ -67,7 +67,7 @@
   inset: 0 5% 11% 0;
   overflow: hidden;
   background: var(--paper-cool);
-  box-shadow: 14px 16px 0 color-mix(in srgb, var(--coral) 16%, var(--paper));
+  box-shadow: 14px 16px 0 var(--paper-cool);
   transform: rotate(-1.8deg);
 }
 
@@ -112,7 +112,7 @@
   padding: 10px;
   border: 1px solid var(--line);
   background: var(--paper);
-  box-shadow: 18px 20px 0 color-mix(in srgb, var(--violet) 15%, var(--paper-cool));
+  box-shadow: 18px 20px 0 color-mix(in srgb, var(--ink) 10%, var(--paper-cool));
   transform: rotate(0.7deg);
 }
 
@@ -309,7 +309,12 @@
 }
 
 .credits a {
+  display: inline-flex;
+  min-height: 44px;
+  padding: 0 2px;
+  align-items: center;
   color: inherit;
+  vertical-align: middle;
 }
 
 .hero[data-motion-ready='true'] .question,
@@ -417,7 +422,7 @@
   .productWindow {
     width: calc(100% - 24px);
     padding: 7px;
-    box-shadow: 10px 12px 0 color-mix(in srgb, var(--violet) 15%, var(--paper-cool));
+    box-shadow: 10px 12px 0 color-mix(in srgb, var(--ink) 10%, var(--paper-cool));
     transform: none;
   }
 

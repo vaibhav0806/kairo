@@ -85,6 +85,30 @@ describe('landing page', () => {
     expect(html).toContain('Pexels');
   });
 
+  test('keeps hero credit links compact with full-height touch targets', () => {
+    const css = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const creditLink = css.match(/\.credits a\s*\{([^}]*)\}/s)?.[1] ?? '';
+
+    expect(creditLink).toMatch(/display:\s*inline-flex;/);
+    expect(creditLink).toMatch(/min-height:\s*44px;/);
+    expect(creditLink).toMatch(/align-items:\s*center;/);
+  });
+
+  test('uses neutral shadows for decorative hero layers', () => {
+    const css = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const fieldPhoto = css.match(/\.fieldPhoto\s*\{([^}]*)\}/s)?.[1] ?? '';
+    const productWindows = [...css.matchAll(/\.productWindow\s*\{([^}]*)\}/gs)]
+      .map((match) => match[1]);
+
+    expect(fieldPhoto).toMatch(/box-shadow:[^;]*var\(--paper-cool\)/);
+    expect(fieldPhoto).not.toMatch(/box-shadow:[^;]*var\(--(?:coral|violet)\)/);
+    expect(productWindows).toHaveLength(2);
+    productWindows.forEach((productWindow) => {
+      expect(productWindow).toMatch(/box-shadow:[^;]*var\(--ink\)/);
+      expect(productWindow).not.toMatch(/box-shadow:[^;]*var\(--(?:coral|violet)\)/);
+    });
+  });
+
   test('keeps the stacked hero inside the mobile viewport', () => {
     const css = readFileSync('src/landing/Hero.module.css', 'utf8');
 
