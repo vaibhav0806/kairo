@@ -3,7 +3,7 @@
   min-height: calc(100svh - 72px);
   padding: clamp(44px, 7svh, 84px) clamp(20px, 5vw, 80px) clamp(72px, 9vw, 140px);
   grid-template-columns: minmax(0, 1fr);
-  align-items: start;
+  align-items: center;
   gap: clamp(48px, 7vw, 104px);
   border-bottom: 1px solid var(--line);
 }
@@ -374,6 +374,7 @@
 @media (min-width: 1180px) {
   .hero {
     grid-template-columns: minmax(330px, 0.72fr) minmax(650px, 1.28fr);
+    align-items: start;
   }
 
   .copy {
@@ -405,7 +406,9 @@
 
   .environment {
     min-height: 720px;
-    padding: 110px 0 144px;
+    padding-right: 0;
+    padding-bottom: 144px;
+    padding-left: 0;
   }
 
   .fieldPhoto {
