@@ -63,6 +63,34 @@ describe('landing page', () => {
     expect(css).toMatch(/\.wordmark\s*\{[^}]*display:\s*inline-flex;/s);
   });
 
+  test('leads with an editorial hero inside a tactile product scene', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).toContain('data-hero-environment="true"');
+    expect(html).toContain('data-hero-stage="true"');
+    expect(html).toContain('kairo-blender-preview.webp');
+    expect(html).toContain('field-notes/field-hero.webp');
+    expect(html).toContain('Pause lesson');
+    expect(html).not.toContain('Blender skill active');
+  });
+
+  test('ships optimized local tactile photography with visible credits', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+    ['field-hero.webp', 'field-hero-mobile.webp', 'meadow-edge.webp'].forEach((name) => {
+      const image = readFileSync(`public/field-notes/${name}`);
+      expect(image.toString('ascii', 0, 4)).toBe('RIFF');
+      expect(image.toString('ascii', 8, 12)).toBe('WEBP');
+      expect(image.byteLength).toBeLessThan(900_000);
+    });
+    expect(html).toContain('Pexels');
+  });
+
+  test('keeps the stacked hero inside the mobile viewport', () => {
+    const css = readFileSync('src/landing/Hero.module.css', 'utf8');
+
+    expect(css).toMatch(/\.hero\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/s);
+  });
+
   test('uses the high-resolution Blender capture', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     const image = readFileSync('public/kairo-blender-preview.webp');
