@@ -461,6 +461,25 @@ describe('landing page', () => {
     });
   });
 
+  test('uses a vivid botanical apron behind the hero product window', () => {
+    const css = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const meadow = css.match(/\.meadowEdge\s*\{([^}]*)\}/s)?.[1] ?? '';
+    const mobile = css.match(/@media\s*\(max-width:\s*760px\)[\s\S]*?(?=@media\s*\(prefers-reduced-motion:\s*no-preference\))/)?.[0] ?? '';
+    const reduced = css.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*$/)?.[0] ?? '';
+
+    expect(meadow).toMatch(/width:\s*88%;/);
+    expect(meadow).toMatch(/height:\s*42%;/);
+    expect(meadow).toMatch(/opacity:\s*0\.88;/);
+    expect(meadow).toMatch(/filter:\s*saturate\(1\.05\)\s*contrast\(1\.02\);/);
+    expect(meadow).toMatch(/mask-image:\s*radial-gradient\(/);
+    expect(meadow).toMatch(/transform:\s*translateY\(8px\)\s*scale\(1\.02\);/);
+    expect(meadow).toMatch(/transition:\s*transform\s+400ms\s+cubic-bezier\(\.4,(?:0|\.0),\.2,1\);/);
+    expect(css).toMatch(/\[data-ambient-active='true'\]\s+\.meadowEdge\s*\{[^}]*transform:\s*translateY\(0\)\s*scale\(1\);/s);
+    expect(css).toMatch(/:global\(\[data-page-visible='false'\]\)\s+\.meadowEdge\s*\{[^}]*transition:\s*none;/s);
+    expect(mobile).toMatch(/\.meadowEdge\s*\{[^}]*width:\s*100%;[^}]*height:\s*30%;/s);
+    expect(reduced).toMatch(/\.meadowEdge\s*\{[^}]*transition:\s*none;[^}]*transform:\s*none;/s);
+  });
+
   test('keeps the stacked hero inside the mobile viewport', () => {
     const css = readFileSync('src/landing/Hero.module.css', 'utf8');
 
