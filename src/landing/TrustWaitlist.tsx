@@ -1,6 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import styles from './TrustWaitlist.module.css';
 
+const trustPromises = [
+  ['01', 'Starts only when you ask', 'Kairo waits until you begin a lesson.'],
+  ['02', 'Pause anytime', 'Stop the lesson whenever you want.'],
+  ['03', 'Points, never clicks', 'You make every move yourself.']
+] as const;
+
 export function validateWaitlistEmail(value: string): string | null {
   const email = value.trim();
   if (!email) return 'Enter your email address.';
@@ -28,11 +34,30 @@ export function TrustWaitlist() {
   return (
     <>
       <section id="trust" className={styles.trust} aria-labelledby="trust-title" data-reveal>
-        <h2 id="trust-title">You stay in control.</h2>
+        <header>
+          <p className={styles.kicker}>The lesson stays yours</p>
+          <h2 id="trust-title">You stay in control.</h2>
+        </header>
+        <div className={styles.promises}>
+          {trustPromises.map(([number, title, description]) => (
+            <article key={number}>
+              <span>{number}</span>
+              <h3>{title}</h3>
+              <p>{description}</p>
+            </article>
+          ))}
+        </div>
+        <p className={styles.caution}>AI can get things wrong. Check important guidance and use your judgment.</p>
+        <small className={styles.credit}>
+          Photography: <a href="https://www.pexels.com/photo/3707669/">Mitchell Luo</a> / Pexels.
+        </small>
       </section>
       <section id="access" className={styles.waitlist} aria-labelledby="access-title" data-reveal>
-        <h2 id="access-title">Learn what you want to make.</h2>
-        {submitted ? <div aria-live="polite"><p>Preview complete</p><p>{submitted}</p><small>Nothing was sent or stored.</small></div> : (
+        <header>
+          <p className={styles.kicker}>Early access</p>
+          <h2 id="access-title">Learn what you want to make.</h2>
+        </header>
+        {submitted ? <div className={styles.success} aria-live="polite"><p>You are on the preview list.</p><strong>{submitted}</strong><small>Nothing was sent or stored.</small></div> : (
           <form onSubmit={submit} noValidate>
             <label htmlFor="waitlist-email">Email address</label>
             <input

@@ -93,30 +93,55 @@
 }
 
 .footer {
-  min-height: 360px;
-  padding: clamp(48px, 7vw, 104px) clamp(20px, 5vw, 80px) 24px;
-  background: var(--ink);
+  display: grid;
+  min-height: 90svh;
+  padding: clamp(56px, 8vw, 120px) clamp(20px, 5vw, 80px) 0;
+  align-content: space-between;
+  overflow: hidden;
+  background: #090a0b;
   color: var(--paper);
 }
 
-.footer > div {
-  display: flex;
-  gap: 28px;
+.footerTop {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 48px;
 }
 
-.footer > p {
-  margin-top: 48px;
-  color: #afb3b6;
+.footerTop > p {
+  max-width: 9ch;
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: clamp(2.5rem, 5vw, 5rem);
+  line-height: 0.95;
+}
+
+.footer nav {
+  display: grid;
+  align-content: start;
+}
+
+.footer a {
+  min-width: min(300px, 42vw);
+  gap: 20px;
+  border-bottom: 1px solid #35383a;
+}
+
+.footer a span {
+  color: #8d9296;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
 }
 
 .footer > strong {
   display: block;
-  margin-top: 56px;
+  width: max-content;
+  margin-top: clamp(80px, 12vw, 180px);
+  transform: translateY(0.11em);
   font-family: "Instrument Serif", Georgia, serif;
-  font-size: clamp(6rem, 20vw, 18rem);
+  font-size: clamp(8rem, 24vw, 28rem);
   font-weight: 400;
-  line-height: 0.65;
-  letter-spacing: -0.06em;
+  line-height: 0.62;
+  letter-spacing: -0.075em;
 }
 
 @media (max-width: 760px) {
@@ -126,5 +151,14 @@
 
   .header nav {
     display: none;
+  }
+
+  .footerTop {
+    grid-template-columns: 1fr;
+  }
+
+  .footer a {
+    min-width: 0;
+    width: 100%;
   }
 }

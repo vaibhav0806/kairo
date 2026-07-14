@@ -219,4 +219,22 @@ describe('landing page', () => {
     expect(workbench[0]?.getAttribute('loading')).toBe('lazy');
     expect(within(region).getByRole('link', { name: 'Michael Burrows' }).getAttribute('href')).toContain('/7147730/');
   });
+
+  test('states the three control promises without unsupported claims', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+
+    expect(html).toContain('Starts only when you ask');
+    expect(html).toContain('Pause anytime');
+    expect(html).toContain('Points, never clicks');
+    expect(html).toContain('AI can get things wrong');
+    expect(html).not.toMatch(/military-grade|zero data retention|SOC 2/i);
+  });
+
+  test('renders one local-only waitlist field and a structured footer', () => {
+    render(createElement(LandingPage));
+
+    expect(screen.getAllByLabelText('Email address')).toHaveLength(1);
+    expect(screen.getByRole('contentinfo')).toBeTruthy();
+    expect(screen.getByRole('contentinfo').querySelector('[data-footer-wordmark]')?.textContent).toBe('kairo');
+  });
 });

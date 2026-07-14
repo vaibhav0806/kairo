@@ -46,9 +46,15 @@ export function LandingPage() {
         <TrustWaitlist />
       </main>
       <footer className={styles.footer}>
-        <div><a href="#top">Home</a><a href="#how-it-works">How it works</a><a href="#access">Join</a></div>
-        <p>Learn by doing.</p>
-        <strong aria-label="Kairo">kairo</strong>
+        <div className={styles.footerTop}>
+          <p>Learn by doing.</p>
+          <nav aria-label="Footer">
+            <a href="#top"><span>01</span> Home</a>
+            <a href="#how-it-works"><span>02</span> How it works</a>
+            <a href="#access"><span>03</span> Join the alpha</a>
+          </nav>
+        </div>
+        <strong data-footer-wordmark aria-label="Kairo">kairo</strong>
       </footer>
     </div>
   );

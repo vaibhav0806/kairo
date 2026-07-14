@@ -64,7 +64,7 @@ describe('landing waitlist preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
 
     expect(screen.queryByLabelText('Email address')).toBeNull();
-    expect(screen.getByText('Preview complete')).toBeTruthy();
+    expect(screen.getByText('You are on the preview list.')).toBeTruthy();
     expect(screen.getByText('learner@example.com')).toBeTruthy();
     expect(screen.getByText('Nothing was sent or stored.')).toBeTruthy();
   });
