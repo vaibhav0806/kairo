@@ -78,7 +78,7 @@ Update the base meadow rules:
   mask-image: radial-gradient(ellipse 96% 92% at 100% 100%, black 18%, black 58%, transparent 100%);
   transform: translateY(8px) scale(1.02);
   transform-origin: right bottom;
-  transition: transform 1800ms cubic-bezier(.2,.7,.2,1);
+  transition: transform 400ms cubic-bezier(.4,0,.2,1);
 }
 
 [data-ambient-active='true'] .meadowEdge {
