@@ -2,21 +2,26 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 
 describe('landing metadata and brand', () => {
-  test('describes the product in page metadata', () => {
+  test('describes the landing website in page metadata', () => {
     const html = readFileSync('index.html', 'utf8');
-    expect(html).toContain('<title>Kairo — Learn software by doing</title>');
+    expect(html).toContain('<title>Kairo — Learn by doing</title>');
     expect(html).toContain('name="description"');
-    expect(html).toContain('screen-native AI tutor');
-    expect(html).toContain("/^#\\/(cursor|overlay|notch)/");
+    expect(html).toContain('one clear next step');
+    expect(html).not.toContain('cursor|overlay|notch');
   });
 
-  test('records the approved semantic brand roles', () => {
-    const brand = readFileSync('brand.md', 'utf8');
-    expect(brand).toContain('#F5F4EF');
-    expect(brand).toContain('#151515');
-    expect(brand).toContain('#FF6547');
-    expect(brand).toContain('#8B79FF');
-    expect(brand).toContain('#78CAAA');
-    expect(brand).toContain('Learn software by doing. Not watching.');
+  test('ships a website-only entry and dependency graph', () => {
+    const entry = readFileSync('src/main.tsx', 'utf8');
+    const packageJson = readFileSync('package.json', 'utf8');
+
+    expect(entry).toContain("import { LandingPage } from './landing/LandingPage';");
+    expect(entry).not.toContain('./App');
+    expect(entry).not.toContain('./native');
+    expect(entry).not.toContain('./notch');
+    expect(entry).not.toContain('./overlay');
+    expect(entry).not.toContain('./cursor');
+    expect(packageJson).not.toContain('@tauri-apps');
+    expect(packageJson).not.toContain('tauri:');
+    expect(packageJson).not.toContain('build-dmg');
   });
 });

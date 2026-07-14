@@ -1,39 +1,29 @@
 {
-  "name": "kairo-tutor",
+  "name": "kairo-landing",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
-    "app": "bash scripts/rebuild-run.sh",
-    "dist": "bash scripts/build-dmg.sh",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "smoke:providers": "node scripts/smoke-providers.mjs"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
-    "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-global-shortcut": "^2.3.2",
-    "@vitejs/plugin-react": "^4.3.4",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "vite": "^6.0.7",
-    "zod": "^3.24.1"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.3",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "27.0.0",
     "typescript": "^5.7.2",
+    "vite": "^6.0.7",
     "vitest": "^4.1.9"
   }
 }

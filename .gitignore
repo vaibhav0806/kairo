@@ -7,8 +7,3 @@ dist/
 *.log
 tmp/
 tsconfig.tsbuildinfo
-src-tauri/gen/
-src-tauri/target/
-
-# personal scratch notes (kept local)
-competitor_notes.txt

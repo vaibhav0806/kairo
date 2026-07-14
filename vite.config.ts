@@ -4,7 +4,6 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react()],
   base: './',
-  envPrefix: ['VITE_', 'KAIRO_'],
   server: {
     port: 5273,
     strictPort: true
