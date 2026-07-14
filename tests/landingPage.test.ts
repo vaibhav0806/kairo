@@ -26,12 +26,23 @@ class IntersectionObserverHarness {
 }
 
 let prefersReducedMotion = false;
+let stickyLessonMatches = false;
 const motionPreferenceListeners = new Set<(event: MediaQueryListEvent) => void>();
+const stickyLessonListeners = new Set<(event: MediaQueryListEvent) => void>();
 
 function setReducedMotion(matches: boolean) {
   prefersReducedMotion = matches;
   const event = { matches, media: '(prefers-reduced-motion: reduce)' } as MediaQueryListEvent;
   motionPreferenceListeners.forEach((listener) => listener(event));
+  const stickyEvent = {
+    matches: stickyLessonMatches && !matches,
+    media: '(min-width: 960px) and (min-height: 720px) and (prefers-reduced-motion: no-preference)'
+  } as MediaQueryListEvent;
+  stickyLessonListeners.forEach((listener) => listener(stickyEvent));
+}
+
+function setStickyLesson(matches: boolean) {
+  stickyLessonMatches = matches;
 }
 
 function observerFor(target: Element): IntersectionObserverHarness {
@@ -45,7 +56,9 @@ function observerFor(target: Element): IntersectionObserverHarness {
 beforeEach(() => {
   IntersectionObserverHarness.instances = [];
   prefersReducedMotion = false;
+  stickyLessonMatches = false;
   motionPreferenceListeners.clear();
+  stickyLessonListeners.clear();
 
   Object.defineProperty(window, 'IntersectionObserver', {
     configurable: true,
@@ -54,17 +67,20 @@ beforeEach(() => {
 
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
-    value: vi.fn().mockImplementation(() => ({
+    value: vi.fn().mockImplementation((query: string) => {
+      const isStickyLesson = query.includes('min-width: 960px');
+      const listeners = isStickyLesson ? stickyLessonListeners : motionPreferenceListeners;
+      return {
       get matches() {
-        return prefersReducedMotion;
+        return isStickyLesson ? stickyLessonMatches && !prefersReducedMotion : prefersReducedMotion;
       },
       addEventListener: vi.fn((eventName: string, listener: (event: MediaQueryListEvent) => void) => {
-        if (eventName === 'change') motionPreferenceListeners.add(listener);
+        if (eventName === 'change') listeners.add(listener);
       }),
       removeEventListener: vi.fn((eventName: string, listener: (event: MediaQueryListEvent) => void) => {
-        if (eventName === 'change') motionPreferenceListeners.delete(listener);
+        if (eventName === 'change') listeners.delete(listener);
       })
-    }))
+    }})
   });
 });
 
@@ -126,7 +142,7 @@ describe('landing page', () => {
     expect(html).toContain('data-workspace-state="ask"');
   });
 
-  test('keeps the lesson workspace in sync with the reading line', () => {
+  test('keeps the sticky lesson workspace in sync with the reading line', () => {
     const frames: FrameRequestCallback[] = [];
     const chapterTops = [400, 650, 1200, 1700];
 
@@ -151,6 +167,8 @@ describe('landing page', () => {
       };
     });
 
+    setStickyLesson(true);
+
     const { container, unmount } = render(createElement(LandingPage));
 
     act(() => frames.shift()?.(0));
@@ -173,6 +191,23 @@ describe('landing page', () => {
       window.dispatchEvent(new Event(eventName));
     });
     expect(frames).toHaveLength(scheduledFrames);
+  });
+
+  test('does not drive lesson state from scroll in non-sticky fallbacks', () => {
+    const frames: FrameRequestCallback[] = [];
+    setStickyLesson(false);
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+
+    const { container } = render(createElement(LandingPage));
+    act(() => window.dispatchEvent(new Event('scroll')));
+
+    expect(frames).toHaveLength(0);
+    expect(container.querySelector('[data-learning-workspace]')?.getAttribute('data-workspace-state')).toBe('ask');
+    expect(container.querySelector('[data-active-chapter]')?.getAttribute('data-sticky-mode')).toBe('false');
+    expect(container.querySelectorAll('[data-lesson-chapter][aria-current]')).toHaveLength(0);
   });
 
   test('reveals a visual chapter once it enters the viewport', () => {
@@ -215,7 +250,7 @@ describe('landing page', () => {
     ['top', 'how-it-works', 'tools', 'practice', 'trust', 'access'].forEach((id) => {
       expect(container.querySelector(`#${id}`)).toBeTruthy();
     });
-    expect(container.querySelectorAll('[data-reveal]')).toHaveLength(6);
+    expect(container.querySelectorAll('[data-reveal]')).toHaveLength(5);
   });
 
   test('provides complete reduced motion and pointer fallbacks', () => {
@@ -227,21 +262,23 @@ describe('landing page', () => {
     expect(pageCss).toMatch(/\[data-motion-ready='true'\]\s+\[data-reveal\]:not\(\[data-revealed='true'\]\)/);
     expect(pageCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*animation:\s*none\s*!important;[\s\S]*clip-path:\s*none\s*!important;/);
     expect(heroCss).toMatch(/@media\s*\(hover:\s*none\)/);
-    expect(heroCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.instruction\s*\{[^}]*left:\s*auto;[^}]*right:\s*4%;[^}]*transform:\s*none;/);
+    expect(heroCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.instruction\s*\{[^}]*display:\s*(?:grid|block);/);
     expect(heroCss).toMatch(/:global\(\[data-page-visible='false'\]\)\s+\.ambientPhoto\s*\{[^}]*transition:\s*none;/);
     expect(sequenceCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*position:\s*static;/);
     expect(visualCss).toMatch(/:global\(\[data-page-visible='false'\]\)\s+\.ambientPhoto\s*\{[^}]*transition:\s*none;/);
   });
 
-  test('shows only the intentional hero instruction on reduced-motion mobile', () => {
+  test('shows one static hero instruction and no dead pause control for reduced motion', () => {
     const heroCss = readFileSync('src/landing/Hero.module.css', 'utf8');
     const mobileRules = heroCss.match(/@media\s*\(max-width:\s*760px\)[\s\S]*?(?=@media\s*\(prefers-reduced-motion:\s*no-preference\))/)?.[0] ?? '';
     const reducedRules = heroCss.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*$/)?.[0] ?? '';
 
     expect(heroCss.indexOf(reducedRules)).toBeGreaterThan(heroCss.indexOf(mobileRules));
     expect(mobileRules).toMatch(/\.question,\s*\.annotation,\s*\.target,\s*\.instruction\s*\{[^}]*display:\s*none;/);
+    expect(mobileRules).toMatch(/\.productWindow button\s*\{[^}]*display:\s*none;/);
     expect(reducedRules).toMatch(/\.question,\s*\.annotation,\s*\.target\s*\{[^}]*display:\s*none;/);
-    expect(reducedRules).toMatch(/\.instruction\s*\{[^}]*display:\s*grid;/);
+    expect(reducedRules).toMatch(/\.productWindow button\s*\{[^}]*display:\s*none;/);
+    expect(reducedRules).toMatch(/\.instruction\s*\{[^}]*display:\s*(?:grid|block);/);
   });
 
   test('reveals every visual chapter when the observer is unavailable', () => {
@@ -253,7 +290,7 @@ describe('landing page', () => {
     const { container } = render(createElement(LandingPage));
     const chapters = [...container.querySelectorAll<HTMLElement>('[data-reveal]')];
 
-    expect(chapters).toHaveLength(6);
+    expect(chapters).toHaveLength(5);
     chapters.forEach((chapter) => expect(chapter.dataset.revealed).toBe('true'));
   });
 
@@ -278,11 +315,13 @@ describe('landing page', () => {
     const ambientObserver = observerFor(ambientTarget as HTMLElement);
 
     expect(motionPreferenceListeners.size).toBe(2);
+    expect(stickyLessonListeners.size).toBe(1);
     unmount();
 
     expect(revealObserver.disconnect).toHaveBeenCalledOnce();
     expect(ambientObserver.disconnect).toHaveBeenCalledOnce();
     expect(motionPreferenceListeners.size).toBe(0);
+    expect(stickyLessonListeners.size).toBe(0);
   });
 
   test('gives the wordmark a full-height touch target', () => {
@@ -300,9 +339,11 @@ describe('landing page', () => {
     expect(html).toContain('field-notes/field-hero.webp');
     expect(html).toContain('Pause lesson');
     expect(html).not.toContain('Blender skill active');
+    const { container } = render(createElement(LandingPage));
+    expect(container.querySelector('[data-hero-environment]')?.hasAttribute('data-reveal')).toBe(false);
   });
 
-  test('ships optimized local tactile photography with visible credits', () => {
+  test('ships optimized local tactile photography without visible credits', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     ['field-hero.webp', 'field-hero-mobile.webp', 'meadow-edge.webp', 'sketches.webp', 'workbench.webp'].forEach((name) => {
       const image = readFileSync(`public/field-notes/${name}`);
@@ -310,16 +351,32 @@ describe('landing page', () => {
       expect(image.toString('ascii', 8, 12)).toBe('WEBP');
       expect(image.byteLength).toBeLessThan(900_000);
     });
-    expect(html).toContain('Pexels');
+    expect(html).not.toContain('Photography:');
+    expect(html).not.toContain('Pexels');
   });
 
-  test('keeps hero credit links compact with full-height touch targets', () => {
-    const css = readFileSync('src/landing/Hero.module.css', 'utf8');
-    const creditLink = css.match(/\.credits a\s*\{([^}]*)\}/s)?.[1] ?? '';
+  test('removes unused photography credit styling', () => {
+    const css = ['Hero.module.css', 'VisualField.module.css', 'TrustWaitlist.module.css']
+      .map((name) => readFileSync(`src/landing/${name}`, 'utf8')).join('\n');
 
-    expect(creditLink).toMatch(/display:\s*inline-flex;/);
-    expect(creditLink).toMatch(/min-height:\s*44px;/);
-    expect(creditLink).toMatch(/align-items:\s*center;/);
+    expect(css).not.toMatch(/\.(?:credits|credit)\b/);
+  });
+
+  test('keeps both next-move sentences inline inside constrained cards', () => {
+    const { container } = render(createElement(LandingPage));
+    const copies = [...container.querySelectorAll<HTMLElement>('[data-instruction-copy]')];
+    const heroCss = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const sequenceCss = readFileSync('src/landing/LearningSequence.module.css', 'utf8');
+
+    expect(copies).toHaveLength(2);
+    copies.forEach((copy) => {
+      expect(copy.tagName).toBe('P');
+      expect(copy.textContent).toBe('Press I, then choose Location.');
+    });
+    [heroCss, sequenceCss].forEach((css) => {
+      expect(css).toMatch(/\.instruction\s*\{[^}]*min-width:\s*0;[^}]*width:\s*min\(/s);
+      expect(css).toMatch(/\.instruction\s*>\s*p\s*\{[^}]*margin:\s*0;/s);
+    });
   });
 
   test('uses neutral shadows for decorative hero layers', () => {
@@ -367,7 +424,6 @@ describe('landing page', () => {
     expect(region.querySelectorAll('[data-tool-focus]')).toHaveLength(4);
     expect(region.querySelector('img[src*="kairo-blender-preview.webp"]')).toBeTruthy();
     expect(region.querySelector('[data-tool-connector]')?.getAttribute('aria-hidden')).toBe('true');
-    expect(within(region).getByRole('link', { name: 'Karol D' }).getAttribute('href')).toContain('/1111692/');
   });
 
   test('shows three concise practice moments in one environment', () => {
@@ -385,7 +441,33 @@ describe('landing page', () => {
     const workbench = region.querySelectorAll('img[src*="field-notes/workbench.webp"]');
     expect(workbench).toHaveLength(1);
     expect(workbench[0]?.getAttribute('loading')).toBe('lazy');
-    expect(within(region).getByRole('link', { name: 'Michael Burrows' }).getAttribute('href')).toContain('/7147730/');
+  });
+
+  test('renders the trust texture as a lazy local image with a CSS gradient overlay', () => {
+    const { container } = render(createElement(LandingPage));
+    const image = container.querySelector<HTMLImageElement>('#trust img[src*="trust-rock.webp"]');
+    const css = readFileSync('src/landing/TrustWaitlist.module.css', 'utf8');
+
+    expect(image?.getAttribute('alt')).toBe('');
+    expect(image?.getAttribute('loading')).toBe('lazy');
+    expect(image?.getAttribute('decoding')).toBe('async');
+    expect(image?.getAttribute('width')).toBe('2200');
+    expect(image?.getAttribute('height')).toBe('1511');
+    expect(css).not.toContain("url('/field-notes/trust-rock.webp')");
+    expect(css).toMatch(/\.trust::after\s*\{[^}]*linear-gradient/s);
+  });
+
+  test('keeps global scrolling static under reduced motion', () => {
+    const css = readFileSync('src/styles.css', 'utf8');
+
+    expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*html\s*\{[^}]*scroll-behavior:\s*auto;/);
+  });
+
+  test('does not announce scroll-driven lesson status changes', () => {
+    const { container } = render(createElement(LandingPage));
+    const workspace = container.querySelector('[data-learning-workspace]');
+
+    expect(workspace?.querySelector('[aria-live]')).toBeNull();
   });
 
   test('states the three control promises without unsupported claims', () => {

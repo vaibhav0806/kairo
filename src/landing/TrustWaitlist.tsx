@@ -1,6 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import styles from './TrustWaitlist.module.css';
 
+function asset(filename: string): string {
+  return `${import.meta.env.BASE_URL}${filename}`;
+}
+
 const trustPromises = [
   ['01', 'Starts only when you ask', 'Kairo waits until you begin a lesson.'],
   ['02', 'Pause anytime', 'Stop the lesson whenever you want.'],
@@ -34,6 +38,15 @@ export function TrustWaitlist() {
   return (
     <>
       <section id="trust" className={styles.trust} aria-labelledby="trust-title" data-reveal>
+        <img
+          className={styles.rockPhoto}
+          src={asset('field-notes/trust-rock.webp')}
+          alt=""
+          width="2200"
+          height="1511"
+          loading="lazy"
+          decoding="async"
+        />
         <header>
           <p className={styles.kicker}>The lesson stays yours</p>
           <h2 id="trust-title">You stay in control.</h2>
@@ -48,9 +61,6 @@ export function TrustWaitlist() {
           ))}
         </div>
         <p className={styles.caution}>AI can get things wrong. Check important guidance and use your judgment.</p>
-        <small className={styles.credit}>
-          Photography: <a href="https://www.pexels.com/photo/3707669/">Mitchell Luo</a> / Pexels.
-        </small>
       </section>
       <section id="access" className={styles.waitlist} aria-labelledby="access-title" data-reveal>
         <header>

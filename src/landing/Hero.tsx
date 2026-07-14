@@ -56,7 +56,6 @@ export function Hero() {
       aria-labelledby="landing-title"
       data-hero-environment
       data-demo-paused={paused}
-      data-reveal
     >
       <div className={styles.copy}>
         <p className={styles.kicker}>Help, right where you are learning</p>
@@ -118,7 +117,7 @@ export function Hero() {
             </div>
             <div className={styles.instruction}>
               <span>Next move</span>
-              Press <kbd>I</kbd>, then choose <b>Location</b>.
+              <p data-instruction-copy>Press <kbd>I</kbd>, then choose <b>Location</b>.</p>
             </div>
           </div>
 
@@ -129,11 +128,6 @@ export function Hero() {
           </ol>
         </figure>
 
-        <small className={styles.credits}>
-          Photography: <a href="https://www.pexels.com/photo/5420986/">Kaboompics</a>,{' '}
-          <a href="https://www.pexels.com/photo/9414025/">Sasha Kim</a>, and{' '}
-          <a href="https://www.pexels.com/photo/17033427/">Budget Bizar</a> / Pexels.
-        </small>
       </div>
     </section>
   );

@@ -280,16 +280,24 @@
   top: 5%;
   left: 50%;
   display: grid;
-  min-width: 39%;
-  padding: clamp(9px, 1.3vw, 16px) clamp(11px, 1.7vw, 20px);
-  gap: 5px;
+  min-width: 0;
+  width: min(44%, 25rem);
+  max-width: calc(100% - 32px);
+  padding: clamp(7px, 1vw, 12px) clamp(9px, 1.25vw, 15px);
+  gap: 4px;
   border-bottom: 3px solid var(--violet);
-  font-size: clamp(0.7rem, 1.2vw, 1rem);
+  font-size: clamp(0.62rem, 0.82vw, 0.88rem);
   transform: translateX(-50%);
 }
 
 .instruction span {
   color: color-mix(in srgb, var(--violet) 60%, var(--paper));
+}
+
+.instruction > p {
+  min-width: 0;
+  margin: 0;
+  line-height: 1.35;
 }
 
 .instruction kbd {
@@ -306,28 +314,6 @@
 
 .mobileTranscript {
   display: none;
-}
-
-.credits {
-  position: absolute;
-  right: 0;
-  bottom: 3%;
-  z-index: 2;
-  max-width: 70%;
-  padding: 6px 8px;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  color: var(--muted);
-  font-size: 0.69rem;
-  line-height: 1.45;
-}
-
-.credits a {
-  display: inline-flex;
-  min-height: 44px;
-  padding: 0 2px;
-  align-items: center;
-  color: inherit;
-  vertical-align: middle;
 }
 
 .hero[data-motion-ready='true'] .question,
@@ -445,8 +431,7 @@
   }
 
   .productWindow button {
-    padding: 0 12px;
-    font-size: 0.7rem;
+    display: none;
   }
 
   .question,
@@ -454,6 +439,13 @@
   .target,
   .instruction {
     display: none;
+  }
+
+  .instruction {
+    width: min(64%, 15rem);
+    max-width: calc(100% - 20px);
+    padding: 6px 8px;
+    font-size: clamp(0.58rem, 2.5vw, 0.72rem);
   }
 
   .mobileTranscript {
@@ -487,12 +479,6 @@
     line-height: 1.4;
   }
 
-  .credits {
-    right: 12px;
-    bottom: 2%;
-    left: 12px;
-    max-width: none;
-  }
 }
 
 @media (prefers-reduced-motion: no-preference) and (hover: hover) {
@@ -515,6 +501,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .productWindow button {
+    display: none;
+  }
+
   .question,
   .annotation,
   .target {
@@ -525,6 +515,7 @@
     display: grid;
     left: auto;
     right: 4%;
+    max-width: calc(100% - 20px);
     animation: none !important;
     opacity: 1;
     transform: none;

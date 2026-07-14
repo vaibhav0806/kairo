@@ -100,9 +100,6 @@ export function VisualField() {
           </figure>
         </div>
 
-        <small className={styles.credits}>
-          Photography: <a href="https://www.pexels.com/photo/1111692/">Karol D</a> / Pexels.
-        </small>
       </section>
 
       <section id="practice" className={styles.practice} aria-labelledby="practice-title" data-reveal>
@@ -132,9 +129,6 @@ export function VisualField() {
           </div>
         </div>
 
-        <small className={styles.credits}>
-          Photography: <a href="https://www.pexels.com/photo/7147730/">Michael Burrows</a> / Pexels.
-        </small>
       </section>
     </>
   );

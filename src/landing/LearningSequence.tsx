@@ -39,6 +39,7 @@ function asset(filename: string): string {
 export function LearningSequence() {
   const filmRef = useRef<HTMLDivElement>(null);
   const [activeChapter, setActiveChapter] = useState(0);
+  const [stickyMode, setStickyMode] = useState(false);
   const activeLesson = lessonChapters[activeChapter] ?? lessonChapters[0];
 
   useEffect(() => {
@@ -46,7 +47,9 @@ export function LearningSequence() {
     if (!film) return undefined;
 
     const chapterMarkers = [...film.querySelectorAll<HTMLElement>('[data-chapter-index]')];
+    const stickyLesson = window.matchMedia('(min-width: 960px) and (min-height: 720px) and (prefers-reduced-motion: no-preference)');
     let pendingFrame: number | null = null;
+    let tracking = false;
 
     const updateActiveChapter = () => {
       pendingFrame = null;
@@ -74,18 +77,42 @@ export function LearningSequence() {
       pendingFrame = window.requestAnimationFrame(updateActiveChapter);
     };
 
-    scheduleUpdate();
-    window.addEventListener('scroll', scheduleUpdate, { passive: true });
-    window.addEventListener('resize', scheduleUpdate, { passive: true });
-    window.addEventListener('hashchange', scheduleUpdate, { passive: true });
-    window.addEventListener('pageshow', scheduleUpdate, { passive: true });
-
-    return () => {
+    const stopTracking = () => {
+      if (!tracking) return;
+      tracking = false;
       window.removeEventListener('scroll', scheduleUpdate);
       window.removeEventListener('resize', scheduleUpdate);
       window.removeEventListener('hashchange', scheduleUpdate);
       window.removeEventListener('pageshow', scheduleUpdate);
-      if (pendingFrame !== null) window.cancelAnimationFrame(pendingFrame);
+      if (pendingFrame !== null) {
+        window.cancelAnimationFrame(pendingFrame);
+        pendingFrame = null;
+      }
+    };
+
+    const syncStickyMode = () => {
+      setStickyMode(stickyLesson.matches);
+      if (!stickyLesson.matches) {
+        stopTracking();
+        setActiveChapter(0);
+        return;
+      }
+      if (!tracking) {
+        tracking = true;
+        window.addEventListener('scroll', scheduleUpdate, { passive: true });
+        window.addEventListener('resize', scheduleUpdate, { passive: true });
+        window.addEventListener('hashchange', scheduleUpdate, { passive: true });
+        window.addEventListener('pageshow', scheduleUpdate, { passive: true });
+      }
+      scheduleUpdate();
+    };
+
+    syncStickyMode();
+    stickyLesson.addEventListener('change', syncStickyMode);
+
+    return () => {
+      stickyLesson.removeEventListener('change', syncStickyMode);
+      stopTracking();
     };
   }, []);
 
@@ -97,7 +124,7 @@ export function LearningSequence() {
         <span>Scroll the field notes. The workspace stays with you.</span>
       </header>
 
-      <div ref={filmRef} className={styles.film} data-active-chapter={activeChapter}>
+      <div ref={filmRef} className={styles.film} data-active-chapter={activeChapter} data-sticky-mode={stickyMode}>
         <div
           className={styles.workspace}
           data-learning-workspace
@@ -135,7 +162,7 @@ export function LearningSequence() {
 
             <div className={`${styles.layer} ${styles.instruction}`}>
               <span aria-hidden="true">Next move</span>
-              Press <kbd>I</kbd>, then choose <b>Location</b>.
+              <p data-instruction-copy>Press <kbd>I</kbd>, then choose <b>Location</b>.</p>
             </div>
 
             <div className={`${styles.layer} ${styles.action}`}>
@@ -151,7 +178,7 @@ export function LearningSequence() {
             </div>
           </figure>
 
-          <p className={styles.status} role="status" aria-live="polite" aria-atomic="true">
+          <p className={styles.status}>
             {activeLesson.summary}
           </p>
         </div>
@@ -163,7 +190,7 @@ export function LearningSequence() {
               className={styles.chapter}
               data-lesson-chapter={chapter.id}
               data-chapter-index={index}
-              aria-current={index === activeChapter ? 'step' : undefined}
+              aria-current={stickyMode && index === activeChapter ? 'step' : undefined}
             >
               <span>{String(index + 1).padStart(2, '0')}</span>
               <div>

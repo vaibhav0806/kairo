@@ -10,6 +10,15 @@ describe('landing metadata and brand', () => {
     expect(html).not.toContain('cursor|overlay|notch');
   });
 
+  test('links a local brand favicon that the static server can return', () => {
+    const html = readFileSync('index.html', 'utf8');
+    const favicon = readFileSync('public/favicon.svg', 'utf8');
+
+    expect(html).toContain('<link rel="icon" type="image/svg+xml" href="/favicon.svg"');
+    expect(favicon).toContain('<svg');
+    expect(favicon).toContain('aria-hidden="true"');
+  });
+
   test('ships a website-only entry and dependency graph', () => {
     const entry = readFileSync('src/main.tsx', 'utf8');
     const packageJson = readFileSync('package.json', 'utf8');

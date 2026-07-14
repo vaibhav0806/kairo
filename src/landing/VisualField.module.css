@@ -491,22 +491,6 @@
   color: var(--paper);
 }
 
-.credits {
-  display: block;
-  max-width: 1500px;
-  margin: 20px auto 0;
-  color: var(--muted);
-  font-size: 0.74rem;
-}
-
-.credits a {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  color: inherit;
-  text-underline-offset: 3px;
-}
-
 .practice {
   min-height: 100svh;
 }
