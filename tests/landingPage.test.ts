@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
@@ -74,6 +74,23 @@ afterEach(() => {
 });
 
 describe('landing page', () => {
+  test('keeps the field-notes system responsive and within its image budget', () => {
+    const css = [
+      'LandingPage.module.css', 'Hero.module.css', 'LearningSequence.module.css',
+      'VisualField.module.css', 'TrustWaitlist.module.css'
+    ].map((name) => readFileSync(`src/landing/${name}`, 'utf8')).join('\n').toLowerCase();
+    const assets = readdirSync('public/field-notes').map((name) => statSync(`public/field-notes/${name}`).size);
+
+    expect(css).toContain('#ffffff');
+    expect(css).toContain('instrument serif');
+    expect(css).toContain('@media (min-width: 1180px)');
+    expect(css).toContain('@media (min-width: 960px) and (min-height: 720px)');
+    expect(css).toContain('@media (max-width: 760px)');
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(Math.max(...assets)).toBeLessThan(900_000);
+    expect(assets.reduce((sum, size) => sum + size, 0)).toBeLessThan(5_000_000);
+  });
+
   test('validates the local preview email field', () => {
     expect(validateWaitlistEmail('')).toBe('Enter your email address.');
     expect(validateWaitlistEmail('learner@')).toBe('Enter a valid email address.');

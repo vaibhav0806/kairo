@@ -11,7 +11,7 @@ npm run dev
 
 The local site runs at `http://127.0.0.1:5273`.
 
-## Verification
+## Verify
 
 ```bash
 npm test
@@ -19,4 +19,4 @@ npm run typecheck
 npm run build
 ```
 
-The waitlist is currently a local preview and does not send or store submissions.
+The waitlist is a local preview. It does not send or store email addresses.
