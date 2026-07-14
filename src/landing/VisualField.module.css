@@ -70,6 +70,10 @@
   transform: scale(1);
 }
 
+:global([data-page-visible='false']) .ambientPhoto {
+  transition: none;
+}
+
 .toolField::after {
   position: absolute;
   inset: 0;

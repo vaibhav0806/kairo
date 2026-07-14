@@ -205,11 +205,15 @@ describe('landing page', () => {
     const pageCss = readFileSync('src/landing/LandingPage.module.css', 'utf8');
     const heroCss = readFileSync('src/landing/Hero.module.css', 'utf8');
     const sequenceCss = readFileSync('src/landing/LearningSequence.module.css', 'utf8');
+    const visualCss = readFileSync('src/landing/VisualField.module.css', 'utf8');
 
     expect(pageCss).toMatch(/\[data-motion-ready='true'\]\s+\[data-reveal\]:not\(\[data-revealed='true'\]\)/);
     expect(pageCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*animation:\s*none\s*!important;[\s\S]*clip-path:\s*none\s*!important;/);
     expect(heroCss).toMatch(/@media\s*\(hover:\s*none\)/);
+    expect(heroCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.instruction\s*\{[^}]*left:\s*auto;[^}]*right:\s*4%;[^}]*transform:\s*none;/);
+    expect(heroCss).toMatch(/:global\(\[data-page-visible='false'\]\)\s+\.ambientPhoto\s*\{[^}]*transition:\s*none;/);
     expect(sequenceCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*position:\s*static;/);
+    expect(visualCss).toMatch(/:global\(\[data-page-visible='false'\]\)\s+\.ambientPhoto\s*\{[^}]*transition:\s*none;/);
   });
 
   test('reveals every visual chapter when the observer is unavailable', () => {
@@ -236,6 +240,21 @@ describe('landing page', () => {
     expect(screen.getByRole('button', { name: 'Pause lesson' }).getAttribute('type')).toBe('button');
     expect(screen.getByLabelText('Email address').getAttribute('type')).toBe('email');
     expect(screen.getByRole('button', { name: 'Join the alpha' }).getAttribute('type')).toBe('submit');
+  });
+
+  test('cleans up shared motion observers and listeners', () => {
+    const { container, unmount } = render(createElement(LandingPage));
+    const revealTarget = container.querySelector<HTMLElement>('#tools');
+    const ambientTarget = container.querySelector<HTMLElement>('[data-ambient-stage]');
+    const revealObserver = observerFor(revealTarget as HTMLElement);
+    const ambientObserver = observerFor(ambientTarget as HTMLElement);
+
+    expect(motionPreferenceListeners.size).toBe(2);
+    unmount();
+
+    expect(revealObserver.disconnect).toHaveBeenCalledOnce();
+    expect(ambientObserver.disconnect).toHaveBeenCalledOnce();
+    expect(motionPreferenceListeners.size).toBe(0);
   });
 
   test('gives the wordmark a full-height touch target', () => {

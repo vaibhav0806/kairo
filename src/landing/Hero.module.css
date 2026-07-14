@@ -99,6 +99,10 @@
   transform: scale(1);
 }
 
+:global([data-page-visible='false']) .ambientPhoto {
+  transition: none;
+}
+
 .meadowEdge {
   position: absolute;
   z-index: -1;
@@ -518,7 +522,10 @@
   }
 
   .instruction {
+    left: auto;
+    right: 4%;
     animation: none !important;
     opacity: 1;
+    transform: none;
   }
 }
