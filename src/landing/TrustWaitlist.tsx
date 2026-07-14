@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import styles from './TrustWaitlist.module.css';
 
 function asset(filename: string): string {
@@ -22,6 +22,11 @@ export function TrustWaitlist() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<string | null>(null);
+  const successRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (submitted) successRef.current?.focus();
+  }, [submitted]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -67,7 +72,7 @@ export function TrustWaitlist() {
           <p className={styles.kicker}>Early access</p>
           <h2 id="access-title">Learn what you want to make.</h2>
         </header>
-        {submitted ? <div className={styles.success} aria-live="polite"><p>You are on the preview list.</p><strong>{submitted}</strong><small>Nothing was sent or stored.</small></div> : (
+        {submitted ? <div ref={successRef} className={styles.success} role="status" tabIndex={-1}><p>Preview complete. Your email was not submitted or stored.</p><strong>{submitted}</strong></div> : (
           <form onSubmit={submit} noValidate>
             <label htmlFor="waitlist-email">Email address</label>
             <input

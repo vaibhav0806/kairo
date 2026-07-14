@@ -379,6 +379,33 @@ describe('landing page', () => {
     });
   });
 
+  test('uses readable text-only signal colors and a legible hero instruction', () => {
+    const sequenceCss = readFileSync('src/landing/LearningSequence.module.css', 'utf8');
+    const heroCss = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const contrastOnWhite = (hex: string) => {
+      const luminance = hex.match(/[a-f\d]{2}/gi)!.map((channel) => parseInt(channel, 16) / 255)
+        .map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+        .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+      return 1.05 / (luminance + 0.05);
+    };
+
+    expect(sequenceCss).toMatch(/--coral-ink:\s*#c43d29;/);
+    expect(sequenceCss).toMatch(/--green-ink:\s*#187a4f;/);
+    expect(contrastOnWhite('c43d29')).toBeGreaterThanOrEqual(4.5);
+    expect(contrastOnWhite('187a4f')).toBeGreaterThanOrEqual(4.5);
+    expect(sequenceCss).toMatch(/\.action\s*>\s*span\s*\{[^}]*color:\s*var\(--coral-ink\);/s);
+    expect(sequenceCss).toMatch(/\.verified\s*>\s*span\s*\{[^}]*color:\s*var\(--green-ink\);/s);
+    expect(sequenceCss).toMatch(/\.chapter\[aria-current='step'\]\s+p\s*\{[^}]*color:\s*var\(--coral-ink\);/s);
+    expect(heroCss).toMatch(/\.instruction\s*\{[^}]*font-size:\s*clamp\(0\.75rem,/s);
+  });
+
+  test('describes the lesson sequence truthfully in every layout', () => {
+    const html = renderToStaticMarkup(createElement(LandingPage));
+
+    expect(html).toContain('Follow the four steps below.');
+    expect(html).not.toContain('The workspace stays with you.');
+  });
+
   test('uses neutral shadows for decorative hero layers', () => {
     const css = readFileSync('src/landing/Hero.module.css', 'utf8');
     const fieldPhoto = css.match(/\.fieldPhoto\s*\{([^}]*)\}/s)?.[1] ?? '';

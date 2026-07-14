@@ -55,7 +55,7 @@ describe('landing waitlist preview', () => {
     expect(document.activeElement).toBe(input);
   });
 
-  test('shows the trimmed email and honest local-only disclosure after valid submission', () => {
+  test('shows and focuses an honest local-only status after valid submission', () => {
     render(createElement(LandingPage));
 
     fireEvent.change(screen.getByLabelText('Email address'), {
@@ -64,9 +64,12 @@ describe('landing waitlist preview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
 
     expect(screen.queryByLabelText('Email address')).toBeNull();
-    expect(screen.getByText('You are on the preview list.')).toBeTruthy();
+    const status = screen.getByText('Preview complete. Your email was not submitted or stored.').parentElement;
+
+    expect(status).toBeTruthy();
+    expect(status?.getAttribute('tabindex')).toBe('-1');
     expect(screen.getByText('learner@example.com')).toBeTruthy();
-    expect(screen.getByText('Nothing was sent or stored.')).toBeTruthy();
+    expect(document.activeElement).toBe(status);
   });
 
 });

@@ -1,4 +1,6 @@
 .sequence {
+  --coral-ink: #c43d29;
+  --green-ink: #187a4f;
   min-height: 100svh;
   padding: clamp(80px, 10vw, 160px) clamp(20px, 5vw, 80px);
   border-bottom: 1px solid var(--line);
@@ -238,7 +240,7 @@
 }
 
 .action > span {
-  color: var(--coral);
+  color: var(--coral-ink);
 }
 
 .action small,
@@ -257,7 +259,7 @@
 }
 
 .verified > span {
-  color: var(--green);
+  color: var(--green-ink);
 }
 
 .workspace[data-workspace-state='ask'] .question,
@@ -347,7 +349,7 @@
 }
 
 .chapter[aria-current='step'] p {
-  color: var(--coral);
+  color: var(--coral-ink);
 }
 
 @media (min-width: 760px) {

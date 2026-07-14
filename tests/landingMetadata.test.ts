@@ -7,7 +7,7 @@ describe('landing metadata and brand', () => {
     expect(html).toContain('<title>Kairo — Learn by doing</title>');
     expect(html).toContain('name="description"');
     expect(html).toContain('one clear next step');
-    expect(html).not.toContain('cursor|overlay|notch');
+    expect(html).not.toMatch(/cursor|overlay|notch/i);
   });
 
   test('links a local brand favicon that the static server can return', () => {

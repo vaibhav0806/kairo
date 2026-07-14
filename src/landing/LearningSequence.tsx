@@ -121,7 +121,7 @@ export function LearningSequence() {
       <header className={styles.intro}>
         <p>One continuous lesson</p>
         <h2 id="sequence-title">One move at a time.</h2>
-        <span>Scroll the field notes. The workspace stays with you.</span>
+        <span>Follow the four steps below.</span>
       </header>
 
       <div ref={filmRef} className={styles.film} data-active-chapter={activeChapter} data-sticky-mode={stickyMode}>
