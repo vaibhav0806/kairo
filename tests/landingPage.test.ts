@@ -54,6 +54,13 @@ describe('landing page', () => {
     positions.forEach((position) => expect(position).toBeGreaterThan(-1));
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(html).toContain('data-field-notes="true"');
+    expect(html).toContain('and any desktop tool you are learning');
+  });
+
+  test('gives the wordmark a full-height touch target', () => {
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+
+    expect(css).toMatch(/\.wordmark\s*\{[^}]*display:\s*inline-flex;/s);
   });
 
   test('uses the high-resolution Blender capture', () => {

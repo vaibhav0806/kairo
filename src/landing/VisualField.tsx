@@ -5,6 +5,7 @@ export function VisualField() {
     <>
       <section id="tools" className={styles.tools} aria-labelledby="tools-title" data-reveal>
         <h2 id="tools-title">Learn across your tools</h2>
+        <p className={styles.toolCoverage}>and any desktop tool you are learning</p>
         <div>{['Blender', 'Figma', 'VS Code', 'Photoshop'].map((tool) => <figure key={tool} data-tool-print><figcaption>{tool}</figcaption></figure>)}</div>
         <svg data-tool-connector aria-hidden="true" viewBox="0 0 1200 420"><path d="M72 302C236 82 405 70 546 230s344 140 580-84" /></svg>
       </section>
