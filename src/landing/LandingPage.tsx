@@ -11,6 +11,12 @@ function asset(filename: string): string {
   return `${import.meta.env.BASE_URL}${filename}`;
 }
 
+const navItems = [
+  { number: '1.1', label: 'How it works', href: '#how-it-works' },
+  { number: '1.2', label: 'Tools', href: '#tools' },
+  { number: '1.3', label: 'Trust', href: '#trust' },
+];
+
 export function LandingPage() {
   const pageRef = useRef<HTMLDivElement>(null);
 
@@ -94,9 +100,17 @@ export function LandingPage() {
       <header className={styles.header}>
         <a className={styles.wordmark} href="#top" aria-label="Kairo home">kairo</a>
         <nav aria-label="Landing page">
-          <a href="#how-it-works">How it works</a>
-          <a href="#tools">Tools</a>
-          <a href="#trust">Trust</a>
+          {navItems.map((item) => (
+            <a key={item.href} href={item.href} aria-label={item.label}>
+              <span className={styles.navNumber} data-nav-number aria-hidden="true">{item.number}</span>
+              <span className={styles.navLabelWindow} aria-hidden="true">
+                <span className={styles.navLabelTrack}>
+                  <span className={styles.navLabel} data-nav-label>{item.label}</span>
+                  <span className={styles.navLabel} data-nav-label>{item.label}</span>
+                </span>
+              </span>
+            </a>
+          ))}
         </nav>
         <a className={styles.headerCta} href="#access">Join the alpha <span aria-hidden="true">↗</span></a>
       </header>

@@ -90,6 +90,25 @@ afterEach(() => {
 });
 
 describe('landing page', () => {
+  test('rolls navbar labels while keeping their link numbers stationary', () => {
+    render(createElement(LandingPage));
+    const nav = screen.getByRole('navigation', { name: 'Landing page' });
+    const links = within(nav).getAllByRole('link');
+    const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+
+    expect(links).toHaveLength(3);
+    links.forEach((link, index) => {
+      expect(link.querySelector('[data-nav-number]')?.textContent).toBe(`1.${index + 1}`);
+      const labels = link.querySelectorAll('[data-nav-label]');
+      expect(labels).toHaveLength(2);
+      expect(labels[0]?.textContent).toBe(link.getAttribute('aria-label'));
+      expect(labels[1]?.textContent).toBe(labels[0]?.textContent);
+    });
+    expect(css).toMatch(/\.navLabelWindow\s*\{[^}]*overflow:\s*hidden;/s);
+    expect(css).toMatch(/\.header nav a:is\(:hover, :focus-visible\) \.navLabelTrack\s*\{[^}]*transform:\s*translateY\(-50%\);/s);
+    expect(css).toContain('450ms cubic-bezier(0.44, 0, 0.56, 1)');
+  });
+
   test('keeps the field-notes system responsive and within its image budget', () => {
     const css = [
       'LandingPage.module.css', 'Hero.module.css', 'LearningSequence.module.css',

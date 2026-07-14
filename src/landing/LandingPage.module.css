@@ -100,7 +100,38 @@
 }
 
 .header nav a {
+  gap: 8px;
   color: var(--muted);
+}
+
+.navNumber {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.navLabelWindow {
+  height: 1.25em;
+  overflow: hidden;
+  line-height: 1.25;
+}
+
+.navLabelTrack {
+  display: flex;
+  flex-direction: column;
+  transition: transform 450ms cubic-bezier(0.44, 0, 0.56, 1);
+}
+
+.navLabel {
+  display: flex;
+  height: 1.25em;
+  flex: 0 0 1.25em;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.header nav a:is(:hover, :focus-visible) .navLabelTrack {
+  transform: translateY(-50%);
 }
 
 .headerCta {
@@ -227,5 +258,10 @@
 
   [data-reveal] {
     opacity: 1 !important;
+  }
+
+  .navLabelTrack {
+    transition: none !important;
+    transform: none !important;
   }
 }
