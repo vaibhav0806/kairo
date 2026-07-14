@@ -1,0 +1,65 @@
+.trust,
+.waitlist {
+  min-height: 70svh;
+  padding: clamp(80px, 10vw, 160px) clamp(20px, 5vw, 80px);
+  border-bottom: 1px solid var(--line);
+}
+
+.trust {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.trust h2,
+.waitlist h2 {
+  max-width: 11ch;
+  font-size: clamp(4rem, 9vw, 9rem);
+  line-height: 0.88;
+  letter-spacing: -0.055em;
+}
+
+.waitlist form,
+.waitlist > div {
+  display: grid;
+  max-width: 720px;
+  margin-top: 64px;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+}
+
+.waitlist label,
+.note,
+.error {
+  grid-column: 1 / -1;
+}
+
+.waitlist input {
+  width: 100%;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.waitlist button {
+  padding: 0 22px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.error {
+  color: #b72f24;
+}
+
+@media (max-width: 560px) {
+  .waitlist form {
+    grid-template-columns: 1fr;
+  }
+}

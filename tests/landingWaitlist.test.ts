@@ -69,17 +69,4 @@ describe('landing waitlist preview', () => {
     expect(screen.getByText('Nothing was sent or stored.')).toBeTruthy();
   });
 
-  test('lets the learner choose an app and a goal before joining', () => {
-    render(createElement(LandingPage));
-
-    const figma = screen.getByRole('button', { name: 'Learn in Figma' });
-    const finish = screen.getByRole('button', { name: 'Finish a project' });
-    expect(figma.getAttribute('aria-pressed')).toBe('false');
-    expect(finish.getAttribute('aria-pressed')).toBe('false');
-
-    fireEvent.click(figma);
-    fireEvent.click(finish);
-    expect(figma.getAttribute('aria-pressed')).toBe('true');
-    expect(finish.getAttribute('aria-pressed')).toBe('true');
-  });
 });

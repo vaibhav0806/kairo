@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
+    "@fontsource/instrument-serif": "^5.2.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
