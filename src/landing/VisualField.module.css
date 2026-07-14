@@ -424,6 +424,12 @@
   font-style: normal;
 }
 
+.codeCanvas > .focusMark {
+  width: 48%;
+  inset: 8% auto auto 27%;
+  transform: rotate(-3deg);
+}
+
 .photoCanvas {
   background: color-mix(in srgb, var(--ink) 88%, var(--paper));
   color: var(--paper);

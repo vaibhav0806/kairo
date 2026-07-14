@@ -134,6 +134,12 @@
   color: var(--ink);
 }
 
+.waitlist input:focus,
+.waitlist input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 .waitlist button {
   padding: 0 22px;
   border: 1px solid var(--ink);

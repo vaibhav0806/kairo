@@ -129,7 +129,7 @@ describe('landing page', () => {
     positions.forEach((position) => expect(position).toBeGreaterThan(-1));
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(html).toContain('data-field-notes="true"');
-    expect(html).toContain('and any desktop tool you are learning');
+    expect(html).toContain('and any desktop app you are learning');
   });
 
   test('shows one anchored scene through the complete learning loop', () => {

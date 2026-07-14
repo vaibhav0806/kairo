@@ -25,7 +25,7 @@ export function VisualField() {
         <div className={styles.sectionIntro}>
           <p className={styles.kicker}>One guide, many canvases</p>
           <h2 id="tools-title">Learn across your tools</h2>
-          <p className={styles.toolCoverage}>and any desktop tool you are learning</p>
+          <p className={styles.toolCoverage}>and any desktop app you are learning</p>
         </div>
 
         <div className={styles.toolField} data-ambient-stage>
