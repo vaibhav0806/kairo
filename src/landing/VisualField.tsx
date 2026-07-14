@@ -43,7 +43,7 @@ export function VisualField() {
             <path d="M72 302C236 82 405 70 546 230s344 140 580-84" />
           </svg>
 
-          <figure className={`${styles.toolPrint} ${styles.blenderPrint}`} data-tool-print>
+          <figure className={`${styles.toolPrint} ${styles.blenderPrint}`} data-tool-print data-tool-reveal>
             <figcaption><span>01 / 04</span><strong>Blender</strong></figcaption>
             <div className={`${styles.toolCanvas} ${styles.blenderCanvas}`}>
               <img
@@ -59,7 +59,7 @@ export function VisualField() {
             </div>
           </figure>
 
-          <figure className={`${styles.toolPrint} ${styles.figmaPrint}`} data-tool-print>
+          <figure className={`${styles.toolPrint} ${styles.figmaPrint}`} data-tool-print data-tool-reveal>
             <figcaption><span>02 / 04</span><strong>Figma</strong></figcaption>
             <div className={`${styles.toolCanvas} ${styles.lightCanvas}`} role="img" aria-label="Simplified Figma design canvas">
               <div className={styles.appBar} aria-hidden="true"><i /><i /><i /><b>Landing / Canvas</b></div>
@@ -74,7 +74,7 @@ export function VisualField() {
             </div>
           </figure>
 
-          <figure className={`${styles.toolPrint} ${styles.codePrint}`} data-tool-print>
+          <figure className={`${styles.toolPrint} ${styles.codePrint}`} data-tool-print data-tool-reveal>
             <figcaption><span>03 / 04</span><strong>VS Code</strong></figcaption>
             <div className={`${styles.toolCanvas} ${styles.codeCanvas}`} role="img" aria-label="Simplified VS Code editor">
               <div className={styles.appBar} aria-hidden="true"><i /><i /><i /><b>lesson.tsx</b></div>
@@ -86,7 +86,7 @@ export function VisualField() {
             </div>
           </figure>
 
-          <figure className={`${styles.toolPrint} ${styles.photoPrint}`} data-tool-print>
+          <figure className={`${styles.toolPrint} ${styles.photoPrint}`} data-tool-print data-tool-reveal>
             <figcaption><span>04 / 04</span><strong>Photoshop</strong></figcaption>
             <div className={`${styles.toolCanvas} ${styles.photoCanvas}`} role="img" aria-label="Simplified Photoshop image-editing canvas">
               <div className={styles.appBar} aria-hidden="true"><i /><i /><i /><b>field-study.psd @ 66.7%</b></div>

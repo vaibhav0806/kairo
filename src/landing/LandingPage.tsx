@@ -15,7 +15,7 @@ export function LandingPage() {
     if (!page) return undefined;
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const revealTargets = page.querySelectorAll<HTMLElement>('[data-reveal]');
+    const revealTargets = page.querySelectorAll<HTMLElement>('[data-reveal], [data-tool-reveal]');
     const ambientStages = page.querySelectorAll<HTMLElement>('[data-ambient-stage]');
 
     const syncMotionPreference = () => {

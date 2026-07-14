@@ -227,6 +227,44 @@ describe('landing page', () => {
     expect(chapter?.dataset.revealed).toBe('true');
   });
 
+  test('observes and reveals each tool print independently', () => {
+    const { container } = render(createElement(LandingPage));
+    const prints = [...container.querySelectorAll<HTMLElement>('[data-tool-reveal]')];
+    const figmaPrint = prints[1];
+
+    expect(prints).toHaveLength(4);
+    expect(figmaPrint?.textContent).toContain('Figma');
+    expect(figmaPrint?.dataset.revealed).toBeUndefined();
+
+    act(() => observerFor(figmaPrint as HTMLElement).trigger(figmaPrint as HTMLElement, true));
+
+    expect(figmaPrint?.dataset.revealed).toBe('true');
+    expect(prints[0]?.dataset.revealed).toBeUndefined();
+    expect(prints[2]?.dataset.revealed).toBeUndefined();
+    expect(prints[3]?.dataset.revealed).toBeUndefined();
+  });
+
+  test('reveals tool prints with short motion-safe transforms and preserves their composition', () => {
+    const css = readFileSync('src/landing/VisualField.module.css', 'utf8');
+    const reducedRules = css.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*$/)?.[0] ?? '';
+
+    expect(css).toMatch(/\.toolPrint\s*\{[^}]*transition:\s*opacity\s+(?:[1-3]?\d\d|400)ms\s+ease-out,\s*transform\s+(?:[1-3]?\d\d|400)ms\s+ease-out;/s);
+    expect(css).toMatch(/\[data-motion-ready='true'\][^\{]*\.toolPrint\[data-tool-reveal\]:not\(\[data-revealed='true'\]\)\s*\{[^}]*opacity:\s*0;/s);
+    expect(css).toMatch(/\.blenderPrint\[data-tool-reveal\]:not\(\[data-revealed='true'\]\)\s*\{[^}]*transform:\s*translate3d\([^)]*\)\s+rotate\(-1\.8deg\);/s);
+    expect(css).toMatch(/\.figmaPrint\[data-tool-reveal\]:not\(\[data-revealed='true'\]\)\s*\{[^}]*transform:\s*translate3d\([^)]*\)\s+rotate\(2\.2deg\);/s);
+    expect(css).toMatch(/\.codePrint\[data-tool-reveal\]:not\(\[data-revealed='true'\]\)\s*\{[^}]*transform:\s*translate3d\([^)]*\)\s+rotate\(1\.3deg\);/s);
+    expect(css).toMatch(/\.photoPrint\[data-tool-reveal\]:not\(\[data-revealed='true'\]\)\s*\{[^}]*transform:\s*translate3d\([^)]*\)\s+rotate\(-1\.5deg\);/s);
+    expect(css).toMatch(/\.blenderPrint\s*\{[^}]*transform:\s*rotate\(-1\.8deg\);/s);
+    expect(css).toMatch(/\.figmaPrint\s*\{[^}]*transform:\s*rotate\(2\.2deg\);/s);
+    expect(css).toMatch(/\.codePrint\s*\{[^}]*transform:\s*rotate\(1\.3deg\);/s);
+    expect(css).toMatch(/\.photoPrint\s*\{[^}]*transform:\s*rotate\(-1\.5deg\);/s);
+    expect(reducedRules).toMatch(/\.toolPrint\[data-tool-reveal\]\s*\{[^}]*opacity:\s*1\s*!important;/s);
+    expect(reducedRules).toMatch(/\.blenderPrint\[data-tool-reveal\]\s*\{[^}]*transform:\s*rotate\(-1\.8deg\)\s*!important;/s);
+    expect(reducedRules).toMatch(/\.figmaPrint\[data-tool-reveal\]\s*\{[^}]*transform:\s*rotate\(2\.2deg\)\s*!important;/s);
+    expect(reducedRules).toMatch(/\.codePrint\[data-tool-reveal\]\s*\{[^}]*transform:\s*rotate\(1\.3deg\)\s*!important;/s);
+    expect(reducedRules).toMatch(/\.photoPrint\[data-tool-reveal\]\s*\{[^}]*transform:\s*rotate\(-1\.5deg\)\s*!important;/s);
+  });
+
   test('stops ambient motion when a photographic stage leaves the viewport', () => {
     const { container } = render(createElement(LandingPage));
     const stage = container.querySelector<HTMLElement>('[data-ambient-stage]');

@@ -118,6 +118,7 @@
   border: 1px solid var(--line);
   background: var(--paper);
   box-shadow: 14px 16px 0 color-mix(in srgb, var(--ink) 10%, var(--paper-cool));
+  transition: opacity 360ms ease-out, transform 360ms ease-out;
 }
 
 .toolPrint figcaption {
@@ -170,6 +171,26 @@
   grid-column: 7 / span 6;
   grid-row: 2;
   transform: rotate(-1.5deg);
+}
+
+:global([data-motion-ready='true']) .toolPrint[data-tool-reveal]:not([data-revealed='true']) {
+  opacity: 0;
+}
+
+:global([data-motion-ready='true']) .blenderPrint[data-tool-reveal]:not([data-revealed='true']) {
+  transform: translate3d(0, 24px, 0) rotate(-1.8deg);
+}
+
+:global([data-motion-ready='true']) .figmaPrint[data-tool-reveal]:not([data-revealed='true']) {
+  transform: translate3d(0, 24px, 0) rotate(2.2deg);
+}
+
+:global([data-motion-ready='true']) .codePrint[data-tool-reveal]:not([data-revealed='true']) {
+  transform: translate3d(0, 24px, 0) rotate(1.3deg);
+}
+
+:global([data-motion-ready='true']) .photoPrint[data-tool-reveal]:not([data-revealed='true']) {
+  transform: translate3d(0, 24px, 0) rotate(-1.5deg);
 }
 
 .toolCanvas {
@@ -672,5 +693,27 @@
   .filePanel,
   .photoLayers {
     padding: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolPrint[data-tool-reveal] {
+    opacity: 1 !important;
+  }
+
+  .blenderPrint[data-tool-reveal] {
+    transform: rotate(-1.8deg) !important;
+  }
+
+  .figmaPrint[data-tool-reveal] {
+    transform: rotate(2.2deg) !important;
+  }
+
+  .codePrint[data-tool-reveal] {
+    transform: rotate(1.3deg) !important;
+  }
+
+  .photoPrint[data-tool-reveal] {
+    transform: rotate(-1.5deg) !important;
   }
 }
