@@ -8,7 +8,7 @@ function asset(filename: string): string {
 const trustPromises = [
   ['01', 'Starts only when you ask', 'Kairo waits until you begin a lesson.'],
   ['02', 'Pause anytime', 'Stop the lesson whenever you want.'],
-  ['03', 'Points, never clicks', 'You make every move yourself.']
+  ['03', 'Checks before moving on', 'Kairo waits for the result before showing the next step.']
 ] as const;
 
 export function validateWaitlistEmail(value: string): string | null {

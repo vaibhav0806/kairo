@@ -61,7 +61,7 @@ export function Hero() {
         <p className={styles.kicker}>Help, right where you are learning</p>
         <h1 id="landing-title">Turn stuck into your next move.</h1>
         <p>Ask about what’s on your screen. Kairo shows one move, watches you do it, and checks that it worked.</p>
-        <a href="#access">Join the alpha <span aria-hidden="true">↗</span></a>
+        <a href="#how-it-works">See how it works <span aria-hidden="true">↓</span></a>
       </div>
 
       <div className={styles.environment} data-ambient-stage>

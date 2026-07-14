@@ -105,11 +105,6 @@ export function LandingPage() {
       <footer className={styles.footer}>
         <div className={styles.footerTop}>
           <p>Learn by doing.</p>
-          <nav aria-label="Footer">
-            <a href="#top"><span>01</span> Home</a>
-            <a href="#how-it-works"><span>02</span> How it works</a>
-            <a href="#access"><span>03</span> Join the alpha</a>
-          </nav>
         </div>
         <strong data-footer-wordmark aria-label="Kairo">kairo</strong>
       </footer>

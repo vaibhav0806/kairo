@@ -684,7 +684,7 @@ describe('landing page', () => {
 
     expect(html).toContain('Starts only when you ask');
     expect(html).toContain('Pause anytime');
-    expect(html).toContain('Points, never clicks');
+    expect(html).toContain('Checks before moving on');
     expect(html).toContain('AI can get things wrong');
     expect(html).not.toMatch(/military-grade|zero data retention|SOC 2/i);
 
