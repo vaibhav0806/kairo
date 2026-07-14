@@ -465,17 +465,17 @@
 }
 
 @keyframes drawAnnotation {
-  0%, 32% { opacity: 0; stroke-dashoffset: 650; }
-  34% { opacity: 1; stroke-dashoffset: 650; }
-  42%, 62% { opacity: 1; stroke-dashoffset: 0; }
-  64%, 100% { opacity: 0; stroke-dashoffset: 0; }
+  0%, 4% { opacity: 0; stroke-dashoffset: 650; }
+  6% { opacity: 1; stroke-dashoffset: 650; }
+  14%, 28% { opacity: 1; stroke-dashoffset: 0; }
+  30%, 100% { opacity: 0; stroke-dashoffset: 0; }
 }
 
 @keyframes lockTarget {
-  0%, 32% { opacity: 0; transform: scale(0.82); }
-  34% { opacity: 1; transform: scale(1.06); }
-  38%, 62% { opacity: 1; transform: scale(1); }
-  64%, 100% { opacity: 0; transform: scale(1); }
+  0%, 4% { opacity: 0; transform: scale(0.82); }
+  6% { opacity: 1; transform: scale(1.06); }
+  10%, 28% { opacity: 1; transform: scale(1); }
+  30%, 100% { opacity: 0; transform: scale(1); }
 }
 
 @keyframes showInstruction {

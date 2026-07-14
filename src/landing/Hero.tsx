@@ -91,7 +91,6 @@ export function Hero() {
             <button
               type="button"
               onClick={() => setPaused((value) => !value)}
-              aria-pressed={paused}
               aria-label={paused ? 'Play lesson' : 'Pause lesson'}
               title={paused ? 'Play lesson' : 'Pause lesson'}
             >

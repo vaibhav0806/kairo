@@ -325,6 +325,21 @@ describe('landing page', () => {
     expect(reducedRules).toMatch(/\.mobileTranscript\s*\{[^}]*display:\s*grid;/);
   });
 
+  test('keeps pointing guidance inside the Ask beat', () => {
+    const heroCss = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const annotation = heroCss.match(/@keyframes\s+drawAnnotation\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const target = heroCss.match(/@keyframes\s+lockTarget\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+
+    expect(annotation).toMatch(/6%[^}]*opacity:\s*1;/);
+    expect(annotation).toMatch(/28%[^}]*opacity:\s*1;/);
+    expect(annotation).toMatch(/30%,\s*100%[^}]*opacity:\s*0;/);
+    expect(annotation).not.toMatch(/34%|62%/);
+    expect(target).toMatch(/6%[^}]*opacity:\s*1;/);
+    expect(target).toMatch(/28%[^}]*opacity:\s*1;/);
+    expect(target).toMatch(/30%,\s*100%[^}]*opacity:\s*0;/);
+    expect(target).not.toMatch(/34%|62%/);
+  });
+
   test('reveals every visual chapter when the observer is unavailable', () => {
     Object.defineProperty(window, 'IntersectionObserver', {
       configurable: true,
@@ -391,9 +406,11 @@ describe('landing page', () => {
     const { container } = render(createElement(LandingPage));
     const pause = screen.getByRole('button', { name: 'Pause lesson' });
     expect(pause.textContent).toBe('Ⅱ');
+    expect(pause.hasAttribute('aria-pressed')).toBe(false);
     fireEvent.click(pause);
     const play = screen.getByRole('button', { name: 'Play lesson' });
     expect(play.textContent).toBe('▶');
+    expect(play.hasAttribute('aria-pressed')).toBe(false);
     expect(container.querySelector('[data-hero-environment]')?.hasAttribute('data-reveal')).toBe(false);
   });
 
