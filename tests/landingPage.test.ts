@@ -518,9 +518,10 @@ describe('landing page', () => {
 
   test('shows three concise practice moments in one environment', () => {
     render(createElement(LandingPage));
-    const region = screen.getByRole('region', { name: 'Ask, try, learn' });
+    const region = screen.getByRole('region', { name: 'Keep making. Keep learning.' });
     const panels = within(region).getAllByRole('article');
 
+    expect(screen.queryByRole('heading', { name: 'Ask, try, learn' })).toBeNull();
     expect(panels).toHaveLength(3);
     expect(panels.map((panel) => panel.querySelector('h3')?.textContent)).toEqual(['Ask', 'Try', 'Learn']);
     expect(panels.map((panel) => panel.querySelector('p')?.textContent)).toEqual([

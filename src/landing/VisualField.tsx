@@ -105,7 +105,7 @@ export function VisualField() {
       <section id="practice" className={styles.practice} aria-labelledby="practice-title" data-reveal>
         <div className={styles.sectionIntro}>
           <p className={styles.kicker}>A small loop, repeated</p>
-          <h2 id="practice-title">Ask, try, learn</h2>
+          <h2 id="practice-title">Keep making. Keep learning.</h2>
         </div>
 
         <div className={styles.practiceEnvironment} data-ambient-stage>
