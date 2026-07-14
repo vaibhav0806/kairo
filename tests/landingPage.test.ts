@@ -216,6 +216,17 @@ describe('landing page', () => {
     expect(visualCss).toMatch(/:global\(\[data-page-visible='false'\]\)\s+\.ambientPhoto\s*\{[^}]*transition:\s*none;/);
   });
 
+  test('shows only the intentional hero instruction on reduced-motion mobile', () => {
+    const heroCss = readFileSync('src/landing/Hero.module.css', 'utf8');
+    const mobileRules = heroCss.match(/@media\s*\(max-width:\s*760px\)[\s\S]*?(?=@media\s*\(prefers-reduced-motion:\s*no-preference\))/)?.[0] ?? '';
+    const reducedRules = heroCss.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*$/)?.[0] ?? '';
+
+    expect(heroCss.indexOf(reducedRules)).toBeGreaterThan(heroCss.indexOf(mobileRules));
+    expect(mobileRules).toMatch(/\.question,\s*\.annotation,\s*\.target,\s*\.instruction\s*\{[^}]*display:\s*none;/);
+    expect(reducedRules).toMatch(/\.question,\s*\.annotation,\s*\.target\s*\{[^}]*display:\s*none;/);
+    expect(reducedRules).toMatch(/\.instruction\s*\{[^}]*display:\s*grid;/);
+  });
+
   test('reveals every visual chapter when the observer is unavailable', () => {
     Object.defineProperty(window, 'IntersectionObserver', {
       configurable: true,

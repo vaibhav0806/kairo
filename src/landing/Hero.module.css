@@ -522,6 +522,7 @@
   }
 
   .instruction {
+    display: grid;
     left: auto;
     right: 4%;
     animation: none !important;
