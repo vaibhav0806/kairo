@@ -5,30 +5,23 @@ const lessonChapters = [
   {
     id: 'ask',
     label: 'Ask',
-    title: 'Name the stuck point.',
-    copy: 'Ask out loud, in the words you already have.',
-    summary: 'Ask: How do I animate this cube?'
+    title: 'Show where you’re stuck.',
+    copy: 'Ask aloud or circle the cube: “How do I add a keyframe here?”',
+    summary: 'You asked: How do I add a keyframe here?'
   },
   {
-    id: 'point',
-    label: 'Point',
-    title: 'Show what you mean.',
-    copy: 'Kairo finds the exact object and gives one clear move.',
-    summary: 'Point: Cube found. Press I, then choose Location.'
+    id: 'do',
+    label: 'Do',
+    title: 'Follow one move.',
+    copy: 'Kairo finds the cube and says: Press I, then choose Location. You make the move yourself.',
+    summary: 'Kairo: Press I → Location. You do it.'
   },
   {
-    id: 'try',
-    label: 'Try',
-    title: 'Make the move yourself.',
-    copy: 'The lesson stays put while you work in Blender.',
-    summary: 'Try: You press I and choose Location.'
-  },
-  {
-    id: 'checked',
+    id: 'check',
     label: 'Check',
-    title: 'See what changed.',
-    copy: 'Kairo checks the result before you move on.',
-    summary: 'Check: Keyframe added. Ready for the next move.'
+    title: 'Know it worked.',
+    copy: 'Kairo sees the keyframe was added, then gives the next step.',
+    summary: 'Checked: Keyframe added.'
   }
 ] as const;
 
@@ -119,9 +112,9 @@ export function LearningSequence() {
   return (
     <section id="how-it-works" className={styles.sequence} aria-labelledby="sequence-title" data-reveal>
       <header className={styles.intro}>
-        <p>One continuous lesson</p>
-        <h2 id="sequence-title">One move at a time.</h2>
-        <span>Follow the four steps below.</span>
+        <p>One question. One result.</p>
+        <h2 id="sequence-title">See a lesson from start to finish.</h2>
+        <span>Add a keyframe in three clear steps.</span>
       </header>
 
       <div ref={filmRef} className={styles.film} data-active-chapter={activeChapter} data-sticky-mode={stickyMode}>
@@ -132,7 +125,7 @@ export function LearningSequence() {
         >
           <div className={styles.workspaceBar} aria-hidden="true">
             <span><i /> Live lesson</span>
-            <b>Blender / keyframes</b>
+            <b>Goal · Add your first keyframe</b>
           </div>
 
           <figure className={styles.viewport}>
@@ -147,7 +140,7 @@ export function LearningSequence() {
 
             <div className={`${styles.layer} ${styles.question}`} aria-hidden="true">
               <span aria-hidden="true">You asked</span>
-              How do I animate this cube?
+              How do I add a keyframe here?
             </div>
 
             <svg className={`${styles.layer} ${styles.learnerMark}`} viewBox="0 0 260 190" aria-hidden="true">
@@ -174,7 +167,7 @@ export function LearningSequence() {
             <div className={`${styles.layer} ${styles.verified}`} aria-hidden="true">
               <span aria-hidden="true">Checked</span>
               <b>Keyframe added</b>
-              <small>Ready for the next move.</small>
+              <small>Next · Move to frame 40</small>
             </div>
           </figure>
 

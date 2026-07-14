@@ -135,16 +135,21 @@ describe('landing page', () => {
   test('shows one anchored scene through the complete learning loop', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     expect(html.match(/data-learning-workspace=/g)).toHaveLength(1);
-    expect([...html.matchAll(/data-lesson-chapter="([^"]+)"/g)].map((match) => match[1]))
-      .toEqual(['ask', 'point', 'try', 'checked']);
-    ['Ask', 'Point', 'Try', 'Check'].forEach((label) => expect(html).toContain(label));
+    const chapterIds = [...html.matchAll(/data-lesson-chapter="([^"]+)"/g)]
+      .map((match) => match[1]);
+    expect(chapterIds).toEqual(['ask', 'do', 'check']);
+    ['Ask', 'Do', 'Check'].forEach((label) => expect(html).toContain(label));
+    expect(html).toContain('One question. One result.');
+    expect(html).toContain('See a lesson from start to finish.');
+    expect(html).toContain('Add a keyframe in three clear steps.');
+    expect(html).not.toContain('Follow the four steps below.');
     expect(html).toContain('data-active-chapter="0"');
     expect(html).toContain('data-workspace-state="ask"');
   });
 
   test('keeps the sticky lesson workspace in sync with the reading line', () => {
     const frames: FrameRequestCallback[] = [];
-    const chapterTops = [400, 650, 1200, 1700];
+    const chapterTops = [400, 900, 1500];
 
     vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(1400);
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -175,12 +180,12 @@ describe('landing page', () => {
     expect(container.querySelector('[data-active-chapter]')?.getAttribute('data-active-chapter')).toBe('0');
     expect(container.querySelector('[data-learning-workspace]')?.getAttribute('data-workspace-state')).toBe('ask');
 
-    chapterTops.splice(0, chapterTops.length, -1200, -700, -100, 650);
+    chapterTops.splice(0, chapterTops.length, -700, -100, 650);
     act(() => window.dispatchEvent(new Event('scroll')));
     act(() => frames.shift()?.(16));
 
-    expect(container.querySelector('[data-active-chapter]')?.getAttribute('data-active-chapter')).toBe('3');
-    expect(container.querySelector('[data-learning-workspace]')?.getAttribute('data-workspace-state')).toBe('checked');
+    expect(container.querySelector('[data-active-chapter]')?.getAttribute('data-active-chapter')).toBe('2');
+    expect(container.querySelector('[data-learning-workspace]')?.getAttribute('data-workspace-state')).toBe('check');
 
     act(() => window.dispatchEvent(new Event('scroll')));
     unmount();
@@ -475,7 +480,8 @@ describe('landing page', () => {
   test('describes the lesson sequence truthfully in every layout', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
 
-    expect(html).toContain('Follow the four steps below.');
+    expect(html).toContain('Add a keyframe in three clear steps.');
+    expect(html).not.toContain('Follow the four steps below.');
     expect(html).not.toContain('The workspace stays with you.');
   });
 
@@ -633,7 +639,7 @@ describe('landing page', () => {
     expect(visualOverlays).toHaveLength(5);
     visualOverlays.forEach((overlay) => expect(overlay.getAttribute('aria-hidden')).toBe('true'));
     expect(within(workspace as HTMLElement).getByAltText('Blender with a cube selected in the 3D viewport')).toBeTruthy();
-    expect(within(workspace as HTMLElement).getByText('Ask: How do I animate this cube?').getAttribute('aria-hidden')).not.toBe('true');
+    expect(within(workspace as HTMLElement).getByText('You asked: How do I add a keyframe here?').getAttribute('aria-hidden')).not.toBe('true');
     expect(screen.getByRole('list', { name: 'How a Kairo lesson works' })).toBeTruthy();
   });
 

@@ -263,23 +263,20 @@
 }
 
 .workspace[data-workspace-state='ask'] .question,
-.workspace[data-workspace-state='point'] .question,
-.workspace[data-workspace-state='point'] .target,
-.workspace[data-workspace-state='point'] .instruction,
-.workspace[data-workspace-state='try'] .action,
-.workspace[data-workspace-state='checked'] .verified {
+.workspace[data-workspace-state='do'] .target,
+.workspace[data-workspace-state='do'] .instruction,
+.workspace[data-workspace-state='do'] .action,
+.workspace[data-workspace-state='check'] .verified {
   opacity: 1;
   transform: translate3d(0, 0, 0);
 }
 
-.workspace[data-workspace-state='ask'] .learnerMark,
-.workspace[data-workspace-state='point'] .learnerMark {
+.workspace[data-workspace-state='ask'] .learnerMark {
   opacity: 1;
   transform: rotate(-7deg) translate3d(0, 0, 0);
 }
 
-.workspace[data-workspace-state='ask'] .learnerMark path,
-.workspace[data-workspace-state='point'] .learnerMark path {
+.workspace[data-workspace-state='ask'] .learnerMark path {
   stroke-dashoffset: 0;
 }
 
