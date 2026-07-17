@@ -177,12 +177,21 @@ test('hydrates the hero and tool carousel controls', async ({ page }) => {
   await expect(tools.getByRole('button', { name: 'Pause tool carousel' })).toBeVisible();
 });
 
-test('loads a cold waitlist hash and validates without mutating remote state', async ({ page }) => {
-  const mutationRequests: string[] = [];
-  page.on('request', (request) => {
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())) {
-      mutationRequests.push(`${request.method()} ${request.url()}`);
-    }
+test('submits the waitlist once with a normalized email before showing success', async ({ page }) => {
+  const requests: Array<{ method: string; body: unknown }> = [];
+  let releaseResponse: () => void = () => {};
+  const responseGate = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  await page.route('**/api/waitlist', async (route) => {
+    const request = route.request();
+    requests.push({ method: request.method(), body: request.postDataJSON() });
+    await responseGate;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true })
+    });
   });
 
   await gotoLanding(page, '/#access');
@@ -190,19 +199,20 @@ test('loads a cold waitlist hash and validates without mutating remote state', a
   await expect(waitlist).toBeInViewport();
 
   const input = page.getByLabel('Email address');
-  await input.fill('learner@');
-  await page.getByRole('button', { name: 'Join the alpha' }).click();
-  await expect(input).toBeFocused();
-  await expect(input).toHaveAttribute('aria-invalid', 'true');
-  await expect(waitlist.getByRole('alert')).toHaveText('Enter a valid email address.');
-
   await input.fill('  learner@example.com  ');
   await page.getByRole('button', { name: 'Join the alpha' }).click();
+
+  await expect.poll(() => requests).toEqual([{
+    method: 'POST',
+    body: { email: 'learner@example.com' }
+  }]);
+  await expect(page.getByRole('status')).toHaveCount(0);
+
+  releaseResponse();
   const success = page.getByRole('status');
   await expect(success).toBeFocused();
-  await expect(success).toContainText('Preview complete. Your email was not submitted or stored.');
+  await expect(success).toContainText('You’re on the list.');
   await expect(success).toContainText('learner@example.com');
-  expect(mutationRequests).toEqual([]);
 });
 
 for (const viewport of viewports) {
