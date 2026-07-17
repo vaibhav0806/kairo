@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import styles from './Hero.module.css';
 
 function asset(filename: string): string {
-  return `${import.meta.env.BASE_URL}${filename}`;
+  return `/${filename}`;
 }
 
 export function Hero() {

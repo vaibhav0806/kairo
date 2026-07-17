@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useRef } from 'react';
 import { Hero } from './Hero';
 import { LearningSequence } from './LearningSequence';
@@ -8,7 +10,7 @@ import styles from './LandingPage.module.css';
 export { validateWaitlistEmail };
 
 function asset(filename: string): string {
-  return `${import.meta.env.BASE_URL}${filename}`;
+  return `/${filename}`;
 }
 
 const navItems = [

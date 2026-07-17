@@ -26,7 +26,7 @@ const lessonChapters = [
 ] as const;
 
 function asset(filename: string): string {
-  return `${import.meta.env.BASE_URL}${filename}`;
+  return `/${filename}`;
 }
 
 export function LearningSequence() {
