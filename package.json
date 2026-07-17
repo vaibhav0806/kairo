@@ -4,15 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty false",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit --pretty false",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource/instrument-serif": "^5.2.8",
+    "next": "16.2.10",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -21,10 +23,8 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
-    "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "27.0.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.7",
     "vitest": "^4.1.9"
   }
 }

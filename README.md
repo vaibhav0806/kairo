@@ -1,6 +1,6 @@
 # Kairo Landing Page
 
-The public landing page for Kairo, built with React, TypeScript, and Vite.
+The public landing page for Kairo, built with Next.js, React, and TypeScript.
 
 ## Development
 
@@ -9,7 +9,14 @@ npm install
 npm run dev
 ```
 
-The local site runs at `http://127.0.0.1:5273`.
+The local site runs at `http://localhost:3000`.
+
+To run a production build locally:
+
+```bash
+npm run build
+npm run start
+```
 
 ## Verify
 
