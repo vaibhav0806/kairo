@@ -148,7 +148,7 @@ describe('landing page', () => {
     positions.forEach((position) => expect(position).toBeGreaterThan(-1));
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(html).toContain('data-field-notes="true"');
-    expect(html).toContain('and any desktop app you are learning');
+    expect(html).toContain('See how Kairo turns context into one clear next move.');
   });
 
   test('shows one anchored scene through the complete learning loop', () => {
@@ -251,42 +251,26 @@ describe('landing page', () => {
     expect(chapter?.dataset.revealed).toBe('true');
   });
 
-  test('observes and reveals each tool print independently', () => {
+  test('observes and reveals the tool carousel as one composition', () => {
     const { container } = render(createElement(LandingPage));
-    const prints = [...container.querySelectorAll<HTMLElement>('[data-tool-reveal]')];
-    const figmaPrint = prints[1];
+    const carousel = container.querySelector<HTMLElement>('[data-tool-carousel]');
 
-    expect(prints).toHaveLength(4);
-    expect(figmaPrint?.textContent).toContain('Figma');
-    expect(figmaPrint?.dataset.revealed).toBeUndefined();
+    expect(carousel).toBeTruthy();
+    expect(carousel?.textContent).toContain('Figma');
+    expect(carousel?.dataset.revealed).toBeUndefined();
 
-    act(() => observerFor(figmaPrint as HTMLElement).trigger(figmaPrint as HTMLElement, true));
+    act(() => observerFor(carousel as HTMLElement).trigger(carousel as HTMLElement, true));
 
-    expect(figmaPrint?.dataset.revealed).toBe('true');
-    expect(prints[0]?.dataset.revealed).toBeUndefined();
-    expect(prints[2]?.dataset.revealed).toBeUndefined();
-    expect(prints[3]?.dataset.revealed).toBeUndefined();
+    expect(carousel?.dataset.revealed).toBe('true');
   });
 
-  test('reveals tool prints with short motion-safe transforms and preserves their composition', () => {
+  test('uses a short interruptible carousel transition with a static reduced-motion fallback', () => {
     const css = readFileSync('src/landing/VisualField.module.css', 'utf8');
     const reducedRules = css.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*$/)?.[0] ?? '';
 
-    expect(css).toMatch(/\.toolPrint\s*\{[^}]*transition:\s*opacity\s+(?:[1-3]?\d\d|400)ms\s+ease-out,\s*transform\s+(?:[1-3]?\d\d|400)ms\s+ease-out;/s);
-    expect(css).toMatch(/\[data-motion-ready='true'\][^\{]*\.toolPrint\[data-tool-reveal\]:not\(\[data-revealed='true'\]\)\s*\{[^}]*opacity:\s*0;/s);
-    expect(css).toMatch(/\.blenderPrint\[data-tool-reveal\]:not\(\[data-revealed='true'\]\)\s*\{[^}]*transform:\s*translate3d\([^)]*\)\s+rotate\(-1\.8deg\);/s);
-    expect(css).toMatch(/\.figmaPrint\[data-tool-reveal\]:not\(\[data-revealed='true'\]\)\s*\{[^}]*transform:\s*translate3d\([^)]*\)\s+rotate\(2\.2deg\);/s);
-    expect(css).toMatch(/\.codePrint\[data-tool-reveal\]:not\(\[data-revealed='true'\]\)\s*\{[^}]*transform:\s*translate3d\([^)]*\)\s+rotate\(1\.3deg\);/s);
-    expect(css).toMatch(/\.photoPrint\[data-tool-reveal\]:not\(\[data-revealed='true'\]\)\s*\{[^}]*transform:\s*translate3d\([^)]*\)\s+rotate\(-1\.5deg\);/s);
-    expect(css).toMatch(/\.blenderPrint\s*\{[^}]*transform:\s*rotate\(-1\.8deg\);/s);
-    expect(css).toMatch(/\.figmaPrint\s*\{[^}]*transform:\s*rotate\(2\.2deg\);/s);
-    expect(css).toMatch(/\.codePrint\s*\{[^}]*transform:\s*rotate\(1\.3deg\);/s);
-    expect(css).toMatch(/\.photoPrint\s*\{[^}]*transform:\s*rotate\(-1\.5deg\);/s);
-    expect(reducedRules).toMatch(/\.toolPrint\[data-tool-reveal\]\s*\{[^}]*opacity:\s*1\s*!important;/s);
-    expect(reducedRules).toMatch(/\.blenderPrint\[data-tool-reveal\]\s*\{[^}]*transform:\s*rotate\(-1\.8deg\)\s*!important;/s);
-    expect(reducedRules).toMatch(/\.figmaPrint\[data-tool-reveal\]\s*\{[^}]*transform:\s*rotate\(2\.2deg\)\s*!important;/s);
-    expect(reducedRules).toMatch(/\.codePrint\[data-tool-reveal\]\s*\{[^}]*transform:\s*rotate\(1\.3deg\)\s*!important;/s);
-    expect(reducedRules).toMatch(/\.photoPrint\[data-tool-reveal\]\s*\{[^}]*transform:\s*rotate\(-1\.5deg\)\s*!important;/s);
+    expect(css).toMatch(/\.carouselTrack\s*\{[^}]*transition:\s*transform\s+240ms\s+cubic-bezier\(0\.23,\s*1,\s*0\.32,\s*1\);/s);
+    expect(css).toMatch(/\.toolTabs button:active,[\s\S]*?transform:\s*scale\(0\.96\);/s);
+    expect(reducedRules).toMatch(/\.carouselTrack\s*\{[^}]*transition:\s*none;/s);
   });
 
   test('stops ambient motion when a photographic stage leaves the viewport', () => {
@@ -313,6 +297,7 @@ describe('landing page', () => {
       expect(container.querySelector(`#${id}`)).toBeTruthy();
     });
     expect(container.querySelectorAll('[data-reveal]')).toHaveLength(5);
+    expect(screen.getByRole('button', { name: 'Tool carousel motion disabled' }).hasAttribute('disabled')).toBe(true);
   });
 
   test('provides complete reduced motion and pointer fallbacks', () => {
@@ -397,7 +382,7 @@ describe('landing page', () => {
     const revealObserver = observerFor(revealTarget as HTMLElement);
     const ambientObserver = observerFor(ambientTarget as HTMLElement);
 
-    expect(motionPreferenceListeners.size).toBe(2);
+    expect(motionPreferenceListeners.size).toBe(3);
     expect(stickyLessonListeners.size).toBe(1);
     unmount();
 
@@ -519,23 +504,14 @@ describe('landing page', () => {
     });
   });
 
-  test('uses a vivid botanical apron behind the hero product window', () => {
+  test('keeps the hero product stack focused without the detached meadow layer', () => {
     const css = readFileSync('src/landing/Hero.module.css', 'utf8');
-    const meadow = css.match(/\.meadowEdge\s*\{([^}]*)\}/s)?.[1] ?? '';
-    const mobile = css.match(/@media\s*\(max-width:\s*760px\)[\s\S]*?(?=@media\s*\(prefers-reduced-motion:\s*no-preference\))/)?.[0] ?? '';
-    const reduced = css.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*$/)?.[0] ?? '';
+    const html = renderToStaticMarkup(createElement(LandingPage));
 
-    expect(meadow).toMatch(/width:\s*88%;/);
-    expect(meadow).toMatch(/height:\s*42%;/);
-    expect(meadow).toMatch(/opacity:\s*0\.88;/);
-    expect(meadow).toMatch(/filter:\s*saturate\(1\.05\)\s*contrast\(1\.02\);/);
-    expect(meadow).toMatch(/mask-image:\s*radial-gradient\(/);
-    expect(meadow).toMatch(/transform:\s*translateY\(8px\)\s*scale\(1\.02\);/);
-    expect(meadow).toMatch(/transition:\s*transform\s+400ms\s+cubic-bezier\(\.4,(?:0|\.0),\.2,1\);/);
-    expect(css).toMatch(/\[data-ambient-active='true'\]\s+\.meadowEdge\s*\{[^}]*transform:\s*translateY\(0\)\s*scale\(1\);/s);
-    expect(css).toMatch(/:global\(\[data-page-visible='false'\]\)\s+\.meadowEdge\s*\{[^}]*transition:\s*none;/s);
-    expect(mobile).toMatch(/\.meadowEdge\s*\{[^}]*width:\s*100%;[^}]*height:\s*30%;/s);
-    expect(reduced).toMatch(/\.meadowEdge\s*\{[^}]*transition:\s*none;[^}]*transform:\s*none;/s);
+    expect(html).not.toContain('meadow-edge.webp');
+    expect(css).not.toContain('.meadowEdge');
+    expect(html).toContain('field-hero.webp');
+    expect(html).toContain('data-hero-stage="true"');
   });
 
   test('keeps the stacked hero inside the mobile viewport', () => {
@@ -592,17 +568,55 @@ describe('landing page', () => {
     expect(image.byteLength).toBeLessThan(1_500_000);
   });
 
-  test('shows Kairo across multiple tools in one visual composition', () => {
+  test('explains Kairo across tools with a controlled carousel', () => {
     render(createElement(LandingPage));
     const region = screen.getByRole('region', { name: 'Learn across your tools' });
 
     ['Blender', 'Figma', 'VS Code', 'Photoshop'].forEach((tool) => {
-      expect(within(region).getByText(tool)).toBeTruthy();
+      expect(within(region).getByRole('tab', { name: new RegExp(tool) })).toBeTruthy();
     });
-    expect(region.querySelectorAll('[data-tool-print]')).toHaveLength(4);
+    expect(within(region).getAllByRole('tabpanel', { hidden: true })).toHaveLength(4);
     expect(region.querySelectorAll('[data-tool-focus]')).toHaveLength(4);
     expect(region.querySelector('img[src*="kairo-blender-preview.webp"]')).toBeTruthy();
-    expect(region.querySelector('[data-tool-connector]')?.getAttribute('aria-hidden')).toBe('true');
+    ['Ask', 'Identify', 'Next move', 'Verify'].forEach((label) => {
+      expect(within(region).getByText(label)).toBeTruthy();
+    });
+
+    fireEvent.click(within(region).getByRole('tab', { name: /Figma/ }));
+    expect(within(region).getByText('How do I make this hero clearer?')).toBeTruthy();
+    expect(within(region).getByRole('button', { name: 'Play tool carousel' })).toBeTruthy();
+  });
+
+  test('advances the tool carousel automatically and pauses after interaction', () => {
+    vi.useFakeTimers();
+
+    try {
+      render(createElement(LandingPage));
+      const region = screen.getByRole('region', { name: 'Learn across your tools' });
+
+      expect(within(region).getByRole('tab', { name: /Blender/ }).getAttribute('aria-selected')).toBe('true');
+      act(() => vi.advanceTimersByTime(5000));
+      expect(within(region).getByRole('tab', { name: /Figma/ }).getAttribute('aria-selected')).toBe('true');
+
+      fireEvent.click(within(region).getByRole('tab', { name: /Photoshop/ }));
+      act(() => vi.advanceTimersByTime(10000));
+      expect(within(region).getByRole('tab', { name: /Photoshop/ }).getAttribute('aria-selected')).toBe('true');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('supports arrow-key navigation across tool tabs', () => {
+    render(createElement(LandingPage));
+    const region = screen.getByRole('region', { name: 'Learn across your tools' });
+    const blender = within(region).getByRole('tab', { name: /Blender/ });
+
+    blender.focus();
+    fireEvent.keyDown(blender, { key: 'ArrowRight' });
+
+    const figma = within(region).getByRole('tab', { name: /Figma/ });
+    expect(figma.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(figma);
   });
 
   test('shows three concise practice moments in one environment', () => {
@@ -635,6 +649,8 @@ describe('landing page', () => {
     expect(image?.getAttribute('height')).toBe('1511');
     expect(css).not.toContain("url('/field-notes/trust-rock.webp')");
     expect(css).toMatch(/\.trust::after\s*\{[^}]*linear-gradient/s);
+    expect(container.querySelectorAll('#trust article svg[aria-hidden="true"]')).toHaveLength(3);
+    expect(container.querySelectorAll('#trust article')).toHaveLength(3);
   });
 
   test('keeps global scrolling static under reduced motion', () => {

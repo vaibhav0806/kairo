@@ -37,14 +37,9 @@
 
 .toolField {
   position: relative;
-  display: grid;
   max-width: 1500px;
-  min-height: clamp(820px, 78vw, 1140px);
   margin: clamp(56px, 8vw, 112px) auto 0;
   padding: clamp(32px, 5vw, 72px);
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(280px, 1fr));
-  gap: clamp(28px, 5vw, 72px) 0;
   isolation: isolate;
 }
 
@@ -82,43 +77,94 @@
   content: '';
 }
 
-.connector {
-  position: absolute;
-  top: -8%;
-  left: 3%;
-  z-index: -1;
-  width: 94%;
-  height: 140%;
-  fill: none;
-  stroke: var(--violet);
-  stroke-linecap: round;
-  stroke-width: 5;
-  filter: drop-shadow(0 2px 0 var(--paper));
-  opacity: 0.9;
+.toolCarousel {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
 }
 
-.connector path {
-  stroke-dasharray: 1600;
-  stroke-dashoffset: 0;
+.carouselControls {
+  display: flex;
+  margin-bottom: 16px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-:global([data-motion-ready='true']) .tools .connector path {
-  stroke-dashoffset: 1600;
-  transition: stroke-dashoffset 1100ms cubic-bezier(.2,.7,.2,1);
+.toolTabs {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
 }
 
-:global([data-motion-ready='true']) .tools[data-revealed='true'] .connector path {
-  stroke-dashoffset: 0;
+.toolTabs button,
+.carouselToggle {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--ink) 14%, var(--line));
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 150ms cubic-bezier(0.23, 1, 0.32, 1), color 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.toolTabs button {
+  padding: 0 16px;
+  gap: 10px;
+  font-weight: 650;
+}
+
+.toolTabs button span {
+  color: color-mix(in srgb, var(--muted) 72%, transparent);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.toolTabs button[aria-selected='true'] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.toolTabs button[aria-selected='true'] span {
+  color: color-mix(in srgb, var(--paper) 68%, transparent);
+}
+
+.toolTabs button:active,
+.carouselToggle:active {
+  transform: scale(0.96);
+}
+
+.carouselToggle {
+  width: 44px;
+  flex: 0 0 44px;
+  justify-content: center;
+  padding: 0;
+  color: var(--ink);
+}
+
+.carouselToggle:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.carouselWindow {
+  overflow: hidden;
+  box-shadow: 18px 20px 0 color-mix(in srgb, var(--ink) 10%, var(--paper-cool));
+}
+
+.carouselTrack {
+  display: flex;
+  transition: transform 240ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .toolPrint {
-  position: relative;
-  min-width: 0;
+  min-width: 100%;
+  flex: 0 0 100%;
+  margin: 0;
   padding: clamp(8px, 1.2vw, 14px);
   border: 1px solid var(--line);
   background: var(--paper);
-  box-shadow: 14px 16px 0 color-mix(in srgb, var(--ink) 10%, var(--paper-cool));
-  transition: opacity 360ms ease-out, transform 360ms ease-out;
 }
 
 .toolPrint figcaption {
@@ -142,57 +188,6 @@
   font-weight: 700;
 }
 
-.blenderPrint {
-  z-index: 1;
-  grid-column: 1 / span 7;
-  grid-row: 1;
-  transform: rotate(-1.8deg);
-}
-
-.figmaPrint {
-  z-index: 2;
-  margin: 14% 0 -8% -7%;
-  grid-column: 8 / span 5;
-  grid-row: 1;
-  transform: rotate(2.2deg);
-}
-
-.codePrint {
-  z-index: 3;
-  margin: -12% -2% 12% 6%;
-  grid-column: 1 / span 6;
-  grid-row: 2;
-  transform: rotate(1.3deg);
-}
-
-.photoPrint {
-  z-index: 4;
-  margin: 5% 0 -5% -4%;
-  grid-column: 7 / span 6;
-  grid-row: 2;
-  transform: rotate(-1.5deg);
-}
-
-:global([data-motion-ready='true']) .toolPrint[data-tool-reveal]:not([data-revealed='true']) {
-  opacity: 0;
-}
-
-:global([data-motion-ready='true']) .blenderPrint[data-tool-reveal]:not([data-revealed='true']) {
-  transform: translate3d(0, 24px, 0) rotate(-1.8deg);
-}
-
-:global([data-motion-ready='true']) .figmaPrint[data-tool-reveal]:not([data-revealed='true']) {
-  transform: translate3d(0, 24px, 0) rotate(2.2deg);
-}
-
-:global([data-motion-ready='true']) .codePrint[data-tool-reveal]:not([data-revealed='true']) {
-  transform: translate3d(0, 24px, 0) rotate(1.3deg);
-}
-
-:global([data-motion-ready='true']) .photoPrint[data-tool-reveal]:not([data-revealed='true']) {
-  transform: translate3d(0, 24px, 0) rotate(-1.5deg);
-}
-
 .toolCanvas {
   position: relative;
   min-height: 0;
@@ -213,8 +208,9 @@
   object-fit: cover;
 }
 
-.canvasPrompt {
+.canvasMarker {
   position: absolute;
+  z-index: 6;
   right: 4%;
   bottom: 5%;
   display: grid;
@@ -227,7 +223,7 @@
   font-size: clamp(0.58rem, 1vw, 0.82rem);
 }
 
-.canvasPrompt span {
+.canvasMarker span {
   color: color-mix(in srgb, var(--violet) 58%, var(--paper));
   font-size: 0.65em;
   font-weight: 750;
@@ -256,13 +252,38 @@
   stroke-dashoffset: 0;
 }
 
-:global([data-motion-ready='true']) .tools .focusMark path {
-  stroke-dashoffset: 500;
-  transition: stroke-dashoffset 800ms cubic-bezier(.2,.7,.2,1) 180ms;
+.toolStory {
+  display: grid;
+  margin: 18px 0 0;
+  padding: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid color-mix(in srgb, var(--ink) 14%, var(--line));
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  list-style: none;
 }
 
-:global([data-motion-ready='true']) .tools[data-revealed='true'] .focusMark path {
-  stroke-dashoffset: 0;
+.toolStory li {
+  min-width: 0;
+  padding: clamp(16px, 2.2vw, 28px);
+}
+
+.toolStory li + li {
+  border-left: 1px solid color-mix(in srgb, var(--ink) 12%, var(--line));
+}
+
+.toolStory span {
+  color: var(--violet);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.toolStory p {
+  margin-top: 10px;
+  color: var(--ink);
+  line-height: 1.45;
+  text-wrap: pretty;
 }
 
 .lightCanvas {
@@ -607,31 +628,32 @@
 
 @media (max-width: 700px) {
   .toolField {
-    min-height: clamp(1000px, 235vw, 1540px);
     padding-inline: clamp(16px, 3vw, 32px);
-    grid-template-rows: repeat(4, minmax(0, 1fr));
-    gap: 0;
   }
 
-  .blenderPrint,
-  .figmaPrint,
-  .codePrint,
-  .photoPrint {
-    width: min(88%, 620px);
-    margin: 0;
-    grid-column: 1 / -1;
+  .carouselControls {
+    align-items: flex-start;
   }
 
-  .blenderPrint { grid-row: 1; justify-self: start; }
-  .figmaPrint { grid-row: 2; justify-self: end; margin-top: -6%; }
-  .codePrint { grid-row: 3; justify-self: start; margin-top: -10%; }
-  .photoPrint { grid-row: 4; justify-self: end; margin-top: -14%; }
+  .toolTabs {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
 
-  .connector {
-    top: -31%;
-    left: calc(50% - 28px);
-    width: 56px;
-    height: 180%;
+  .toolTabs button {
+    flex: 0 0 auto;
+  }
+
+  .toolStory {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .toolStory li:nth-child(3) {
+    border-left: 0;
+  }
+
+  .toolStory li:nth-child(n + 3) {
+    border-top: 1px solid color-mix(in srgb, var(--ink) 12%, var(--line));
   }
 
   .practiceEnvironment {
@@ -667,21 +689,30 @@
     width: calc(100% + 16px);
   }
 
-  .blenderPrint,
-  .figmaPrint,
-  .codePrint,
-  .photoPrint {
-    width: 94%;
+  .toolPrint {
     padding: 8px;
+  }
+
+  .carouselWindow {
     box-shadow: 8px 10px 0 color-mix(in srgb, var(--ink) 10%, var(--paper-cool));
   }
 
-  .figmaPrint { margin-top: -4%; }
-  .codePrint { margin-top: -8%; }
-  .photoPrint { margin-top: -12%; }
-
   .toolPrint figcaption {
     min-height: 36px;
+  }
+
+  .toolTabs button {
+    padding: 0 12px;
+  }
+
+  .toolStory {
+    grid-template-columns: 1fr;
+  }
+
+  .toolStory li + li,
+  .toolStory li:nth-child(n + 3) {
+    border-top: 1px solid color-mix(in srgb, var(--ink) 12%, var(--line));
+    border-left: 0;
   }
 
   .appBar {
@@ -703,23 +734,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .toolPrint[data-tool-reveal] {
-    opacity: 1 !important;
+  .carouselTrack {
+    transition: none;
   }
 
-  .blenderPrint[data-tool-reveal] {
-    transform: rotate(-1.8deg) !important;
-  }
-
-  .figmaPrint[data-tool-reveal] {
-    transform: rotate(2.2deg) !important;
-  }
-
-  .codePrint[data-tool-reveal] {
-    transform: rotate(1.3deg) !important;
-  }
-
-  .photoPrint[data-tool-reveal] {
-    transform: rotate(-1.5deg) !important;
+  .toolPrint[aria-hidden='true'] {
+    display: none;
   }
 }

@@ -76,15 +76,6 @@ export function Hero() {
             fetchPriority="high"
           />
         </picture>
-        <img
-          className={styles.meadowEdge}
-          src={asset('field-notes/meadow-edge.webp')}
-          alt=""
-          width="2200"
-          height="1467"
-          aria-hidden="true"
-        />
-
         <figure className={styles.productWindow} data-hero-stage>
           <figcaption>
             <span><i aria-hidden="true" /> Live lesson</span>

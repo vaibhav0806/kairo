@@ -6,10 +6,35 @@ function asset(filename: string): string {
 }
 
 const trustPromises = [
-  ['01', 'Starts only when you ask', 'Kairo waits until you begin a lesson.'],
-  ['02', 'Pause anytime', 'Stop the lesson whenever you want.'],
-  ['03', 'Checks before moving on', 'Kairo waits for the result before showing the next step.']
+  { icon: 'request', title: 'Starts only when you ask', description: 'Kairo waits for you to start.' },
+  { icon: 'pause', title: 'Pause anytime', description: 'Stop or resume whenever you want.' },
+  { icon: 'verify', title: 'Checks before moving on', description: 'The next step appears after the result.' }
 ] as const;
+
+function TrustIcon({ name }: { name: (typeof trustPromises)[number]['icon'] }) {
+  if (name === 'request') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m6 3 10 8-5 1 3 6-2 1-3-6-3 4V3Z" />
+      </svg>
+    );
+  }
+
+  if (name === 'pause') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 6v12M16 6v12" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="m8 12 3 3 5-6" />
+    </svg>
+  );
+}
 
 export function validateWaitlistEmail(value: string): string | null {
   const email = value.trim();
@@ -57,11 +82,13 @@ export function TrustWaitlist() {
           <h2 id="trust-title">You stay in control.</h2>
         </header>
         <div className={styles.promises}>
-          {trustPromises.map(([number, title, description]) => (
-            <article key={number}>
-              <span>{number}</span>
-              <h3>{title}</h3>
-              <p>{description}</p>
+          {trustPromises.map((promise) => (
+            <article key={promise.title}>
+              <span className={styles.promiseIcon}><TrustIcon name={promise.icon} /></span>
+              <div>
+                <h3>{promise.title}</h3>
+                <p>{promise.description}</p>
+              </div>
             </article>
           ))}
         </div>
