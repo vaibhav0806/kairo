@@ -231,7 +231,7 @@ for (const viewport of viewports) {
     })));
     for (const [name, expectedBox] of Object.entries(layoutContracts[viewport.name])) {
       const actualBox = layout[name] as number[];
-      expectedBox.forEach((expectedValue, index) => {
+      (expectedBox as readonly number[]).forEach((expectedValue: number, index: number) => {
         expect(
           Math.abs(actualBox[index] - expectedValue),
           `${viewport.name} ${name} geometry value ${index}`
