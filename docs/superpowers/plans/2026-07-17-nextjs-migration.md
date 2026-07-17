@@ -109,7 +109,7 @@ Do not change image markup or asset filenames.
 
 - [ ] **Step 4: Migrate package scripts and dependencies**
 
-Set `dev` to `next dev`, `build` to `next build`, `start` to `next start`, and `typecheck` to `next typegen && tsc --noEmit --pretty false`. Add the current stable `next` release compatible with the installed Node and React versions. Remove `@vitejs/plugin-react`; retain `vite` because Vitest depends on its transform layer. Regenerate `package-lock.json` using `npm install`.
+Set `dev` to `next dev`, `build` to `next build`, `start` to `next start`, and `typecheck` to `next typegen && tsc --noEmit --pretty false`. Add the current stable `next` release compatible with the installed Node and React versions. Remove the direct `vite` and `@vitejs/plugin-react` development dependencies; Vitest may continue to resolve its own transitive Vite dependency. Regenerate `package-lock.json` using `npm install`.
 
 - [ ] **Step 5: Migrate TypeScript and ignored build artifacts**
 
