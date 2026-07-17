@@ -44,6 +44,8 @@ describe('landing metadata and brand', () => {
       devDependencies: Record<string, string>;
     };
 
+    expect(packageJson.dependencies).not.toHaveProperty('vite');
+    expect(packageJson.devDependencies).not.toHaveProperty('vite');
     expect(packageJson.scripts.dev).toBe('next dev');
     expect(packageJson.scripts.build).toBe('next build');
     expect(packageJson.scripts.start).toBe('next start');
