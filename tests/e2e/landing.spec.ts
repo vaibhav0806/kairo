@@ -179,11 +179,15 @@ test('hydrates the hero and tool carousel controls', async ({ page }) => {
 
 test('submits the waitlist once with a normalized email before showing success', async ({ page }) => {
   const requests: Array<{ method: string; body: unknown }> = [];
+  const expectedRequests = [{
+    method: 'POST',
+    body: { email: 'learner@example.com' }
+  }];
   let releaseResponse: () => void = () => {};
   const responseGate = new Promise<void>((resolve) => {
     releaseResponse = resolve;
   });
-  await page.route('**/api/waitlist', async (route) => {
+  await page.route(/\/api\/waitlist(?:\?.*)?$/, async (route) => {
     const request = route.request();
     requests.push({ method: request.method(), body: request.postDataJSON() });
     await responseGate;
@@ -202,10 +206,7 @@ test('submits the waitlist once with a normalized email before showing success',
   await input.fill('  learner@example.com  ');
   await page.getByRole('button', { name: 'Join the alpha' }).click();
 
-  await expect.poll(() => requests).toEqual([{
-    method: 'POST',
-    body: { email: 'learner@example.com' }
-  }]);
+  await expect.poll(() => requests).toEqual(expectedRequests);
   await expect(page.getByRole('status')).toHaveCount(0);
 
   releaseResponse();
@@ -213,6 +214,7 @@ test('submits the waitlist once with a normalized email before showing success',
   await expect(success).toBeFocused();
   await expect(success).toContainText('You’re on the list.');
   await expect(success).toContainText('learner@example.com');
+  expect(requests).toEqual(expectedRequests);
 });
 
 for (const viewport of viewports) {
