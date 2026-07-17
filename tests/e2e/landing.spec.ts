@@ -29,6 +29,42 @@ const viewports = [
   { name: 'mobile', width: 390, height: 844, documentHeight: 7520 }
 ] as const;
 
+const layoutSelectors = {
+  header: 'header',
+  hero: '[data-hero-environment]',
+  heroHeading: '[data-hero-environment] h1',
+  heroStage: '[data-hero-stage]',
+  sequence: '#how-it-works',
+  workspace: '[data-learning-workspace]',
+  tools: '#tools',
+  carousel: '[data-tool-carousel]',
+  practice: '#practice',
+  trust: '#trust',
+  access: '#access',
+  footer: 'footer'
+} as const;
+
+const layoutContracts = {
+  desktop: {
+    header: [0, 0, 1440, 72], hero: [0, 72, 1440, 899], heroHeading: [72, 203, 350, 251],
+    heroStage: [600, 203, 709, 462], sequence: [0, 998, 1440, 2313], workspace: [545, 1600, 823, 567],
+    tools: [0, 3311, 1440, 1811], carousel: [144, 3927, 1152, 979], practice: [0, 5122, 1440, 1534],
+    trust: [0, 6656, 1440, 900], access: [0, 7556, 1440, 729], footer: [0, 8259, 1440, 810]
+  },
+  tablet: {
+    header: [0, 0, 1024, 72], hero: [0, 72, 1024, 1371], heroHeading: [51, 167, 339, 243],
+    heroStage: [48, 680, 854, 544], sequence: [0, 1470, 1024, 1880], workspace: [388, 1911, 585, 434],
+    tools: [0, 3351, 1024, 1393], carousel: [102, 3807, 819, 782], practice: [0, 4743, 1024, 1128],
+    trust: [0, 5871, 1024, 768], access: [0, 6639, 1024, 599], footer: [0, 7211, 1024, 691]
+  },
+  mobile: {
+    header: [0, 0, 390, 72], hero: [0, 72, 390, 1282], heroHeading: [20, 172, 244, 175],
+    heroStage: [0, 629, 366, 497], sequence: [0, 1382, 390, 1362], workspace: [12, 1769, 366, 309],
+    tools: [0, 2744, 390, 1136], carousel: [28, 3124, 334, 643], practice: [0, 3880, 390, 1405],
+    trust: [0, 5285, 390, 844], access: [0, 6130, 390, 658], footer: [0, 6761, 390, 760]
+  }
+} as const;
+
 const test = base.extend<{ browserErrors: void }>({
   browserErrors: [async ({ page }, use) => {
     const errors: string[] = [];
@@ -183,6 +219,26 @@ for (const viewport of viewports) {
     expect(geometry.rootScrollWidth).toBeLessThanOrEqual(geometry.rootClientWidth);
     expect(geometry.bodyScrollWidth).toBeLessThanOrEqual(geometry.bodyClientWidth);
 
+    const layout = Object.fromEntries(await Promise.all(Object.entries(layoutSelectors).map(async ([name, selector]) => {
+      const box = await page.locator(selector).first().boundingBox();
+      expect(box, selector).not.toBeNull();
+      return [name, [
+        Math.round(box?.x ?? 0),
+        Math.round(box?.y ?? 0),
+        Math.round(box?.width ?? 0),
+        Math.round(box?.height ?? 0)
+      ]];
+    })));
+    for (const [name, expectedBox] of Object.entries(layoutContracts[viewport.name])) {
+      const actualBox = layout[name] as number[];
+      expectedBox.forEach((expectedValue, index) => {
+        expect(
+          Math.abs(actualBox[index] - expectedValue),
+          `${viewport.name} ${name} geometry value ${index}`
+        ).toBeLessThanOrEqual(2);
+      });
+    }
+
     for (const { selector, heading } of sectionContracts) {
       await expect(page.locator(selector)).toBeAttached();
       await expect(page.locator(selector).getByRole('heading').first()).toHaveText(heading);
@@ -245,8 +301,7 @@ async function captureStableScreenshot(page: Page, viewport: { name: string; wid
 
   await page.screenshot({
     path: `/tmp/kairo-next-${viewport.name}-stable.png`,
-    fullPage: true,
-    animations: 'disabled'
+    fullPage: true
   });
 }
 
