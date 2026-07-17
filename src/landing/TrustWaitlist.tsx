@@ -46,23 +46,48 @@ export function validateWaitlistEmail(value: string): string | null {
 export function TrustWaitlist() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const successRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (submitted) successRef.current?.focus();
   }, [submitted]);
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    if (error && !pending) inputRef.current?.focus();
+  }, [error, pending]);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (pending) return;
+
     const nextError = validateWaitlistEmail(email);
+    const input = event.currentTarget.elements.namedItem('waitlist-email') as HTMLInputElement;
     if (nextError) {
       setError(nextError);
-      (event.currentTarget.elements.namedItem('waitlist-email') as HTMLInputElement).focus();
+      input.focus();
       return;
     }
+
     setError(null);
-    setSubmitted(email.trim());
+    setPending(true);
+    const normalizedEmail = email.trim();
+
+    try {
+      const response = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail })
+      });
+      if (!response.ok) throw new Error('Waitlist request failed');
+      setSubmitted(normalizedEmail);
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -99,15 +124,17 @@ export function TrustWaitlist() {
           <p className={styles.kicker}>Early access</p>
           <h2 id="access-title">Learn what you want to make.</h2>
         </header>
-        {submitted ? <div ref={successRef} className={styles.success} role="status" tabIndex={-1}><p>Preview complete. Your email was not submitted or stored.</p><strong>{submitted}</strong></div> : (
+        {submitted ? <div ref={successRef} className={styles.success} role="status" tabIndex={-1}><p>You’re on the list.</p><strong>{submitted}</strong></div> : (
           <form onSubmit={submit} noValidate>
             <label htmlFor="waitlist-email">Email address</label>
             <input
+              ref={inputRef}
               id="waitlist-email"
               name="waitlist-email"
               type="email"
               autoComplete="email"
               value={email}
+              disabled={pending}
               aria-invalid={Boolean(error)}
               aria-describedby={error ? 'waitlist-error waitlist-note' : 'waitlist-note'}
               onChange={(event) => {
@@ -115,9 +142,9 @@ export function TrustWaitlist() {
                 setError(null);
               }}
             />
-            <button type="submit">Join the alpha</button>
+            <button type="submit" disabled={pending}>Join the alpha</button>
             {error ? <p id="waitlist-error" className={styles.error} role="alert">{error}</p> : null}
-            <p id="waitlist-note" className={styles.note}>Preview only. This form does not send or store your email yet.</p>
+            <p id="waitlist-note" className={styles.note}>We’ll use your email only to contact you about Kairo early access.</p>
           </form>
         )}
       </section>

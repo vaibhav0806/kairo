@@ -26,4 +26,4 @@ npm run typecheck
 npm run build
 ```
 
-The waitlist is a local preview. It does not send or store email addresses.
+The waitlist submits normalized email addresses through `/api/waitlist` for early-access contact.

@@ -1,9 +1,17 @@
 // @vitest-environment jsdom
 
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, test } from 'vitest';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import { LandingPage } from '../src/landing/LandingPage';
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
 
 beforeAll(() => {
   window.matchMedia = (query) => ({
@@ -18,13 +26,16 @@ beforeAll(() => {
   });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
-describe('landing waitlist preview', () => {
-  test('discloses the preview-only form before submission', () => {
+describe('landing waitlist', () => {
+  test('discloses how submitted addresses are used', () => {
     render(createElement(LandingPage));
     const input = screen.getByLabelText('Email address');
-    const note = screen.getByText('Preview only. This form does not send or store your email yet.');
+    const note = screen.getByText('We’ll use your email only to contact you about Kairo early access.');
 
     expect(note.id).toBe('waitlist-note');
     expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(note.id);
@@ -64,21 +75,65 @@ describe('landing waitlist preview', () => {
     expect(document.activeElement).toBe(input);
   });
 
-  test('shows and focuses an honest local-only status after valid submission', () => {
+  test('posts a normalized address once and waits for success before replacing the form', async () => {
+    const response = deferred<{ ok: boolean }>();
+    const fetchMock = vi.fn(() => response.promise);
+    vi.stubGlobal('fetch', fetchMock);
     render(createElement(LandingPage));
 
-    fireEvent.change(screen.getByLabelText('Email address'), {
+    const input = screen.getByLabelText('Email address') as HTMLInputElement;
+    const button = screen.getByRole('button', { name: 'Join the alpha' }) as HTMLButtonElement;
+    const form = input.closest('form') as HTMLFormElement;
+
+    fireEvent.change(input, {
       target: { value: ' learner@example.com ' }
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
+    fireEvent.submit(form);
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/waitlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'learner@example.com' })
+    });
+    expect(input.disabled).toBe(true);
+    expect(button.disabled).toBe(true);
+    expect(screen.queryByRole('status')).toBeNull();
+
+    fireEvent.submit(form);
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    await act(async () => response.resolve({ ok: true }));
 
     expect(screen.queryByLabelText('Email address')).toBeNull();
     const status = screen.getByRole('status');
 
-    expect(status.textContent).toContain('Preview complete. Your email was not submitted or stored.');
+    expect(status.textContent).toContain('You’re on the list.');
     expect(status.getAttribute('tabindex')).toBe('-1');
     expect(screen.getByText('learner@example.com')).toBeTruthy();
     expect(document.activeElement).toBe(status);
   });
 
+  test('keeps and refocuses the address after a failed response so submission can be retried', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    render(createElement(LandingPage));
+
+    const input = screen.getByLabelText('Email address') as HTMLInputElement;
+    const button = screen.getByRole('button', { name: 'Join the alpha' }) as HTMLButtonElement;
+    fireEvent.change(input, { target: { value: 'learner@example.com' } });
+    fireEvent.click(button);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Something went wrong. Please try again.');
+    expect(input.value).toBe('learner@example.com');
+    expect(input.disabled).toBe(false);
+    expect(button.disabled).toBe(false);
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.click(button);
+    expect(await screen.findByRole('status')).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

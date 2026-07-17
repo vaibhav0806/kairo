@@ -126,7 +126,7 @@ describe('landing page', () => {
     expect(assets.reduce((sum, size) => sum + size, 0)).toBeLessThan(5_000_000);
   });
 
-  test('validates the local preview email field', () => {
+  test('validates the waitlist email field', () => {
     expect(validateWaitlistEmail('')).toBe('Enter your email address.');
     expect(validateWaitlistEmail('learner@')).toBe('Enter a valid email address.');
     expect(validateWaitlistEmail(' learner@example.com ')).toBeNull();
@@ -731,7 +731,7 @@ describe('landing page', () => {
     expect(trust.querySelector('[aria-roledescription="carousel"], [data-carousel]')).toBeNull();
   });
 
-  test('renders one local-only waitlist field and a structured footer', () => {
+  test('renders one waitlist field and a structured footer', () => {
     render(createElement(LandingPage));
 
     const waitlist = screen.getByRole('region', { name: 'Learn what you want to make.' });

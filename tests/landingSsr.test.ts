@@ -31,12 +31,12 @@ describe('landing server rendering', () => {
     expect(() => renderToString(createElement(LandingPage))).not.toThrow();
   });
 
-  test('includes the complete page and honest preview-only waitlist copy', () => {
+  test('includes the complete page and waitlist privacy copy', () => {
     const html = renderToString(createElement(LandingPage));
 
     expect(html).toContain('data-field-notes="true"');
     expect(html.match(/<h1(?:\s|>)/g)).toHaveLength(1);
-    expect(html).toContain('Preview only. This form does not send or store your email yet.');
+    expect(html).toContain('We’ll use your email only to contact you about Kairo early access.');
   });
 
   test('uses the exact root-relative public asset set', () => {
