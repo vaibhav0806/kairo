@@ -76,7 +76,7 @@ describe('landing waitlist', () => {
   });
 
   test('posts a normalized address once and waits for success before replacing the form', async () => {
-    const response = deferred<{ ok: boolean }>();
+    const response = deferred<Response>();
     const fetchMock = vi.fn(() => response.promise);
     vi.stubGlobal('fetch', fetchMock);
     render(createElement(LandingPage));
@@ -86,7 +86,7 @@ describe('landing waitlist', () => {
     const form = input.closest('form') as HTMLFormElement;
 
     fireEvent.change(input, {
-      target: { value: ' learner@example.com ' }
+      target: { value: ' Learner@Example.COM ' }
     });
     fireEvent.submit(form);
 
@@ -102,7 +102,7 @@ describe('landing waitlist', () => {
     fireEvent.submit(form);
     expect(fetchMock).toHaveBeenCalledOnce();
 
-    await act(async () => response.resolve({ ok: true }));
+    await act(async () => response.resolve(Response.json({ ok: true })));
 
     expect(screen.queryByLabelText('Email address')).toBeNull();
     const status = screen.getByRole('status');
@@ -115,8 +115,11 @@ describe('landing waitlist', () => {
 
   test('keeps and refocuses the address after a failed response so submission can be retried', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: false })
-      .mockResolvedValueOnce({ ok: true });
+      .mockResolvedValueOnce(Response.json(
+        { ok: false, error: 'Internal server error.' },
+        { status: 500 }
+      ))
+      .mockResolvedValueOnce(Response.json({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
     render(createElement(LandingPage));
 
@@ -135,5 +138,41 @@ describe('landing waitlist', () => {
     fireEvent.click(button);
     expect(await screen.findByRole('status')).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test('shows a server 400 response as an email validation error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(
+      { ok: false, error: 'Invalid email.' },
+      { status: 400 }
+    )));
+    render(createElement(LandingPage));
+
+    const input = screen.getByLabelText('Email address') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'learner@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Enter a valid email address.');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.value).toBe('learner@example.com');
+    expect(document.activeElement).toBe(input);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  test.each([
+    ['non-JSON', () => new Response('accepted', { status: 200 })],
+    ['unexpected JSON', () => Response.json({ ok: true, extra: 'value' })]
+  ])('keeps the form when a successful response has %s content', async (_case, response) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response()));
+    render(createElement(LandingPage));
+
+    const input = screen.getByLabelText('Email address') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'learner@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Something went wrong. Please try again.');
+    expect(input.value).toBe('learner@example.com');
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

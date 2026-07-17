@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { normalizeWaitlistEmail } from '../shared/waitlistEmail';
 import styles from './TrustWaitlist.module.css';
 
 function asset(filename: string): string {
@@ -37,10 +38,19 @@ function TrustIcon({ name }: { name: (typeof trustPromises)[number]['icon'] }) {
 }
 
 export function validateWaitlistEmail(value: string): string | null {
-  const email = value.trim();
-  if (!email) return 'Enter your email address.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid email address.';
+  if (!value.trim()) return 'Enter your email address.';
+  if (!normalizeWaitlistEmail(value)) return 'Enter a valid email address.';
   return null;
+}
+
+function isWaitlistSuccess(value: unknown): value is { ok: true } {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && Object.keys(value).length === 1
+    && 'ok' in value
+    && value.ok === true
+  );
 }
 
 export function TrustWaitlist() {
@@ -63,17 +73,17 @@ export function TrustWaitlist() {
     event.preventDefault();
     if (pending) return;
 
+    const normalizedEmail = normalizeWaitlistEmail(email);
     const nextError = validateWaitlistEmail(email);
     const input = event.currentTarget.elements.namedItem('waitlist-email') as HTMLInputElement;
-    if (nextError) {
-      setError(nextError);
+    if (nextError || !normalizedEmail) {
+      setError(nextError ?? 'Enter a valid email address.');
       input.focus();
       return;
     }
 
     setError(null);
     setPending(true);
-    const normalizedEmail = email.trim();
 
     try {
       const response = await fetch('/api/waitlist', {
@@ -81,7 +91,13 @@ export function TrustWaitlist() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: normalizedEmail })
       });
-      if (!response.ok) throw new Error('Waitlist request failed');
+      if (response.status === 400) {
+        setError('Enter a valid email address.');
+        return;
+      }
+      if (!response.ok || !isWaitlistSuccess(await response.json())) {
+        throw new Error('Waitlist request failed');
+      }
       setSubmitted(normalizedEmail);
     } catch {
       setError('Something went wrong. Please try again.');

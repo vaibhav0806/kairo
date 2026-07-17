@@ -165,4 +165,3 @@ Expected: all unit tests, type generation/typecheck, production build, browser t
 - [ ] **Step 6: Commit and publish the complete workspace**
 
 Stage the intended remaining files, inspect the staged diff for secrets, commit without authorship trailers, fetch the remote, and push the current branch without force. Rotate the pasted Neon credential after deployment configuration is updated.
-

@@ -1,5 +1,6 @@
+import { normalizeWaitlistEmail } from '../shared/waitlistEmail';
+
 const MAX_BODY_BYTES = 1_024;
-const EMAIL_PATTERN = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 
 async function readBoundedJson(request: Request): Promise<unknown> {
   if (!request.body) throw new Error('Missing request body');
@@ -25,26 +26,6 @@ async function readBoundedJson(request: Request): Promise<unknown> {
   return JSON.parse(text) as unknown;
 }
 
-function normalizeEmail(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-
-  const email = value.trim().toLowerCase();
-  if (
-    email.length < 3
-    || email.length > 254
-    || email.startsWith('.')
-    || email.includes('..')
-    || !EMAIL_PATTERN.test(email)
-  ) {
-    return null;
-  }
-
-  const [localPart] = email.split('@');
-  if (!localPart || localPart.length > 64 || localPart.endsWith('.')) return null;
-
-  return email;
-}
-
 function json(body: object, status: number) {
   return Response.json(body, { status });
 }
@@ -53,6 +34,11 @@ export function createWaitlistPost(
   addEmail: (email: string) => Promise<void>
 ): (request: Request) => Promise<Response> {
   return async (request) => {
+    const mediaType = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+    if (mediaType !== 'application/json') {
+      return json({ ok: false, error: 'Invalid request.' }, 415);
+    }
+
     let body: unknown;
 
     try {
@@ -61,7 +47,7 @@ export function createWaitlistPost(
       return json({ ok: false, error: 'Invalid request.' }, 400);
     }
 
-    const email = normalizeEmail(
+    const email = normalizeWaitlistEmail(
       typeof body === 'object' && body !== null && 'email' in body
         ? body.email
         : undefined
@@ -72,6 +58,7 @@ export function createWaitlistPost(
       await addEmail(email);
       return json({ ok: true }, 200);
     } catch {
+      console.error('Waitlist persistence failed.');
       return json({ ok: false, error: 'Internal server error.' }, 500);
     }
   };

@@ -129,6 +129,9 @@ describe('landing page', () => {
   test('validates the waitlist email field', () => {
     expect(validateWaitlistEmail('')).toBe('Enter your email address.');
     expect(validateWaitlistEmail('learner@')).toBe('Enter a valid email address.');
+    expect(validateWaitlistEmail('.learner@example.com')).toBe('Enter a valid email address.');
+    expect(validateWaitlistEmail('learn..er@example.com')).toBe('Enter a valid email address.');
+    expect(validateWaitlistEmail(`${'a'.repeat(65)}@example.com`)).toBe('Enter a valid email address.');
     expect(validateWaitlistEmail(' learner@example.com ')).toBeNull();
   });
 
@@ -742,6 +745,9 @@ describe('landing page', () => {
     expect(submitButtons).toHaveLength(1);
     expect(within(waitlist).getByRole('button', { name: 'Join the alpha' })).toBe(submitButtons[0]);
     expect(css).toMatch(/\.waitlist\s*\{[^}]*background:\s*var\(--paper\);/s);
+    const pageCss = readFileSync('src/landing/LandingPage.module.css', 'utf8');
+    expect(pageCss).toMatch(/\.page :focus-visible\s*\{[^}]*outline:\s*3px solid var\(--violet\);[^}]*outline-offset:\s*4px;/s);
+    expect(css).not.toMatch(/\.waitlist input:focus-visible\s*\{[^}]*(?:outline|box-shadow):\s*none;/s);
     const footer = screen.getByRole('contentinfo');
     const wildflower = footer.querySelector('[data-footer-wildflower]');
     expect(footer.textContent).toContain('Learn by doing.');

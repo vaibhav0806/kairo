@@ -37,4 +37,3 @@ The schema is recorded in the repository and applied to the supplied Neon databa
 - Route tests cover malformed JSON, invalid email, successful insertion, duplicate success, and database failure.
 - Component tests cover pending, successful, and failed submissions without changing the visual structure.
 - The live Neon schema and endpoint are exercised with a disposable test address, then the project test suite, typecheck, production build, and browser tests are run.
-

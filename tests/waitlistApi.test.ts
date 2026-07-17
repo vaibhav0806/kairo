@@ -1,19 +1,49 @@
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { createWaitlistPost } from '../src/server/waitlist';
 
-function request(body: string) {
+function request(body: string, contentType: string | null = 'application/json') {
   return new Request('http://localhost/api/waitlist', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: contentType ? { 'content-type': contentType } : undefined,
     body
   });
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('waitlist API', () => {
   test('returns 400 for malformed JSON', async () => {
     const response = await createWaitlistPost(async () => undefined)(request('{'));
 
     expect(response.status).toBe(400);
+  });
+
+  test.each([
+    ['text/plain', 'text/plain'],
+    ['a missing content type', null]
+  ])('returns 415 for %s before insertion', async (_case, contentType) => {
+    const addEmail = vi.fn(async () => undefined);
+
+    const response = await createWaitlistPost(addEmail)(
+      request(JSON.stringify({ email: 'learner@example.com' }), contentType)
+    );
+
+    expect(response.status).toBe(415);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'Invalid request.' });
+    expect(addEmail).not.toHaveBeenCalled();
+  });
+
+  test('accepts application/json with media type parameters', async () => {
+    const addEmail = vi.fn(async () => undefined);
+
+    const response = await createWaitlistPost(addEmail)(
+      request(JSON.stringify({ email: 'learner@example.com' }), 'application/json; charset=utf-8')
+    );
+
+    expect(response.status).toBe(200);
+    expect(addEmail).toHaveBeenCalledOnce();
   });
 
   test.each([
@@ -65,8 +95,9 @@ describe('waitlist API', () => {
   });
 
   test('returns a sanitized 500 response when persistence fails', async () => {
+    const serverError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const post = createWaitlistPost(async () => {
-      throw new Error('database credential leaked');
+      throw new Error('database credential leaked from postgres://secret-host');
     });
 
     const response = await post(request(JSON.stringify({ email: 'learner@example.com' })));
@@ -75,5 +106,11 @@ describe('waitlist API', () => {
     expect(response.status).toBe(500);
     expect(JSON.parse(body)).toEqual({ ok: false, error: 'Internal server error.' });
     expect(body).not.toContain('database credential leaked');
+    expect(serverError).toHaveBeenCalledExactlyOnceWith('Waitlist persistence failed.');
+    const logged = JSON.stringify(serverError.mock.calls);
+    expect(logged).not.toContain('learner@example.com');
+    expect(logged).not.toContain('DATABASE_URL');
+    expect(logged).not.toContain('database credential leaked');
+    expect(logged).not.toContain('postgres://secret-host');
   });
 });
