@@ -24,9 +24,9 @@ const sectionContracts = [
 ] as const;
 
 const viewports = [
-  { name: 'desktop', width: 1440, height: 900 },
-  { name: 'tablet', width: 1024, height: 768 },
-  { name: 'mobile', width: 390, height: 844 }
+  { name: 'desktop', width: 1440, height: 900, documentHeight: 9069 },
+  { name: 'tablet', width: 1024, height: 768, documentHeight: 7903 },
+  { name: 'mobile', width: 390, height: 844, documentHeight: 7520 }
 ] as const;
 
 const test = base.extend<{ browserErrors: void }>({
@@ -190,12 +190,27 @@ for (const viewport of viewports) {
   });
 }
 
-async function captureStableScreenshot(page: Page, viewport: { name: string; width: number; height: number }) {
+async function captureStableScreenshot(page: Page, viewport: { name: string; width: number; height: number; documentHeight: number }) {
   await page.setViewportSize(viewport);
   await gotoLanding(page);
 
-  await page.locator('[data-hero-stage] figcaption button').evaluate((button: HTMLButtonElement) => button.click());
-  await page.locator('[data-tool-carousel] button[aria-label="Pause tool carousel"]').evaluate((button: HTMLButtonElement) => button.click());
+  const hero = page.locator('[data-hero-environment]');
+  await hero.locator('[data-hero-stage] figcaption button').evaluate((button: HTMLButtonElement) => button.click());
+  await expect(hero).toHaveAttribute('data-demo-paused', 'true');
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await hero.evaluate((environment) => {
+    for (const animation of environment.getAnimations({ subtree: true })) {
+      animation.currentTime = 0;
+      animation.pause();
+    }
+  });
+
+  const tools = page.locator('#tools');
+  const blenderTab = tools.getByRole('tab', { name: /Blender/ });
+  await blenderTab.evaluate((button: HTMLButtonElement) => button.click());
+  await expect(blenderTab).toHaveAttribute('aria-selected', 'true');
+  await expect(tools.locator('#tool-panel-blender')).toHaveAttribute('aria-hidden', 'false');
+  await expect(tools.getByRole('button', { name: 'Play tool carousel' })).toBeVisible();
   await page.addStyleTag({ content: `
     *, *::before, *::after {
       caret-color: transparent !important;
@@ -221,6 +236,12 @@ async function captureStableScreenshot(page: Page, viewport: { name: string; wid
     window.scrollTo(0, 0);
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   });
+
+  const documentDimensions = await page.evaluate(() => ({
+    width: document.documentElement.clientWidth,
+    height: document.documentElement.scrollHeight
+  }));
+  expect(documentDimensions).toEqual({ width: viewport.width, height: viewport.documentHeight });
 
   await page.screenshot({
     path: `/tmp/kairo-next-${viewport.name}-stable.png`,
