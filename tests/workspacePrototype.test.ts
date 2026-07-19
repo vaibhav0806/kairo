@@ -26,6 +26,12 @@ describe('Violet Thread prototype', () => {
     expect(thread?.getAttribute('data-thread-verified')).toBe('true');
   });
 
+  test('renders the selected Thread profile', () => {
+    render(createElement(VioletThread, { state: 'guide', profile: 'lesson' }));
+
+    expect(document.querySelector('[data-thread-profile="lesson"]')).toBeTruthy();
+  });
+
   test('lets the learner select, adjust, and verify the abrupt stop', () => {
     vi.useFakeTimers();
     const onVerified = vi.fn();

@@ -1,3 +1,4 @@
+import { VioletThread } from './VioletThread';
 import styles from './ContextLayers.module.css';
 
 type ContextLayersProps = Readonly<{
@@ -22,6 +23,12 @@ export function ContextLayers({ active }: ContextLayersProps) {
       </div>
 
       <div className={styles.layers} aria-label="The context Kairo uses">
+        <VioletThread
+          state={active ? 'guide' : 'wait'}
+          profile="context"
+          className={styles.contextThread}
+          label="Kairo connects the shared context"
+        />
         <article className={`${styles.layer} ${styles.said}`}>
           <span className={styles.number}>01</span>
           <p>What you said</p>

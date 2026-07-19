@@ -6,14 +6,7 @@ export type NoticePhase =
   | 'waiting'
   | 'verified';
 
-export type VioletThreadState =
-  | 'dormant'
-  | 'notice'
-  | 'attach'
-  | 'guide'
-  | 'wait'
-  | 'verify'
-  | 'travel';
+import type { VioletThreadState } from './threadTypes';
 
 export type NoticeState = Readonly<{
   phase: NoticePhase;
