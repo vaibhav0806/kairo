@@ -1,16 +1,20 @@
 .access {
+  position: relative;
   display: grid;
-  padding: clamp(80px, 12vw, 176px) clamp(20px, 5vw, 80px);
-  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 0.7fr);
+  min-height: 860px;
+  padding: clamp(104px, 13vw, 184px) clamp(20px, 5vw, 80px);
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.62fr);
   align-items: center;
-  gap: clamp(48px, 8vw, 128px);
-  background:
-    radial-gradient(circle at 88% 18%, rgb(102 92 255 / 24%), transparent 30rem),
-    var(--surface-deep);
-  color: #ffffff;
+  gap: clamp(56px, 9vw, 136px);
+  overflow: hidden;
+  background: #17181c;
+  color: #f7f3e8;
+  isolation: isolate;
 }
 
 .copy {
+  position: relative;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -27,39 +31,41 @@
 }
 
 .copy h2 {
-  max-width: 10ch;
+  max-width: 9ch;
   margin: 0;
   font-family: "Bricolage Grotesque Variable", sans-serif;
-  font-size: clamp(3rem, 6vw, 6.5rem);
-  font-weight: 600;
-  line-height: 0.92;
-  letter-spacing: -0.055em;
+  font-size: clamp(3.4rem, 7.4vw, 8rem);
+  font-weight: 620;
+  line-height: 0.86;
+  letter-spacing: -0.066em;
+  text-wrap: balance;
 }
 
 .copy > span {
-  max-width: 42rem;
-  margin-top: 28px;
-  color: rgb(255 255 255 / 62%);
-  font-size: clamp(0.92rem, 1.2vw, 1.06rem);
-  line-height: 1.6;
+  max-width: 40rem;
+  margin-top: 30px;
+  color: rgb(247 243 232 / 66%);
+  font-size: clamp(1rem, 1.3vw, 1.16rem);
+  line-height: 1.62;
 }
 
 .formShell {
-  padding: clamp(20px, 3vw, 34px);
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: 22px;
-  background: rgb(11 13 18 / 42%);
-  backdrop-filter: blur(14px);
+  position: relative;
+  z-index: 5;
+  padding: clamp(22px, 3vw, 36px);
+  border: 1px solid rgb(255 255 255 / 16%);
+  background: #0d0e11;
+  box-shadow: 0 32px 90px rgb(0 0 0 / 34%);
 }
 
 .founderNote {
-  margin-bottom: 34px;
-  padding-bottom: 28px;
+  margin-bottom: 32px;
+  padding-bottom: 26px;
   border-bottom: 1px solid rgb(255 255 255 / 13%);
 }
 
 .founderNote span {
-  color: var(--notice);
+  color: var(--kairo);
   font-family: "Geist Mono Variable", monospace;
   font-size: 0.62rem;
   font-weight: 700;
@@ -69,13 +75,83 @@
 
 .founderNote p {
   margin: 10px 0 0;
-  color: rgb(255 255 255 / 75%);
+  color: rgb(247 243 232 / 72%);
   font-size: 0.9rem;
   line-height: 1.5;
 }
 
-@media (max-width: 760px) {
+.learnerNotes {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+}
+
+.learnerNotes span {
+  position: absolute;
+  display: block;
+  max-width: 230px;
+  padding: 14px 16px;
+  border: 1px solid rgb(17 18 22 / 12%);
+  background: #eee8dc;
+  box-shadow: 0 16px 42px rgb(0 0 0 / 22%);
+  color: #17181c;
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.learnerNotes span::before { content: '“'; }
+.learnerNotes span::after { content: '”'; }
+
+.learnerNotes span[data-note='1'] { top: 10%; right: 8%; transform: rotate(3deg); }
+.learnerNotes span[data-note='2'] { right: 37%; bottom: 9%; transform: rotate(-2deg); }
+.learnerNotes span[data-note='3'] { bottom: 14%; left: 6%; transform: rotate(2deg); }
+.learnerNotes span[data-note='4'] { top: 18%; left: 45%; transform: rotate(-3deg); }
+
+.thread {
+  z-index: 4;
+  opacity: 0.68;
+}
+
+.access[data-invitation-complete='true'] .learnerNotes span {
+  border-color: rgb(184 243 74 / 42%);
+}
+
+@media (max-width: 900px) {
   .access {
     grid-template-columns: 1fr;
   }
+
+  .copy h2 { max-width: 11ch; }
+  .learnerNotes span[data-note='4'] { top: 48%; left: 4%; }
+  .learnerNotes span[data-note='2'] { right: 4%; bottom: 4%; }
+}
+
+@media (max-width: 620px) {
+  .access {
+    min-height: auto;
+    padding-bottom: 120px;
+  }
+
+  .copy h2 { font-size: clamp(3.8rem, 18vw, 5.8rem); }
+  .learnerNotes {
+    position: relative;
+    display: grid;
+    margin: 10px 0 24px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .learnerNotes span,
+  .learnerNotes span[data-note] {
+    position: static;
+    display: block;
+    max-width: none;
+  }
+  .formShell { margin-top: 0; }
+  .learnerNotes span { max-width: 170px; padding: 10px 12px; font-size: 0.62rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .learnerNotes span { transform: none !important; }
 }

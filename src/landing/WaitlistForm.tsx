@@ -4,6 +4,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { normalizeWaitlistEmail } from '../shared/waitlistEmail';
 import styles from './WaitlistForm.module.css';
 
+type WaitlistFormProps = Readonly<{
+  onSubmitted?: (normalizedEmail: string) => void;
+}>;
+
 export function validateWaitlistEmail(value: string): string | null {
   if (!value.trim()) return 'Enter your email address.';
   if (!normalizeWaitlistEmail(value)) return 'Enter a valid email address.';
@@ -20,7 +24,7 @@ function isWaitlistSuccess(value: unknown): value is { ok: true } {
   );
 }
 
-export function WaitlistForm() {
+export function WaitlistForm({ onSubmitted }: WaitlistFormProps = {}) {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -65,6 +69,7 @@ export function WaitlistForm() {
       if (!response.ok || !isWaitlistSuccess(await response.json())) {
         throw new Error('Waitlist request failed');
       }
+      onSubmitted?.(normalizedEmail);
       setSubmitted(normalizedEmail);
     } catch {
       setError('Something went wrong. Please try again.');
@@ -77,7 +82,7 @@ export function WaitlistForm() {
     return (
       <div ref={successRef} className={styles.success} role="status" tabIndex={-1}>
         <span aria-hidden="true">✓</span>
-        <p>You’re on the list.</p>
+        <p>You’re on the list. Go make something.</p>
         <strong>{submitted}</strong>
         <small>We’ll be in touch when your alpha spot is ready.</small>
       </div>
@@ -85,7 +90,7 @@ export function WaitlistForm() {
   }
 
   return (
-    <form className={styles.form} onSubmit={submit} noValidate>
+    <form className={styles.form} onSubmit={submit} noValidate aria-busy={pending}>
       <label htmlFor="waitlist-email">Email address</label>
       <input
         ref={inputRef}

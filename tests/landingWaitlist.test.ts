@@ -90,7 +90,7 @@ describe('landing waitlist', () => {
     expect(screen.queryByLabelText('Email address')).toBeNull();
     const status = screen.getByRole('status');
 
-    expect(status.textContent).toContain('You’re on the list.');
+    expect(status.textContent).toContain('You’re on the list. Go make something.');
     expect(status.getAttribute('tabindex')).toBe('-1');
     expect(screen.getByText('learner@example.com')).toBeTruthy();
     expect(document.activeElement).toBe(status);
