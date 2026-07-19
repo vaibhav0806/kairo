@@ -6,11 +6,15 @@ describe('landing metadata and brand', () => {
     const layout = readFileSync('src/app/layout.tsx', 'utf8');
 
     expect(layout).toMatch(/export\s+const\s+metadata(?:\s*:\s*Metadata)?\s*=\s*\{/);
-    expect(layout).toMatch(/title:\s*['"]Kairo — Learn by doing['"]/);
-    expect(layout).toMatch(/description:\s*['"]Ask Kairo about what is on your screen and get one clear next step while you learn\.['"]/);
+    expect(layout).toMatch(/title:\s*['"]Kairo — Learn any creative tool['"]/);
+    expect(layout).toMatch(
+      /description:\s*['"]Talk to Kairo, show it what you mean, and get visual guidance directly on your screen\.['"]/
+    );
     expect(layout).toMatch(/icons?\s*:\s*(?:\{\s*icon\s*:\s*)?['"]\/favicon\.svg['"]/);
     expect(layout).toMatch(/import\s+['"]@fontsource-variable\/geist['"];?/);
-    expect(layout).toMatch(/import\s+['"]@fontsource\/instrument-serif['"];?/);
+    expect(layout).toMatch(/import\s+['"]@fontsource-variable\/bricolage-grotesque['"];?/);
+    expect(layout).toMatch(/import\s+['"]@fontsource-variable\/geist-mono['"];?/);
+    expect(layout).not.toMatch(/instrument-serif/);
     expect(layout).toMatch(/import\s+['"]\.\.\/styles\.css['"];?/);
     expect(layout).toMatch(/<html\s+lang=['"]en['"]>/);
     expect(layout).not.toMatch(/cursor|overlay|notch/i);
@@ -23,6 +27,9 @@ describe('landing metadata and brand', () => {
     expect(layout).toContain('/favicon.svg');
     expect(favicon).toContain('<svg');
     expect(favicon).toContain('aria-hidden="true"');
+    expect(favicon).toContain('viewBox="0 0 32 32"');
+    expect(favicon).toContain('#141824');
+    expect(favicon).toContain('#665CFF');
   });
 
   test('renders the landing page from the Next.js route', () => {
@@ -50,6 +57,11 @@ describe('landing metadata and brand', () => {
     expect(packageJson.scripts.build).toBe('next build');
     expect(packageJson.scripts.start).toBe('next start');
     expect(packageJson.dependencies.next).toBeTruthy();
+    expect(packageJson.dependencies.motion).toBe('^12.42.2');
+    expect(packageJson.dependencies['perfect-freehand']).toBe('^1.2.3');
+    expect(packageJson.dependencies['@fontsource-variable/bricolage-grotesque']).toBe('^5.3.0');
+    expect(packageJson.dependencies['@fontsource-variable/geist-mono']).toBe('^5.3.0');
+    expect(packageJson.dependencies).not.toHaveProperty('@fontsource/instrument-serif');
     expect(packageJson.devDependencies).not.toHaveProperty('@vitejs/plugin-react');
     expect(Object.values(packageJson.scripts).join('\n')).not.toMatch(/\bvite(?:\s|$)/);
     expect(JSON.stringify(packageJson)).not.toContain('@tauri-apps');

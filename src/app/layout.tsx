@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import '@fontsource-variable/bricolage-grotesque';
 import '@fontsource-variable/geist';
-import '@fontsource/instrument-serif';
+import '@fontsource-variable/geist-mono';
 import '../styles.css';
 
 export const metadata: Metadata = {
-  title: 'Kairo — Learn by doing',
-  description: 'Ask Kairo about what is on your screen and get one clear next step while you learn.',
+  title: 'Kairo — Learn any creative tool',
+  description: 'Talk to Kairo, show it what you mean, and get visual guidance directly on your screen.',
   icons: '/favicon.svg'
 };
 
