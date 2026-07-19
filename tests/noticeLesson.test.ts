@@ -8,7 +8,7 @@ import {
   isNoticeHandleVerified,
   noticeLessonReducer,
   threadStateForNoticePhase
-} from '../src/landing/violet-thread/noticeLesson';
+} from '../src/landing/violet-thread/noticeLessonModel';
 
 describe('notice lesson model', () => {
   test('advances only through learner-controlled phases', () => {

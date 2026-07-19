@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createElement } from 'react';
-import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { NoticeLesson } from '../src/landing/violet-thread/NoticeLesson';
 import { VioletThread } from '../src/landing/violet-thread/VioletThread';
 import { installBrowserEnvironment } from './helpers/browserEnvironment';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 beforeEach(() => installBrowserEnvironment());
 
 describe('Violet Thread prototype', () => {
@@ -19,5 +23,49 @@ describe('Violet Thread prototype', () => {
     rerender(createElement(VioletThread, { state: 'verify' }));
     expect(thread?.getAttribute('data-thread-state')).toBe('verify');
     expect(thread?.getAttribute('data-thread-verified')).toBe('true');
+  });
+
+  test('lets the learner select, adjust, and verify the abrupt stop', () => {
+    vi.useFakeTimers();
+    const onVerified = vi.fn();
+    render(createElement(NoticeLesson, { onVerified }));
+
+    act(() => vi.advanceTimersByTime(900));
+    expect(screen.getByText('That stop feels wrong, doesn’t it?')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select the abrupt stop' }));
+    act(() => vi.advanceTimersByTime(160));
+    expect(screen.getByText('Give the stop more room. Pull this handle left.')).toBeTruthy();
+
+    const handle = screen.getByRole('slider', { name: 'Adjust the outgoing easing handle' });
+    fireEvent.change(handle, { target: { value: '72' } });
+    expect(document.querySelector('[data-notice-phase="waiting"]')).toBeTruthy();
+    fireEvent.pointerUp(handle);
+
+    expect(screen.getByRole('status').textContent).toContain('Result verified');
+    expect(onVerified).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps an incorrect handle position in the waiting state', () => {
+    vi.useFakeTimers();
+    render(createElement(NoticeLesson, { onVerified: vi.fn() }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select the abrupt stop' }));
+    act(() => vi.advanceTimersByTime(160));
+    const handle = screen.getByRole('slider', { name: 'Adjust the outgoing easing handle' });
+    fireEvent.change(handle, { target: { value: '45' } });
+    fireEvent.pointerUp(handle);
+
+    expect(document.querySelector('[data-notice-phase="waiting"]')).toBeTruthy();
+    expect(screen.getByText('Kairo is waiting for your adjustment.')).toBeTruthy();
+  });
+
+  test('renders the completed instructional state when reduced motion is requested', () => {
+    installBrowserEnvironment({ reducedMotion: true });
+    const onVerified = vi.fn();
+    render(createElement(NoticeLesson, { onVerified }));
+
+    expect(document.querySelector('[data-notice-phase="verified"]')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('Result verified');
+    expect(onVerified).toHaveBeenCalledTimes(1);
   });
 });

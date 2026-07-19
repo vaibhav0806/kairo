@@ -1,0 +1,377 @@
+.lesson {
+  position: relative;
+  min-height: clamp(560px, 64vw, 760px);
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 8px;
+  background: #141518;
+  box-shadow: 0 32px 80px rgb(31 26 20 / 18%);
+  color: #f7f3e8;
+  isolation: isolate;
+  user-select: none;
+}
+
+.editorBar {
+  display: grid;
+  min-height: 46px;
+  padding: 0 18px 0 60px;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  color: rgb(247 243 232 / 52%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.editorBar b {
+  color: var(--kairo);
+}
+
+.editorBar em {
+  justify-self: end;
+  font-style: normal;
+}
+
+.toolRail {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  width: 46px;
+  padding-top: 64px;
+  align-items: center;
+  flex-direction: column;
+  gap: 22px;
+  border-right: 1px solid rgb(255 255 255 / 8%);
+  background: #101115;
+  color: rgb(247 243 232 / 46%);
+}
+
+.toolRail i {
+  font-size: 0.8rem;
+  font-style: normal;
+}
+
+.preview {
+  position: absolute;
+  top: 10%;
+  right: 5%;
+  left: calc(46px + 5%);
+  display: grid;
+  height: 40%;
+  place-items: center;
+  overflow: hidden;
+  background:
+    linear-gradient(rgb(17 18 22 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(17 18 22 / 5%) 1px, transparent 1px),
+    #eee8dc;
+  background-size: 32px 32px;
+  color: #111216;
+}
+
+.frameLabel {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  color: rgb(17 18 22 / 42%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+}
+
+.preview strong {
+  position: relative;
+  z-index: 2;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(2.6rem, 5.8vw, 6.8rem);
+  font-weight: 740;
+  line-height: 0.78;
+  letter-spacing: -0.075em;
+}
+
+.selection {
+  position: absolute;
+  width: 54%;
+  height: 56%;
+  border: 1px solid rgb(102 92 255 / 64%);
+}
+
+.selection i {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 1px solid #eee8dc;
+  background: var(--kairo);
+}
+
+.selection i:nth-child(1) { top: -4px; left: -4px; }
+.selection i:nth-child(2) { top: -4px; right: -4px; }
+.selection i:nth-child(3) { right: -4px; bottom: -4px; }
+.selection i:nth-child(4) { bottom: -4px; left: -4px; }
+
+.graph {
+  position: absolute;
+  right: 5%;
+  bottom: 5%;
+  left: calc(46px + 5%);
+  height: 38%;
+  border: 1px solid rgb(255 255 255 / 8%);
+  background: #0d0e11;
+}
+
+.graph svg {
+  width: 100%;
+  height: 100%;
+}
+
+.gridLine,
+.axis,
+.curve,
+.handleLine {
+  fill: none;
+}
+
+.gridLine {
+  stroke: rgb(255 255 255 / 7%);
+  stroke-width: 1;
+}
+
+.axis {
+  stroke: rgb(255 255 255 / 18%);
+  stroke-width: 1;
+}
+
+.curve {
+  stroke: var(--react);
+  stroke-linecap: round;
+  stroke-width: 5;
+}
+
+.handleLine {
+  stroke: rgb(247 243 232 / 48%);
+  stroke-width: 2;
+}
+
+.keyframe {
+  fill: var(--react);
+  transform: rotate(45deg);
+  transform-origin: 476px 42px;
+}
+
+.handlePoint {
+  fill: var(--kairo);
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.graphLabel,
+.graphValue,
+.handleControl > span {
+  position: absolute;
+  z-index: 3;
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+
+.graphLabel {
+  top: 12px;
+  left: 14px;
+  color: rgb(247 243 232 / 52%);
+}
+
+.graphValue {
+  top: 12px;
+  right: 14px;
+  color: var(--react);
+}
+
+.problemTarget {
+  position: absolute;
+  z-index: 4;
+  top: 4%;
+  right: 1%;
+  width: 96px;
+  height: 96px;
+  border: 1px dashed var(--react);
+  border-radius: 50%;
+  background: rgb(255 107 102 / 7%);
+  color: var(--react);
+  cursor: pointer;
+}
+
+.problemTarget span {
+  position: absolute;
+  top: -22px;
+  right: 0;
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.54rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.problemTarget:focus-visible {
+  outline: 3px solid var(--notice);
+  outline-offset: 4px;
+}
+
+.handleControl {
+  position: absolute;
+  z-index: 6;
+  right: 12%;
+  bottom: 7%;
+  left: 12%;
+}
+
+.handleControl > span {
+  bottom: 42px;
+  left: 0;
+  color: rgb(247 243 232 / 58%);
+}
+
+.handleControl input {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+}
+
+.handleControl input::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(90deg, var(--kairo), rgb(255 255 255 / 14%));
+}
+
+.handleControl input::-webkit-slider-thumb {
+  width: 28px;
+  height: 28px;
+  margin-top: -13px;
+  appearance: none;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: var(--kairo);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 34%);
+}
+
+.handleControl input:disabled {
+  cursor: default;
+  opacity: 0.28;
+}
+
+.handleControl input:focus-visible {
+  outline: 3px solid var(--notice);
+  outline-offset: 4px;
+}
+
+.kairoNote {
+  position: absolute;
+  z-index: 10;
+  top: 49%;
+  right: 3%;
+  max-width: 290px;
+  color: #ffffff;
+  font-size: clamp(0.78rem, 1vw, 0.94rem);
+  line-height: 1.42;
+}
+
+.kairoNote p {
+  margin: 0;
+  padding: 13px 15px;
+  border-left: 3px solid var(--kairo);
+  background: rgb(20 21 24 / 94%);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 22%);
+}
+
+.lesson[data-notice-phase='verified'] .curve {
+  stroke: var(--verify);
+}
+
+.lesson[data-notice-phase='verified'] .handlePoint {
+  fill: var(--verify);
+}
+
+.lesson[data-notice-phase='verified'] .kairoNote p {
+  border-color: var(--verify);
+}
+
+.reset {
+  position: absolute;
+  z-index: 11;
+  right: 18px;
+  bottom: 18px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  background: #1d1f24;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.reset:focus-visible {
+  outline: 3px solid var(--notice);
+  outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+  .lesson {
+    min-height: 610px;
+  }
+
+  .editorBar {
+    padding-left: 54px;
+  }
+
+  .preview {
+    top: 9%;
+    right: 3%;
+    left: calc(46px + 3%);
+    height: 31%;
+  }
+
+  .preview strong {
+    font-size: clamp(2.2rem, 11vw, 3.5rem);
+  }
+
+  .selection {
+    width: 72%;
+    height: 55%;
+  }
+
+  .graph {
+    right: 3%;
+    bottom: 7%;
+    left: calc(46px + 3%);
+    height: 43%;
+  }
+
+  .kairoNote {
+    top: 41%;
+    right: 3%;
+    left: calc(46px + 3%);
+    max-width: none;
+  }
+
+  .problemTarget {
+    width: 72px;
+    height: 72px;
+  }
+
+  .handleControl {
+    right: 9%;
+    left: 9%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview strong,
+  .curve {
+    transform: none !important;
+  }
+}

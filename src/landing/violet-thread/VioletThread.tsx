@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from 'motion/react';
 import { SCENE_SPRING } from '../motion';
-import type { VioletThreadState } from './noticeLesson';
+import type { VioletThreadState } from './noticeLessonModel';
 import styles from './VioletThread.module.css';
 
 const THREAD_PATHS: Record<VioletThreadState, string> = {
