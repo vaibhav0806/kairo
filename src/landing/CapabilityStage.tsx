@@ -90,6 +90,7 @@ export function CapabilityStage() {
               role="tab"
               id={`capability-tab-${capability.id}`}
               aria-controls="capability-panel"
+              aria-description={capability.copy}
               aria-selected={activeId === capability.id}
               tabIndex={activeId === capability.id ? 0 : -1}
               onClick={() => setActiveId(capability.id)}
