@@ -1,0 +1,606 @@
+.tools {
+  padding: clamp(88px, 12vw, 176px) clamp(20px, 5vw, 80px);
+  overflow: clip;
+  background: var(--surface-soft);
+}
+
+.shell {
+  position: relative;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.heading {
+  display: grid;
+  margin-bottom: clamp(44px, 6vw, 76px);
+  grid-template-columns: minmax(160px, 0.45fr) minmax(0, 1.3fr);
+  align-items: start;
+  gap: 32px;
+}
+
+.heading p {
+  margin: 9px 0 0;
+  color: var(--kairo);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.heading h2 {
+  max-width: 15ch;
+  margin: 0;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(3rem, 5.8vw, 6.8rem);
+  font-weight: 600;
+  line-height: 0.91;
+  letter-spacing: -0.06em;
+}
+
+.controls {
+  display: flex;
+  padding-bottom: 16px;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.toolTab {
+  display: flex;
+  min-height: 52px;
+  padding: 0 18px 0 10px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgb(11 13 18 / 12%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 68%);
+  color: var(--ink-muted);
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.toolTab > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface-deep);
+  color: #ffffff;
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.63rem;
+}
+
+.toolTab[aria-selected='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+}
+
+.toolTab[aria-selected='true'] > span {
+  background: var(--kairo);
+}
+
+.toolTab:focus-visible {
+  outline: 3px solid var(--notice);
+  outline-offset: 3px;
+}
+
+.stage {
+  position: relative;
+  min-height: clamp(540px, 58vw, 760px);
+  overflow: hidden;
+  border: 1px solid rgb(11 13 18 / 10%);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 10% 90%, rgb(102 92 255 / 10%), transparent 32%),
+    var(--canvas);
+  box-shadow: 0 32px 80px rgb(20 24 36 / 10%);
+}
+
+.stageBar {
+  display: flex;
+  min-height: 58px;
+  padding: 0 24px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgb(11 13 18 / 10%);
+  color: var(--ink-muted);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: clamp(0.56rem, 0.8vw, 0.7rem);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.stageBar b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--kairo);
+  font-weight: 650;
+}
+
+.stageBar b::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--verify);
+  box-shadow: 0 0 0 5px rgb(184 243 74 / 16%);
+  content: '';
+}
+
+.scene {
+  position: absolute;
+  inset: 58px 0 0;
+  display: grid;
+  padding: clamp(16px, 3vw, 38px);
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  gap: clamp(16px, 2.5vw, 34px);
+}
+
+.toolCanvas {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgb(11 13 18 / 12%);
+  border-radius: 18px;
+  background: #10131b;
+  color: #ffffff;
+}
+
+.lessonCard {
+  display: flex;
+  padding: clamp(24px, 3.8vw, 48px);
+  flex-direction: column;
+  border: 1px solid rgb(11 13 18 / 11%);
+  border-radius: 18px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.lessonCard > span,
+.kairoAnswer b {
+  color: var(--kairo);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.lessonCard h3 {
+  margin: 18px 0 0;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(2rem, 3.4vw, 4rem);
+  font-weight: 590;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.kairoAnswer {
+  display: grid;
+  margin-top: auto;
+  padding: 16px;
+  grid-template-columns: 24px 1fr;
+  gap: 8px;
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.kairoAnswer > i {
+  color: var(--kairo);
+  font-size: 1.2rem;
+  font-style: normal;
+}
+
+.kairoAnswer p {
+  display: grid;
+  margin: 0;
+  gap: 7px;
+  font-size: clamp(0.76rem, 1vw, 0.9rem);
+  line-height: 1.45;
+}
+
+.lessonCard > small {
+  margin-top: 18px;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.timelineScene {
+  display: grid;
+  height: 100%;
+  grid-template-rows: 0.58fr 0.42fr;
+}
+
+.preview {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  border-bottom: 1px solid rgb(255 255 255 / 9%);
+  background:
+    linear-gradient(rgb(255 255 255 / 3%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.preview > span {
+  position: absolute;
+  top: 12%;
+  left: 8%;
+  color: rgb(255 255 255 / 42%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+}
+
+.preview > b {
+  position: relative;
+  z-index: 2;
+  max-width: 7ch;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(2.8rem, 5.5vw, 6.6rem);
+  line-height: 0.76;
+  letter-spacing: -0.08em;
+  text-align: center;
+}
+
+.preview > i {
+  position: absolute;
+  width: 44%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--react);
+  filter: blur(1px);
+  transform: translate(74%, 12%);
+}
+
+.curveEditor {
+  position: relative;
+  padding: 14px;
+}
+
+.curveEditor > span {
+  color: rgb(255 255 255 / 48%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.6rem;
+}
+
+.curveEditor svg {
+  position: absolute;
+  inset: 25px 10px 8px;
+  width: calc(100% - 20px);
+  height: calc(100% - 33px);
+}
+
+.gridLine {
+  fill: none;
+  stroke: rgb(255 255 255 / 6%);
+  stroke-width: 1;
+}
+
+.curve {
+  fill: none;
+  stroke: var(--kairo);
+  stroke-width: 5;
+}
+
+.curveEditor circle {
+  fill: var(--kairo);
+  stroke: #ffffff;
+  stroke-width: 3;
+}
+
+.playhead {
+  position: absolute;
+  top: 20%;
+  bottom: 8%;
+  left: 58%;
+  width: 1px;
+  background: var(--react);
+}
+
+.playhead i {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 9px;
+  height: 9px;
+  background: var(--react);
+  transform: rotate(45deg);
+}
+
+.playhead span {
+  position: absolute;
+  top: -19px;
+  left: 8px;
+  color: var(--react);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.55rem;
+}
+
+.blenderScene {
+  display: grid;
+  height: 100%;
+  grid-template-rows: 0.56fr 0.44fr;
+}
+
+.materialViewport {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 55%, #27304a, #10131b 60%);
+}
+
+.materialViewport > span {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  color: rgb(255 255 255 / 44%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+}
+
+.glassOrb {
+  position: relative;
+  width: min(42%, 230px);
+  aspect-ratio: 1;
+  border: 2px solid rgb(255 255 255 / 65%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 24%, rgb(255 255 255 / 78%), transparent 12%), radial-gradient(circle at 60% 68%, rgb(102 92 255 / 45%), transparent 46%), rgb(255 255 255 / 8%);
+  box-shadow: inset -18px -22px 48px rgb(11 13 18 / 64%), 0 30px 48px rgb(0 0 0 / 32%);
+}
+
+.glassOrb i {
+  position: absolute;
+  right: 12%;
+  bottom: 18%;
+  width: 26%;
+  height: 9%;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 35%);
+  filter: blur(4px);
+  transform: rotate(-24deg);
+}
+
+.materialNodes {
+  position: relative;
+  border-top: 1px solid rgb(255 255 255 / 9%);
+}
+
+.node,
+.smallNode {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  padding: 10px;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 9px;
+  background: #202431;
+  color: rgb(255 255 255 / 62%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.52rem;
+}
+
+.node { top: 19%; left: 16%; width: 34%; }
+.smallNode { top: 28%; right: 12%; width: 24%; }
+.node span,
+.smallNode span { grid-column: 1 / -1; color: #ffffff; }
+.node i,
+.smallNode i { font-style: normal; }
+.node b { color: var(--verify); }
+
+.materialNodes svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.materialNodes path {
+  fill: none;
+  stroke: var(--kairo);
+  stroke-width: 4;
+}
+
+.figmaScene {
+  display: grid;
+  height: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.34fr);
+}
+
+.frameCanvas {
+  position: relative;
+  background:
+    linear-gradient(rgb(255 255 255 / 3%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.autoFrame,
+.brokenFrame {
+  position: absolute;
+  display: flex;
+  min-height: 48px;
+  padding: 0 20px;
+  align-items: center;
+  border-radius: 12px;
+  background: var(--kairo);
+  color: #ffffff;
+  font-weight: 650;
+}
+
+.autoFrame { top: 28%; left: 18%; }
+.brokenFrame { top: 56%; left: 18%; width: 136px; overflow: hidden; white-space: nowrap; background: var(--react); }
+
+.autoFrame i {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 1px solid #ffffff;
+  background: var(--kairo);
+}
+
+.autoFrame i:nth-of-type(1) { top: -5px; left: -5px; }
+.autoFrame i:nth-of-type(2) { top: -5px; right: -5px; }
+.autoFrame i:nth-of-type(3) { right: -5px; bottom: -5px; }
+.autoFrame i:nth-of-type(4) { bottom: -5px; left: -5px; }
+
+.frameCanvas > b {
+  position: absolute;
+  top: 21%;
+  left: 18%;
+  color: var(--verify);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.58rem;
+}
+
+.layoutPanel {
+  padding: 18px;
+  border-left: 1px solid rgb(255 255 255 / 9%);
+}
+
+.layoutPanel > span {
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.layoutPanel p {
+  display: flex;
+  padding: 10px 0;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  color: rgb(255 255 255 / 46%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.55rem;
+}
+
+.layoutPanel i { font-style: normal; }
+.layoutPanel b { color: var(--verify); font-weight: 500; }
+
+.lens {
+  position: absolute;
+  z-index: 6;
+  top: 13%;
+  left: 45%;
+  display: grid;
+  width: 156px;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 3px solid var(--kairo);
+  border-radius: 50%;
+  background: rgb(245 247 251 / 82%);
+  box-shadow: 0 18px 50px rgb(102 92 255 / 22%);
+  color: var(--kairo);
+  cursor: grab;
+  backdrop-filter: blur(8px);
+}
+
+.lens::after {
+  position: absolute;
+  right: -38px;
+  bottom: -24px;
+  width: 62px;
+  height: 16px;
+  border-radius: 8px;
+  background: var(--kairo);
+  content: '';
+  transform: rotate(47deg);
+  transform-origin: left center;
+}
+
+.lens span {
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.lens:active {
+  cursor: grabbing;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .toolTab:hover:not([aria-selected='true']) {
+    border-color: var(--kairo);
+    color: var(--ink);
+  }
+}
+
+@media (max-width: 899px) {
+  .heading {
+    grid-template-columns: 1fr;
+  }
+
+  .scene {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .toolCanvas {
+    min-height: 460px;
+  }
+
+  .lessonCard {
+    min-height: 340px;
+  }
+
+  .lens {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .stage {
+    min-height: 920px;
+    border-radius: 22px;
+  }
+
+  .stageBar {
+    padding: 0 14px;
+  }
+
+  .stageBar b {
+    display: none;
+  }
+
+  .scene {
+    padding: 10px;
+  }
+
+  .toolCanvas {
+    min-height: 430px;
+  }
+
+  .figmaScene {
+    grid-template-columns: 1fr;
+  }
+
+  .layoutPanel {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene {
+    transform: none !important;
+  }
+
+  .lens {
+    display: none;
+  }
+}
