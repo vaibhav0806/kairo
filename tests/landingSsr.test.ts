@@ -26,7 +26,20 @@ describe('landing server rendering', () => {
     expect(html.match(/<h1(?:\s|>)/g)).toHaveLength(1);
     expect(html).toContain('Stuck? Point at it.');
     expect(html).toContain('You don’t have to explain the whole screen.');
-    expect(html).toContain('Circle, underline, and draw so both sides mean the same exact thing.');
+    expect(html).toContain('Guidance that waits for you.');
+    expect(html).toContain('Different tools. The same way of getting unstuck.');
+    expect(html).toContain('What have you been meaning to learn?');
+    expect(html).toContain('Kairo combines what you say, what it sees, and where you point');
+    expect(html).toContain('Kairo gives one move, watches you try it, and checks the result');
+    for (const tool of ['After Effects', 'DaVinci Resolve', 'Blender', 'Figma']) {
+      expect(html).toContain(tool);
+    }
+    for (const note of [
+      'finally understand nodes',
+      'learn motion curves properly',
+      'stop guessing in Blender',
+      'get comfortable in Figma'
+    ]) expect(html).toContain(note);
     expect(html).toContain('We’ll use your email only to contact you about Kairo early access.');
     expect(html).not.toContain('Take over the task');
   });

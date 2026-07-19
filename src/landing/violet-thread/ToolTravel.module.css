@@ -84,6 +84,8 @@
 
 .toolRail button[aria-selected='true']::after { transform: scaleX(1); }
 
+.travel[data-tool-selection-instant='true'] .toolRail button::after { transition: none; }
+
 .toolRail button > span {
   display: grid;
   width: 32px;

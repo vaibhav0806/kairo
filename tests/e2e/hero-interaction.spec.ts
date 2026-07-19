@@ -55,7 +55,7 @@ test.describe('touch hero', () => {
     await handle.fill('72');
     await handle.dispatchEvent('pointerup');
     await expect(page.getByRole('status')).toContainText('Result verified');
-    await page.locator('#product-moments').scrollIntoViewIfNeeded();
-    await expect(page.locator('#product-moments')).toBeInViewport();
+    await page.locator('#learn').scrollIntoViewIfNeeded();
+    await expect(page.locator('#learn')).toBeInViewport();
   });
 });

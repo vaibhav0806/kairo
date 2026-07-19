@@ -5,7 +5,7 @@ test('explains Kairo and exposes every chapter', async ({ page }) => {
   await expect(page).toHaveTitle('Kairo — Learn any creative tool');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stuck? Point at it.');
   await expect(page.getByRole('link', { name: 'Request alpha access' }).first()).toBeVisible();
-  for (const id of ['understand', 'product-moments', 'capabilities', 'tools', 'control', 'access']) {
+  for (const id of ['understand', 'learn', 'travel', 'access']) {
     await expect(page.locator(`#${id}`)).toBeVisible();
   }
 });
@@ -20,12 +20,22 @@ test('supports manual learning interactions without page errors', async ({ page 
   const handle = page.getByRole('slider', { name: 'Adjust the outgoing easing handle' });
   await handle.fill('72');
   await handle.dispatchEvent('pointerup');
-  await expect(page.getByRole('status')).toContainText('Result verified');
+  await expect(page.locator('#top').getByRole('status')).toContainText('Result verified');
   await expect(page.locator('[data-context-active="true"]')).toBeVisible();
-  await page.locator('#product-moments').getByRole('tab', { name: 'Point together' }).click();
-  await page.locator('#tools').getByRole('tab', { name: 'DaVinci Resolve' }).click();
-  await page.getByRole('button', { name: 'Show the next move' }).click();
-  await expect(page.getByText('Now you try it.')).toBeVisible();
+
+  const maskEdge = page.getByRole('slider', { name: 'Move the mask edge' });
+  await maskEdge.fill('52');
+  await maskEdge.dispatchEvent('pointerup');
+  await expect(page.locator('#learn')).toHaveAttribute('data-guided-phase', 'waiting');
+  await expect(page.locator('#learn').getByRole('status')).toHaveCount(0);
+  await maskEdge.fill('68');
+  await maskEdge.dispatchEvent('pointerup');
+  await expect(page.locator('#learn').getByRole('status')).toContainText('Kairo verified the mask edge.');
+
+  await page.locator('#travel').getByRole('tab', { name: /DaVinci Resolve/ }).click();
+  await expect(page.locator('#travel [data-tool="davinci"]')).toBeVisible();
+  await page.locator('#travel').getByRole('tab', { name: /Blender/ }).click();
+  await expect(page.locator('#travel [data-tool="blender"]')).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -57,7 +67,7 @@ test('submits one normalized alpha request', async ({ page }) => {
   ]);
   await expect(page.getByRole('status')).toHaveCount(0);
   releaseResponse();
-  await expect(page.getByRole('status')).toContainText('You’re on the list.');
+  await expect(page.getByRole('status')).toContainText('You’re on the list. Go make something.');
   await expect(page.getByRole('status')).toBeFocused();
   expect(requests).toHaveLength(1);
 });
@@ -85,18 +95,25 @@ test('keeps copy static when reduced motion is requested', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(page.locator('[data-notice-phase="verified"]')).toBeVisible();
   await expect(page.locator('[data-context-active="true"]')).toBeVisible();
-  await expect(page.locator('[data-moment-response="ask"]')).toHaveCSS('opacity', '1');
-  await expect(page.getByText('go make something.')).toBeVisible();
+  await expect(page.locator('[data-guided-phase="verified"]')).toBeVisible();
+  await expect(page.locator('#travel').getByRole('tab')).toHaveCount(4);
+  await expect(page.getByText('What have you been meaning to learn?')).toBeVisible();
 });
 
 test.describe('without javascript', () => {
   test.use({ javaScriptEnabled: false });
 
-  test('keeps the lesson and context explanation readable', async ({ page }) => {
+  test('keeps the complete learning journey readable', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stuck? Point at it.');
     await expect(page.getByText('You don’t have to explain the whole screen.')).toBeVisible();
+    await expect(page.getByText('Guidance that waits for you.')).toBeVisible();
+    await expect(page.getByText('Different tools. The same way of getting unstuck.')).toBeVisible();
+    await expect(page.getByText('What have you been meaning to learn?')).toBeVisible();
     await expect(page.getByText('What Kairo understood')).toBeVisible();
+    for (const tool of ['After Effects', 'DaVinci Resolve', 'Blender', 'Figma']) {
+      await expect(page.getByText(tool, { exact: true })).toBeVisible();
+    }
     await expect(page.getByRole('link', { name: 'Request alpha access' }).first()).toBeVisible();
   });
 });

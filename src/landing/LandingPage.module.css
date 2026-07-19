@@ -118,6 +118,10 @@
 }
 
 @media (max-width: 760px) {
+  .page :global(section[id]) {
+    scroll-margin-top: 112px;
+  }
+
   .header {
     min-height: 112px;
     padding-top: 8px;

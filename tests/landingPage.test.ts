@@ -17,10 +17,8 @@ describe('landing page', () => {
     const markers = [
       'id="top"',
       'id="understand"',
-      'id="product-moments"',
-      'id="capabilities"',
-      'id="tools"',
-      'id="control"',
+      'id="learn"',
+      'id="travel"',
       'id="access"',
       '<footer'
     ];
@@ -30,7 +28,12 @@ describe('landing page', () => {
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(html).toContain('Stuck? Point at it.');
     expect(html).toContain('You don’t have to explain the whole screen.');
+    expect(html).toContain('Guidance that waits for you.');
+    expect(html).toContain('Different tools. The same way of getting unstuck.');
+    expect(html).toContain('What have you been meaning to learn?');
     expect(html).toContain('Your hands stay on the tool.');
+    expect(html).not.toContain('id="product-moments"');
+    expect(html).not.toContain('id="capabilities"');
     expect(html).not.toContain('data-field-notes');
   });
 
@@ -40,8 +43,8 @@ describe('landing page', () => {
     const links = within(nav).getAllByRole('link');
 
     expect(links.map((link) => link.textContent)).toEqual([
-      'The lesson',
       'How Kairo sees',
+      'Guided lesson',
       'Creative tools'
     ]);
     const header = screen.getByRole('banner');
