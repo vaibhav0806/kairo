@@ -59,6 +59,18 @@ describe('Violet Thread prototype', () => {
     expect(screen.getByText('Kairo is waiting for your adjustment.')).toBeTruthy();
   });
 
+  test('offers freehand pointing without hiding the accessible target', () => {
+    render(createElement(NoticeLesson, { onVerified: vi.fn() }));
+
+    const drawToggle = screen.getByRole('button', { name: 'Draw to point' });
+    expect(drawToggle.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(drawToggle);
+
+    expect(screen.getByRole('button', { name: 'Drawing on' }).getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('[data-notice-drawing="true"]')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Select the abrupt stop' })).toBeTruthy();
+  });
+
   test('renders the completed instructional state when reduced motion is requested', () => {
     installBrowserEnvironment({ reducedMotion: true });
     const onVerified = vi.fn();

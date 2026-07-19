@@ -1,7 +1,10 @@
 'use client';
 
 import { motion, useReducedMotion } from 'motion/react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useReducer, useRef, useState } from 'react';
+import type { HeroTarget, StrokePoint } from '../heroInk';
+import { recognizeHeroTarget, strokeToSvgPath } from '../heroInk';
 import { SURFACE_SPRING } from '../motion';
 import {
   INITIAL_NOTICE_STATE,
@@ -18,13 +21,43 @@ type NoticeLessonProps = Readonly<{
   traveling?: boolean;
 }>;
 
+const LESSON_VIEWBOX_WIDTH = 760;
+const LESSON_VIEWBOX_HEIGHT = 760;
+const noticeTarget: HeroTarget = {
+  id: 'timeline',
+  x: 604,
+  y: 408,
+  width: 132,
+  height: 132
+};
+
+function pointInLesson(
+  event: Pick<PointerEvent, 'clientX' | 'clientY' | 'pressure'>,
+  surface: HTMLDivElement
+): StrokePoint {
+  const bounds = surface.getBoundingClientRect();
+  const width = bounds.width || LESSON_VIEWBOX_WIDTH;
+  const height = bounds.height || LESSON_VIEWBOX_HEIGHT;
+
+  return [
+    ((event.clientX - bounds.left) / width) * LESSON_VIEWBOX_WIDTH,
+    ((event.clientY - bounds.top) / height) * LESSON_VIEWBOX_HEIGHT,
+    event.pressure || 0.5
+  ];
+}
+
 export function NoticeLesson({ onVerified, traveling = false }: NoticeLessonProps) {
   const motionReduced = useReducedMotion();
   const [systemReducedMotion, setSystemReducedMotion] = useState(false);
   const [state, dispatch] = useReducer(noticeLessonReducer, INITIAL_NOTICE_STATE);
   const [openingRun, setOpeningRun] = useState(0);
   const [pageVisible, setPageVisible] = useState(true);
+  const [drawingEnabled, setDrawingEnabled] = useState(false);
+  const [completedInk, setCompletedInk] = useState('');
   const verifiedRef = useRef(false);
+  const activePathRef = useRef<SVGPathElement>(null);
+  const activePointsRef = useRef<StrokePoint[]>([]);
+  const activePointerRef = useRef<number | null>(null);
   const reducedMotion = Boolean(motionReduced || systemReducedMotion);
 
   useEffect(() => {
@@ -70,12 +103,64 @@ export function NoticeLesson({ onVerified, traveling = false }: NoticeLessonProp
 
   const resetLesson = () => {
     verifiedRef.current = false;
+    setDrawingEnabled(false);
+    setCompletedInk('');
     dispatch({ type: 'RESET' });
     setOpeningRun((run) => run + 1);
   };
 
+  const startDrawing = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!drawingEnabled || activePointerRef.current !== null) return;
+    if ((event.target as Element).closest('button, input')) return;
+    activePointerRef.current = event.pointerId;
+    activePointsRef.current = [pointInLesson(event.nativeEvent, event.currentTarget)];
+    setCompletedInk('');
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  };
+
+  const continueDrawing = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (activePointerRef.current !== event.pointerId) return;
+    const samples = event.nativeEvent.getCoalescedEvents?.() ?? [event.nativeEvent];
+    activePointsRef.current.push(
+      ...samples.map((sample) => pointInLesson(sample, event.currentTarget))
+    );
+    activePathRef.current?.setAttribute('d', strokeToSvgPath(activePointsRef.current));
+    event.preventDefault();
+  };
+
+  const finishDrawing = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (activePointerRef.current !== event.pointerId) return;
+    const points = [...activePointsRef.current];
+    const recognized = recognizeHeroTarget(points, [noticeTarget]);
+    activePointerRef.current = null;
+    activePointsRef.current = [];
+    activePathRef.current?.setAttribute('d', '');
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    setCompletedInk(strokeToSvgPath(points));
+    if (recognized === 'timeline') {
+      setDrawingEnabled(false);
+      dispatch({ type: 'TARGET_SELECTED' });
+    }
+  };
+
+  const cancelDrawing = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (activePointerRef.current !== event.pointerId) return;
+    activePointerRef.current = null;
+    activePointsRef.current = [];
+    activePathRef.current?.setAttribute('d', '');
+  };
+
   return (
-    <div className={styles.lesson} data-notice-phase={state.phase}>
+    <div
+      className={styles.lesson}
+      data-notice-phase={state.phase}
+      data-notice-drawing={drawingEnabled}
+      onPointerDown={startDrawing}
+      onPointerMove={continueDrawing}
+      onPointerUp={finishDrawing}
+      onPointerCancel={cancelDrawing}
+    >
       <div className={styles.editorBar} aria-hidden="true">
         <span>Composition / title-study</span>
         <b>00:08:12</b>
@@ -155,12 +240,31 @@ export function NoticeLesson({ onVerified, traveling = false }: NoticeLessonProp
 
       <VioletThread state={traveling ? 'travel' : threadStateForNoticePhase(state.phase)} />
 
+      <svg
+        className={styles.inkLayer}
+        viewBox={`0 0 ${LESSON_VIEWBOX_WIDTH} ${LESSON_VIEWBOX_HEIGHT}`}
+        aria-hidden="true"
+      >
+        <path ref={activePathRef} className={styles.ink} />
+        <path className={styles.ink} d={completedInk} data-notice-ink="completed" />
+      </svg>
+
       <div className={styles.kairoNote} aria-live="polite">
         {state.phase === 'noticed' ? <p>That stop feels wrong, doesn’t it?</p> : null}
         {state.phase === 'guiding' ? <p>Give the stop more room. Pull this handle left.</p> : null}
         {state.phase === 'waiting' ? <p>Kairo is waiting for your adjustment.</p> : null}
         {state.phase === 'verified' ? <p role="status">Result verified. That stop has room now.</p> : null}
       </div>
+
+      <button
+        type="button"
+        className={styles.drawToggle}
+        aria-label={drawingEnabled ? 'Drawing on' : 'Draw to point'}
+        aria-pressed={drawingEnabled}
+        onClick={() => setDrawingEnabled((enabled) => !enabled)}
+      >
+        <span aria-hidden="true">✎</span> {drawingEnabled ? 'Drawing on' : 'Draw to point'}
+      </button>
 
       {state.phase === 'verified' ? (
         <button type="button" className={styles.reset} onClick={resetLesson}>
