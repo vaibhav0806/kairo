@@ -1,0 +1,283 @@
+.control {
+  padding: clamp(88px, 12vw, 176px) clamp(20px, 5vw, 80px);
+  background: var(--notice);
+}
+
+.stage {
+  display: grid;
+  max-width: 1440px;
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.7fr);
+  align-items: center;
+  gap: clamp(40px, 8vw, 128px);
+}
+
+.copy > p:first-child {
+  margin: 0 0 22px;
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.copy h2 {
+  max-width: 9ch;
+  margin: 0;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(3.4rem, 7vw, 8rem);
+  font-weight: 610;
+  line-height: 0.87;
+  letter-spacing: -0.065em;
+}
+
+.body {
+  max-width: 35rem;
+  margin: 28px 0 0;
+  color: rgb(11 13 18 / 66%);
+  font-size: clamp(1rem, 1.3vw, 1.15rem);
+  line-height: 1.55;
+}
+
+.copy button {
+  min-height: 50px;
+  margin-top: 30px;
+  padding: 0 20px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--ink);
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.copy button:focus-visible,
+.footerMark:focus-visible {
+  outline: 3px solid var(--kairo);
+  outline-offset: 4px;
+}
+
+.panel {
+  min-height: 440px;
+  padding: clamp(18px, 3vw, 28px);
+  border: 2px solid var(--ink);
+  border-radius: 28px;
+  background: var(--canvas);
+  box-shadow: 16px 16px 0 var(--ink);
+}
+
+.panelBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ink-muted);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.panelBar span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.panelBar i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kairo);
+}
+
+.panelBar b {
+  color: var(--kairo);
+}
+
+[data-control-state='verified'] .panelBar b {
+  color: #527b09;
+}
+
+.canvas {
+  position: relative;
+  height: 230px;
+  margin-top: 22px;
+  overflow: hidden;
+  border-radius: 14px;
+  background:
+    linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px),
+    var(--surface-deep);
+  background-size: 24px 24px;
+}
+
+.titleBlock {
+  position: absolute;
+  top: 22%;
+  left: 12%;
+  color: #ffffff;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(2.4rem, 4.8vw, 4.8rem);
+  font-weight: 650;
+  line-height: 0.72;
+  letter-spacing: -0.08em;
+}
+
+.canvas svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas path {
+  fill: none;
+  stroke: var(--kairo);
+  stroke-width: 5;
+}
+
+.handle {
+  position: absolute;
+  z-index: 2;
+  top: 43%;
+  left: 48%;
+  width: 32%;
+  height: 2px;
+  background: var(--kairo);
+  transform-origin: left center;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.handle i,
+.handle b {
+  position: absolute;
+  top: -6px;
+  width: 13px;
+  height: 13px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: var(--kairo);
+}
+
+.handle i { left: -6px; }
+.handle b { right: -6px; }
+
+[data-control-state='waiting'] .handle {
+  transform: rotate(-16deg);
+}
+
+[data-control-state='verified'] .handle {
+  transform: rotate(-28deg);
+}
+
+.guidance {
+  margin-top: 22px;
+}
+
+.guidance > span {
+  color: var(--kairo);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+[data-control-state='verified'] .guidance > span {
+  color: #527b09;
+}
+
+.guidance p {
+  margin: 7px 0 14px;
+  font-weight: 660;
+}
+
+.progress {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.progress i {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-soft);
+}
+
+.progress i:first-child,
+[data-control-state='waiting'] .progress i:nth-child(2),
+[data-control-state='verified'] .progress i {
+  background: var(--kairo);
+}
+
+[data-control-state='verified'] .progress i {
+  background: var(--verify);
+}
+
+.footerMark {
+  display: grid;
+  padding: 20px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.footerWordmark {
+  position: relative;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(4rem, 11vw, 10rem);
+  font-weight: 620;
+  line-height: 0.8;
+  letter-spacing: -0.08em;
+}
+
+.footerWordmark svg {
+  position: absolute;
+  inset: -38% -16%;
+  width: 132%;
+  height: 176%;
+  overflow: visible;
+}
+
+.footerWordmark path {
+  fill: none;
+  stroke: var(--kairo);
+  stroke-linecap: round;
+  stroke-width: 5;
+}
+
+.footerPhrase {
+  margin-top: 34px;
+  color: var(--verify);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+  letter-spacing: 0.05em;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .copy button:hover {
+    background: transparent;
+    color: var(--ink);
+  }
+}
+
+@media (max-width: 760px) {
+  .stage {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    box-shadow: 8px 8px 0 var(--ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copy h2,
+  .handle {
+    transform: none !important;
+  }
+}

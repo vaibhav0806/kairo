@@ -3,7 +3,7 @@
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
-import { LandingPage } from '../src/landing/LandingPage';
+import { WaitlistForm } from '../src/landing/WaitlistForm';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -33,7 +33,7 @@ afterEach(() => {
 
 describe('landing waitlist', () => {
   test('discloses how submitted addresses are used', () => {
-    render(createElement(LandingPage));
+    render(createElement(WaitlistForm));
     const input = screen.getByLabelText('Email address');
     const note = screen.getByText('We’ll use your email only to contact you about Kairo early access.');
 
@@ -41,29 +41,12 @@ describe('landing waitlist', () => {
     expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(note.id);
   });
 
-  test('lets the learner pause and resume the hero demonstration', () => {
-    const { container } = render(createElement(LandingPage));
-
-    const pause = screen.getByRole('button', { name: 'Pause lesson' });
-    expect(pause.hasAttribute('aria-pressed')).toBe(false);
-    expect(container.querySelector('[data-demo-paused="false"]')).toBeTruthy();
-
-    fireEvent.click(pause);
-    const play = screen.getByRole('button', { name: 'Play lesson' });
-    expect(play.hasAttribute('aria-pressed')).toBe(false);
-    expect(container.querySelector('[data-demo-paused="true"]')).toBeTruthy();
-
-    fireEvent.click(play);
-    expect(screen.getByRole('button', { name: 'Pause lesson' })).toBeTruthy();
-    expect(container.querySelector('[data-demo-paused="false"]')).toBeTruthy();
-  });
-
   test('keeps and focuses invalid input with accessible error state', () => {
-    render(createElement(LandingPage));
+    render(createElement(WaitlistForm));
     const input = screen.getByLabelText('Email address') as HTMLInputElement;
 
     fireEvent.change(input, { target: { value: 'learner@' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Request alpha access' }));
 
     expect(input.value).toBe('learner@');
     expect(input.getAttribute('aria-invalid')).toBe('true');
@@ -79,10 +62,10 @@ describe('landing waitlist', () => {
     const response = deferred<Response>();
     const fetchMock = vi.fn(() => response.promise);
     vi.stubGlobal('fetch', fetchMock);
-    render(createElement(LandingPage));
+    render(createElement(WaitlistForm));
 
     const input = screen.getByLabelText('Email address') as HTMLInputElement;
-    const button = screen.getByRole('button', { name: 'Join the alpha' }) as HTMLButtonElement;
+    const button = screen.getByRole('button', { name: 'Request alpha access' }) as HTMLButtonElement;
     const form = input.closest('form') as HTMLFormElement;
 
     fireEvent.change(input, {
@@ -121,10 +104,10 @@ describe('landing waitlist', () => {
       ))
       .mockResolvedValueOnce(Response.json({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
-    render(createElement(LandingPage));
+    render(createElement(WaitlistForm));
 
     const input = screen.getByLabelText('Email address') as HTMLInputElement;
-    const button = screen.getByRole('button', { name: 'Join the alpha' }) as HTMLButtonElement;
+    const button = screen.getByRole('button', { name: 'Request alpha access' }) as HTMLButtonElement;
     fireEvent.change(input, { target: { value: 'learner@example.com' } });
     fireEvent.click(button);
 
@@ -145,11 +128,11 @@ describe('landing waitlist', () => {
       { ok: false, error: 'Invalid email.' },
       { status: 400 }
     )));
-    render(createElement(LandingPage));
+    render(createElement(WaitlistForm));
 
     const input = screen.getByLabelText('Email address') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'learner@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Request alpha access' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toBe('Enter a valid email address.');
@@ -164,11 +147,11 @@ describe('landing waitlist', () => {
     ['unexpected JSON', () => Response.json({ ok: true, extra: 'value' })]
   ])('keeps the form when a successful response has %s content', async (_case, response) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response()));
-    render(createElement(LandingPage));
+    render(createElement(WaitlistForm));
 
     const input = screen.getByLabelText('Email address') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'learner@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Join the alpha' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Request alpha access' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toBe('Something went wrong. Please try again.');

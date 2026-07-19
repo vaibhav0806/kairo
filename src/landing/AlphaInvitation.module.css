@@ -1,0 +1,81 @@
+.access {
+  display: grid;
+  padding: clamp(80px, 12vw, 176px) clamp(20px, 5vw, 80px);
+  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 0.7fr);
+  align-items: center;
+  gap: clamp(48px, 8vw, 128px);
+  background:
+    radial-gradient(circle at 88% 18%, rgb(102 92 255 / 24%), transparent 30rem),
+    var(--surface-deep);
+  color: #ffffff;
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.copy > p {
+  margin: 0 0 24px;
+  color: var(--verify);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.copy h2 {
+  max-width: 10ch;
+  margin: 0;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(3rem, 6vw, 6.5rem);
+  font-weight: 600;
+  line-height: 0.92;
+  letter-spacing: -0.055em;
+}
+
+.copy > span {
+  max-width: 42rem;
+  margin-top: 28px;
+  color: rgb(255 255 255 / 62%);
+  font-size: clamp(0.92rem, 1.2vw, 1.06rem);
+  line-height: 1.6;
+}
+
+.formShell {
+  padding: clamp(20px, 3vw, 34px);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 22px;
+  background: rgb(11 13 18 / 42%);
+  backdrop-filter: blur(14px);
+}
+
+.founderNote {
+  margin-bottom: 34px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid rgb(255 255 255 / 13%);
+}
+
+.founderNote span {
+  color: var(--notice);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.founderNote p {
+  margin: 10px 0 0;
+  color: rgb(255 255 255 / 75%);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .access {
+    grid-template-columns: 1fr;
+  }
+}

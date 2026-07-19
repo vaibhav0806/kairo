@@ -1,0 +1,112 @@
+.form {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.form label {
+  margin-bottom: 4px;
+  color: rgb(255 255 255 / 72%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.form input {
+  width: 100%;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.form input::placeholder {
+  color: var(--ink-muted);
+}
+
+.form button {
+  min-height: 56px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--kairo);
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.form button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.form :focus-visible,
+.success:focus-visible {
+  outline: 3px solid var(--verify);
+  outline-offset: 4px;
+}
+
+.note,
+.error {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.note {
+  color: rgb(255 255 255 / 48%);
+}
+
+.error {
+  color: #ffb6b1;
+}
+
+.success {
+  display: grid;
+  padding: 24px;
+  border-radius: 18px;
+  background: var(--verify);
+  color: var(--ink);
+}
+
+.success > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--verify);
+  font-weight: 800;
+}
+
+.success p {
+  margin: 22px 0 4px;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  font-weight: 620;
+  letter-spacing: -0.04em;
+}
+
+.success strong {
+  font-weight: 600;
+}
+
+.success small {
+  margin-top: 16px;
+  color: rgb(11 13 18 / 62%);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .form button:hover:not(:disabled) {
+    background: var(--verify);
+    color: var(--ink);
+  }
+}
