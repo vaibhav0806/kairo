@@ -24,7 +24,8 @@ describe('landing server rendering', () => {
     const html = renderToString(createElement(LandingPage));
 
     expect(html.match(/<h1(?:\s|>)/g)).toHaveLength(1);
-    expect(html).toContain('Learn any creative tool without leaving it.');
+    expect(html).toContain('Stuck? Point at it.');
+    expect(html).toContain('You don’t have to explain the whole screen.');
     expect(html).toContain('Circle, underline, and draw so both sides mean the same exact thing.');
     expect(html).toContain('We’ll use your email only to contact you about Kairo early access.');
     expect(html).not.toContain('Take over the task');

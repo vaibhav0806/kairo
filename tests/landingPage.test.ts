@@ -16,6 +16,7 @@ describe('landing page', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     const markers = [
       'id="top"',
+      'id="understand"',
       'id="product-moments"',
       'id="capabilities"',
       'id="tools"',
@@ -27,7 +28,8 @@ describe('landing page', () => {
 
     positions.forEach((position) => expect(position).toBeGreaterThan(-1));
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
-    expect(html).toContain('Learn any creative tool without leaving it.');
+    expect(html).toContain('Stuck? Point at it.');
+    expect(html).toContain('You don’t have to explain the whole screen.');
     expect(html).toContain('Your hands stay on the tool.');
     expect(html).not.toContain('data-field-notes');
   });
@@ -37,7 +39,11 @@ describe('landing page', () => {
     const nav = screen.getByRole('navigation', { name: 'Landing page' });
     const links = within(nav).getAllByRole('link');
 
-    expect(links.map((link) => link.textContent)).toEqual(['How it helps', 'Capabilities', 'Tools']);
+    expect(links.map((link) => link.textContent)).toEqual([
+      'The lesson',
+      'How Kairo sees',
+      'Creative tools'
+    ]);
     const header = screen.getByRole('banner');
     expect(within(header).getByRole('link', { name: 'Request alpha access' }).getAttribute('href')).toBe(
       '#access'

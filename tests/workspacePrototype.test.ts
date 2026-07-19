@@ -5,6 +5,7 @@ import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { NoticeLesson } from '../src/landing/violet-thread/NoticeLesson';
 import { VioletThread } from '../src/landing/violet-thread/VioletThread';
+import { WorkspacePrototype } from '../src/landing/violet-thread/WorkspacePrototype';
 import { installBrowserEnvironment } from './helpers/browserEnvironment';
 
 afterEach(() => {
@@ -79,5 +80,25 @@ describe('Violet Thread prototype', () => {
     expect(document.querySelector('[data-notice-phase="verified"]')).toBeTruthy();
     expect(screen.getByRole('status').textContent).toContain('Result verified');
     expect(onVerified).toHaveBeenCalledTimes(1);
+  });
+
+  test('carries verified context into the next chapter', () => {
+    vi.useFakeTimers();
+    render(createElement(WorkspacePrototype));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select the abrupt stop' }));
+    act(() => vi.advanceTimersByTime(160));
+    const handle = screen.getByRole('slider', { name: 'Adjust the outgoing easing handle' });
+    fireEvent.change(handle, { target: { value: '72' } });
+    fireEvent.pointerUp(handle);
+    expect(document.querySelector('[data-workspace-phase="verified"]')).toBeTruthy();
+
+    act(() => vi.advanceTimersByTime(420));
+    expect(document.querySelector('[data-thread-state="travel"]')).toBeTruthy();
+    act(() => vi.advanceTimersByTime(560));
+
+    expect(document.querySelector('[data-workspace-phase="understand"]')).toBeTruthy();
+    expect(document.querySelector('[data-context-active="true"]')).toBeTruthy();
+    expect(screen.getByText('What Kairo understood')).toBeTruthy();
   });
 });

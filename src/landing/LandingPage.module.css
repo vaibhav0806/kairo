@@ -44,7 +44,7 @@
   align-items: center;
   gap: 24px;
   border-bottom: 1px solid rgb(11 13 18 / 12%);
-  background: rgb(245 247 251 / 88%);
+  background: rgb(242 237 225 / 88%);
   backdrop-filter: blur(18px) saturate(135%);
 }
 

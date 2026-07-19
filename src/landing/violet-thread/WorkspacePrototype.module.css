@@ -1,0 +1,44 @@
+.prototype {
+  width: 100%;
+}
+
+.lessonFrame {
+  position: relative;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.chapterLabel {
+  display: flex;
+  min-height: 52px;
+  padding: 0 4px;
+  align-items: center;
+  gap: 16px;
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.chapterLabel span {
+  color: var(--kairo);
+}
+
+.chapterLabel b {
+  font-weight: 650;
+}
+
+.chapterLabel i {
+  margin-left: auto;
+  color: #706a62;
+  font-style: normal;
+}
+
+.prototype[data-workspace-phase='verified'] .lessonFrame,
+.prototype[data-workspace-phase='traveling'] .lessonFrame {
+  filter: saturate(1.04);
+}
+
+@media (max-width: 620px) {
+  .chapterLabel i { display: none; }
+}

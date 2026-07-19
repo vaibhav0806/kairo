@@ -13,9 +13,9 @@ export function LandingPage() {
       <header className={styles.header}>
         <a className={styles.wordmark} href="#top" aria-label="Kairo home">kairo</a>
         <nav aria-label="Landing page">
-          <a href="#product-moments">How it helps</a>
-          <a href="#capabilities">Capabilities</a>
-          <a href="#tools">Tools</a>
+          <a href="#top">The lesson</a>
+          <a href="#understand">How Kairo sees</a>
+          <a href="#tools">Creative tools</a>
         </nav>
         <a className={styles.headerCta} href="#access">Request alpha access</a>
       </header>
