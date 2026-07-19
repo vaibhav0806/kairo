@@ -12,10 +12,8 @@ beforeEach(() => installBrowserEnvironment());
 describe('HeroCanvas', () => {
   test('explains Kairo without requiring interaction', () => {
     render(createElement(Hero));
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
-      'Learn any creative tool without leaving it.'
-    );
-    expect(screen.getByText(/Talk to Kairo, show it what you mean/)).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Stuck? Point at it.');
+    expect(screen.getByText(/Ask out loud, point on-screen/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Request alpha access' }).getAttribute('href')).toBe(
       '#access'
     );

@@ -68,7 +68,9 @@
   opacity: 0.18;
   transform: scaleX(0.25);
   transform-origin: left;
-  transition: transform 720ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease;
+  transition:
+    transform 620ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 240ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .context[data-context-active='true'] .layers::before {
@@ -87,9 +89,8 @@
   opacity: 0.72;
   transform: translateY(0) rotate(0);
   transition:
-    transform 620ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 260ms ease,
-    background-color 260ms ease;
+    transform 480ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 240ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .layer + .layer {
@@ -106,9 +107,9 @@
   transform: translateY(0) rotate(0);
 }
 
-.context[data-context-active='true'] .visible { transition-delay: 100ms; }
-.context[data-context-active='true'] .pointed { transition-delay: 200ms; }
-.context[data-context-active='true'] .understood { transition-delay: 300ms; }
+.context[data-context-active='true'] .visible { transition-delay: 60ms; }
+.context[data-context-active='true'] .pointed { transition-delay: 120ms; }
+.context[data-context-active='true'] .understood { transition-delay: 180ms; }
 
 .number {
   display: inline-grid;

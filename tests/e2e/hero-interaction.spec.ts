@@ -2,16 +2,22 @@ import { expect, test } from '@playwright/test';
 
 test('keeps keyboard target selection equivalent to drawing', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Ask Kairo about the layers' }).focus();
+  await page.getByRole('button', { name: 'Select the abrupt stop' }).focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('status')).toContainText('driving the motion');
+  await expect(page.getByText('Give the stop more room. Pull this handle left.')).toBeVisible();
+
+  const handle = page.getByRole('slider', { name: 'Adjust the outgoing easing handle' });
+  await handle.focus();
+  for (let index = 0; index < 16; index += 1) await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('status')).toContainText('Result verified');
 });
 
 test('recognizes a pointer loop around the timeline', async ({ page }) => {
   await page.goto('/');
-  const timeline = page.getByRole('button', { name: 'Ask Kairo about the timeline' });
-  await timeline.scrollIntoViewIfNeeded();
-  const box = await timeline.boundingBox();
+  await page.getByRole('button', { name: 'Draw to point' }).click();
+  const target = page.getByRole('button', { name: 'Select the abrupt stop' });
+  await target.scrollIntoViewIfNeeded();
+  const box = await target.boundingBox();
   expect(box).not.toBeNull();
   if (!box) return;
 
@@ -30,7 +36,7 @@ test('recognizes a pointer loop around the timeline', async ({ page }) => {
   await page.mouse.down();
   for (const [x, y] of points.slice(1)) await page.mouse.move(x, y, { steps: 4 });
   await page.mouse.up();
-  await expect(page.getByRole('status')).toContainText('easing');
+  await expect(page.getByText('Give the stop more room. Pull this handle left.')).toBeVisible();
 });
 
 test.describe('touch hero', () => {
@@ -41,8 +47,14 @@ test.describe('touch hero', () => {
     hasTouch: true
   });
 
-  test('keeps vertical scrolling available outside the drawing region', async ({ page }) => {
+  test('supports the large touch handle and keeps vertical scrolling available', async ({ page }) => {
     await page.goto('/');
+    await page.getByRole('button', { name: 'Select the abrupt stop' }).tap();
+    await expect(page.getByText('Give the stop more room. Pull this handle left.')).toBeVisible();
+    const handle = page.getByRole('slider', { name: 'Adjust the outgoing easing handle' });
+    await handle.fill('72');
+    await handle.dispatchEvent('pointerup');
+    await expect(page.getByRole('status')).toContainText('Result verified');
     await page.locator('#product-moments').scrollIntoViewIfNeeded();
     await expect(page.locator('#product-moments')).toBeInViewport();
   });

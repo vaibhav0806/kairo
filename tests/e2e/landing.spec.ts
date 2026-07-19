@@ -3,11 +3,9 @@ import { expect, test } from '@playwright/test';
 test('explains Kairo and exposes every chapter', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveTitle('Kairo — Learn any creative tool');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Learn any creative tool without leaving it.'
-  );
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stuck? Point at it.');
   await expect(page.getByRole('link', { name: 'Request alpha access' }).first()).toBeVisible();
-  for (const id of ['product-moments', 'capabilities', 'tools', 'control', 'access']) {
+  for (const id of ['understand', 'product-moments', 'capabilities', 'tools', 'control', 'access']) {
     await expect(page.locator(`#${id}`)).toBeVisible();
   }
 });
@@ -17,8 +15,13 @@ test('supports manual learning interactions without page errors', async ({ page 
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
 
-  await page.getByRole('button', { name: 'Ask Kairo about the timeline' }).click();
-  await expect(page.getByRole('status')).toContainText('easing');
+  await page.getByRole('button', { name: 'Select the abrupt stop' }).click();
+  await expect(page.getByText('Give the stop more room. Pull this handle left.')).toBeVisible();
+  const handle = page.getByRole('slider', { name: 'Adjust the outgoing easing handle' });
+  await handle.fill('72');
+  await handle.dispatchEvent('pointerup');
+  await expect(page.getByRole('status')).toContainText('Result verified');
+  await expect(page.locator('[data-context-active="true"]')).toBeVisible();
   await page.locator('#product-moments').getByRole('tab', { name: 'Point together' }).click();
   await page.locator('#tools').getByRole('tab', { name: 'DaVinci Resolve' }).click();
   await page.getByRole('button', { name: 'Show the next move' }).click();
@@ -80,8 +83,20 @@ test('keeps copy static when reduced motion is requested', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await page.waitForTimeout(2_100);
-  await expect(page.locator('[data-hero-ink="completed"]')).toHaveAttribute('d', '');
+  await expect(page.locator('[data-notice-phase="verified"]')).toBeVisible();
+  await expect(page.locator('[data-context-active="true"]')).toBeVisible();
   await expect(page.locator('[data-moment-response="ask"]')).toHaveCSS('opacity', '1');
   await expect(page.getByText('go make something.')).toBeVisible();
+});
+
+test.describe('without javascript', () => {
+  test.use({ javaScriptEnabled: false });
+
+  test('keeps the lesson and context explanation readable', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Stuck? Point at it.');
+    await expect(page.getByText('You don’t have to explain the whole screen.')).toBeVisible();
+    await expect(page.getByText('What Kairo understood')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Request alpha access' }).first()).toBeVisible();
+  });
 });
