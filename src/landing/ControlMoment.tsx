@@ -25,6 +25,7 @@ type ControlState = keyof typeof steps;
 export function ControlMoment() {
   const reducedMotion = useReducedMotion();
   const [state, setState] = useState<ControlState>('guide');
+  const [instantTransition, setInstantTransition] = useState(false);
   const current = steps[state];
   const nextState = state === 'guide' ? 'waiting' : state === 'waiting' ? 'verified' : 'guide';
   const actionLabel = state === 'guide' ? 'Show the next move' : state === 'waiting' ? 'I tried it' : 'Start again';
@@ -37,17 +38,25 @@ export function ControlMoment() {
           <motion.h2
             key={state}
             id="control-title"
-            initial={reducedMotion ? false : { opacity: 0, transform: 'translateY(14px)' }}
+            initial={reducedMotion || instantTransition ? false : { opacity: 0, transform: 'translateY(14px)' }}
             animate={{ opacity: 1, transform: 'translateY(0px)' }}
-            transition={SURFACE_SPRING}
+            transition={reducedMotion || instantTransition ? { duration: 0 } : SURFACE_SPRING}
           >
             {current.title}
           </motion.h2>
           <p className={styles.body}>{current.body}</p>
-          <button type="button" onClick={() => setState(nextState)}>{actionLabel}</button>
+          <button
+            type="button"
+            onClick={(event) => {
+              setInstantTransition(event.detail === 0);
+              setState(nextState);
+            }}
+          >
+            {actionLabel}
+          </button>
         </div>
 
-        <div className={styles.panel} data-control-state={state}>
+        <div className={styles.panel} data-control-state={state} data-instant={instantTransition}>
           <div className={styles.panelBar}>
             <span><i aria-hidden="true" /> Guided practice</span>
             <b>{state === 'verified' ? 'Complete' : 'In progress'}</b>

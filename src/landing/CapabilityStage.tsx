@@ -50,12 +50,14 @@ export function CapabilityStage() {
   const reducedMotion = useReducedMotion();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [activeId, setActiveId] = useState<CapabilityId>('talk');
+  const [instantSelection, setInstantSelection] = useState(false);
   const activeIndex = capabilities.findIndex(({ id }) => id === activeId);
   const active = capabilities[activeIndex] ?? capabilities[0];
 
   const selectIndex = (index: number) => {
     const next = capabilities[index];
     if (!next) return;
+    setInstantSelection(true);
     setActiveId(next.id);
     tabRefs.current[index]?.focus();
   };
@@ -72,7 +74,12 @@ export function CapabilityStage() {
   };
 
   return (
-    <section id="capabilities" className={styles.capabilities} aria-labelledby="capabilities-title">
+    <section
+      id="capabilities"
+      className={styles.capabilities}
+      aria-labelledby="capabilities-title"
+      data-instant-selection={instantSelection}
+    >
       <div className={styles.shell}>
         <div className={styles.heading}>
           <p>Kairo stays in the flow</p>
@@ -93,14 +100,17 @@ export function CapabilityStage() {
               aria-description={capability.copy}
               aria-selected={activeId === capability.id}
               tabIndex={activeId === capability.id ? 0 : -1}
-              onClick={() => setActiveId(capability.id)}
+              onClick={(event) => {
+                setInstantSelection(event.detail === 0);
+                setActiveId(capability.id);
+              }}
               onKeyDown={handleTabKey}
             >
               {activeId === capability.id ? (
                 <motion.span
                   className={styles.selectedTab}
                   layoutId="capability-selection"
-                  transition={SURFACE_SPRING}
+                  transition={reducedMotion || instantSelection ? { duration: 0 } : SURFACE_SPRING}
                   aria-hidden="true"
                 />
               ) : null}
@@ -136,7 +146,7 @@ export function CapabilityStage() {
                   className={styles.focusBox}
                   initial={false}
                   animate={{ transform: active.transform }}
-                  transition={SURFACE_SPRING}
+                  transition={reducedMotion || instantSelection ? { duration: 0 } : SURFACE_SPRING}
                   aria-hidden="true"
                 >
                   <i /><i /><i /><i />
@@ -146,7 +156,7 @@ export function CapabilityStage() {
                     d={active.annotation}
                     initial={false}
                     animate={{ pathLength: 1, opacity: activeId === 'see' ? 0.45 : 1 }}
-                    transition={reducedMotion ? { duration: 0 } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+                    transition={reducedMotion || instantSelection ? { duration: 0 } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
                   />
                 </svg>
                 <div className={styles.timelineStrip} aria-hidden="true">
@@ -168,7 +178,7 @@ export function CapabilityStage() {
               className={styles.panelCopy}
               initial={reducedMotion ? false : { opacity: 0, transform: 'translateY(8px)' }}
               animate={{ opacity: 1, transform: 'translateY(0px)' }}
-              transition={{ duration: reducedMotion ? 0 : 0.18, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: reducedMotion || instantSelection ? 0 : 0.18, ease: [0.22, 1, 0.36, 1] }}
             >
               <span>{active.eyebrow}</span>
               <h3>{active.label}</h3>

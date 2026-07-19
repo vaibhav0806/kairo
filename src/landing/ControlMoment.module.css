@@ -172,6 +172,10 @@
   transform: rotate(-28deg);
 }
 
+[data-instant='true'] .handle {
+  transition: none;
+}
+
 .guidance {
   margin-top: 22px;
 }
@@ -276,8 +280,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .copy h2,
-  .handle {
+  .copy h2 {
     transform: none !important;
+  }
+
+  .handle {
+    transition: none;
   }
 }

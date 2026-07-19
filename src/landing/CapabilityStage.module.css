@@ -532,7 +532,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .selectedTab,
-  .focusBox,
   .panelCopy {
     transform: none !important;
   }

@@ -73,6 +73,7 @@ export function HeroCanvas() {
   const [heroState, setHeroState] = useState<HeroState>('idle');
   const [activeTarget, setActiveTarget] = useState<HeroTargetId | null>(null);
   const [completedStroke, setCompletedStroke] = useState<StrokePoint[]>([]);
+  const [idleStrokeVisible, setIdleStrokeVisible] = useState(false);
   const [drawEnabled, setDrawEnabled] = useState(false);
 
   const completedPath = useMemo(() => strokeToSvgPath(completedStroke), [completedStroke]);
@@ -95,13 +96,7 @@ export function HeroCanvas() {
       if (idlePlayedRef.current || !inView || document.hidden) return;
 
       idleTimerRef.current = setTimeout(() => {
-        setCompletedStroke([
-          [238, 74],
-          [292, 82],
-          [348, 78],
-          [404, 84],
-          [458, 76]
-        ]);
+        setIdleStrokeVisible(true);
         idlePlayedRef.current = true;
         idleTimerRef.current = null;
       }, 1800);
@@ -128,6 +123,7 @@ export function HeroCanvas() {
       cancelIdle();
       idlePlayedRef.current = true;
       const target = targets.find(({ id }) => id === targetId);
+      setIdleStrokeVisible(false);
       setCompletedStroke(target ? loopAround(target) : []);
       setActiveTarget(targetId);
       setHeroState('responding');
@@ -139,12 +135,14 @@ export function HeroCanvas() {
     cancelIdle();
     activePointsRef.current = [];
     if (activePathRef.current) activePathRef.current.setAttribute('d', '');
+    setIdleStrokeVisible(false);
     setCompletedStroke([]);
     setActiveTarget(null);
     setHeroState('idle');
   }, [cancelIdle]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (activePointerRef.current !== null) return;
     if ((event.target as Element).closest('button')) return;
     if (event.pointerType === 'touch' && !drawEnabled) return;
 
@@ -152,6 +150,7 @@ export function HeroCanvas() {
     idlePlayedRef.current = true;
     activePointerRef.current = event.pointerId;
     activePointsRef.current = [pointInViewBox(event.nativeEvent, event.currentTarget)];
+    setIdleStrokeVisible(false);
     setCompletedStroke([]);
     setActiveTarget(null);
     setHeroState('drawing');
@@ -265,13 +264,20 @@ export function HeroCanvas() {
 
       <svg className={styles.inkLayer} viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`} aria-hidden="true">
         <path ref={activePathRef} className={styles.ink} />
-        <motion.path
+        <path
+          data-hero-ink="completed"
           className={styles.ink}
           d={completedPath}
-          initial={false}
-          animate={{ opacity: completedPath ? 1 : 0 }}
-          transition={DIRECT_SPRING}
         />
+        {idleStrokeVisible ? (
+          <motion.path
+            className={styles.idleInk}
+            d="M238 74C292 82 348 78 404 84S442 81 458 76"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+          />
+        ) : null}
       </svg>
 
       {activeTarget ? (

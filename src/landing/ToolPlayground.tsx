@@ -105,12 +105,14 @@ export function ToolPlayground() {
   const stageRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [activeId, setActiveId] = useState<ToolId>('after-effects');
+  const [instantSelection, setInstantSelection] = useState(false);
   const activeIndex = tools.findIndex(({ id }) => id === activeId);
   const active = tools[activeIndex] ?? tools[0];
 
   const selectIndex = (index: number) => {
     const next = tools[index];
     if (!next) return;
+    setInstantSelection(true);
     setActiveId(next.id);
     tabRefs.current[index]?.focus();
   };
@@ -124,11 +126,19 @@ export function ToolPlayground() {
     if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) return;
     const index = (y >= bounds.height / 2 ? 2 : 0) + (x >= bounds.width / 2 ? 1 : 0);
     const next = tools[index];
-    if (next) setActiveId(next.id);
+    if (next) {
+      setInstantSelection(false);
+      setActiveId(next.id);
+    }
   };
 
   return (
-    <section id="tools" className={styles.tools} aria-labelledby="tools-title">
+    <section
+      id="tools"
+      className={styles.tools}
+      aria-labelledby="tools-title"
+      data-instant-selection={instantSelection}
+    >
       <div className={styles.shell}>
         <div className={styles.heading}>
           <p>Bring the hard tool</p>
@@ -147,7 +157,10 @@ export function ToolPlayground() {
               aria-controls="tool-stage"
               aria-selected={activeId === tool.id}
               tabIndex={activeId === tool.id ? 0 : -1}
-              onClick={() => setActiveId(tool.id)}
+              onClick={(event) => {
+                setInstantSelection(event.detail === 0);
+                setActiveId(tool.id);
+              }}
               onKeyDown={(event) => {
                 let nextIndex: number | null = null;
                 if (event.key === 'ArrowRight') nextIndex = (activeIndex + 1) % tools.length;
@@ -180,9 +193,9 @@ export function ToolPlayground() {
           <motion.div
             key={activeId}
             className={styles.scene}
-            initial={reducedMotion ? false : { opacity: 0, transform: 'translateY(18px)' }}
+            initial={reducedMotion || instantSelection ? false : { opacity: 0, transform: 'translateY(18px)' }}
             animate={{ opacity: 1, transform: 'translateY(0px)' }}
-            transition={DIRECT_SPRING}
+            transition={reducedMotion || instantSelection ? { duration: 0 } : DIRECT_SPRING}
           >
             <div className={styles.toolCanvas}>
               {activeId === 'after-effects' || activeId === 'davinci' ? <TimelineScene tool={activeId} /> : null}
@@ -208,7 +221,6 @@ export function ToolPlayground() {
             dragElastic={0.08}
             dragMomentum={false}
             onDragEnd={handleLensDrop}
-            whileDrag={{ transform: 'scale(1.04)' }}
             transition={DIRECT_SPRING}
           >
             <span>drag<br />to explore</span>

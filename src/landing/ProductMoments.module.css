@@ -401,7 +401,12 @@
 }
 
 .lessonSteps .activeStep {
+  border-color: var(--kairo);
   background: rgb(102 92 255 / 11%);
+}
+
+.moments[data-instant-selection='true'] .tab {
+  transition: none;
 }
 
 .verifyNote {
