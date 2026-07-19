@@ -1,0 +1,480 @@
+.moments {
+  padding: clamp(88px, 12vw, 176px) clamp(20px, 5vw, 80px);
+  background: var(--surface-deep);
+  color: #ffffff;
+}
+
+.layout {
+  display: grid;
+  max-width: 1440px;
+  margin: 0 auto;
+  grid-template-columns: minmax(240px, 0.65fr) minmax(0, 1.35fr);
+  align-items: center;
+  gap: clamp(40px, 7vw, 112px);
+}
+
+.explanation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.eyebrow {
+  margin: 0 0 20px;
+  color: var(--verify);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.explanation h2 {
+  max-width: 9ch;
+  margin: 0;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(3rem, 5.4vw, 6.2rem);
+  font-weight: 600;
+  line-height: 0.92;
+  letter-spacing: -0.055em;
+}
+
+.tabs {
+  display: grid;
+  width: 100%;
+  margin-top: clamp(36px, 5vw, 64px);
+  gap: 8px;
+}
+
+.tab {
+  display: grid;
+  min-height: 52px;
+  padding: 0 14px;
+  grid-template-columns: 38px 1fr;
+  align-items: center;
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: 12px;
+  background: transparent;
+  color: rgb(255 255 255 / 62%);
+  font-weight: 650;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tab span {
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.65rem;
+}
+
+.tab[aria-selected='true'] {
+  border-color: var(--kairo);
+  background: var(--kairo);
+  color: #ffffff;
+}
+
+.tab:focus-visible,
+.stageHeader button:focus-visible {
+  outline: 3px solid var(--notice);
+  outline-offset: 3px;
+}
+
+.activeCopy {
+  min-height: 5em;
+  margin: 24px 0 0;
+  color: rgb(255 255 255 / 65%);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.stage {
+  position: relative;
+  min-height: clamp(420px, 54vw, 720px);
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 80% 12%, rgb(102 92 255 / 22%), transparent 34%),
+    var(--ink);
+  box-shadow: 0 36px 90px rgb(0 0 0 / 24%);
+}
+
+.stageHeader {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  min-height: 62px;
+  padding: 8px 10px 8px 22px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgb(255 255 255 / 12%);
+  color: rgb(255 255 255 / 62%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: clamp(0.58rem, 0.8vw, 0.7rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.stageHeader > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stageHeader i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--verify);
+  box-shadow: 0 0 0 5px rgb(184 243 74 / 12%);
+}
+
+.stageHeader button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 7%);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.sceneWindow {
+  position: absolute;
+  inset: 62px 0 0;
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+}
+
+.contextBar {
+  position: absolute;
+  top: 9%;
+  left: 8%;
+  display: grid;
+  padding-left: 14px;
+  gap: 4px;
+  border-left: 3px solid var(--react);
+}
+
+.contextBar span,
+.voiceQuestion span,
+.kairoReply span,
+.lessonHeading span {
+  color: rgb(255 255 255 / 48%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: clamp(0.56rem, 0.8vw, 0.7rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.contextBar b {
+  font-size: clamp(0.78rem, 1.2vw, 1rem);
+}
+
+.voiceQuestion {
+  position: absolute;
+  top: 25%;
+  right: 8%;
+  max-width: 56%;
+  padding: clamp(14px, 2vw, 22px);
+  border-radius: 20px 20px 4px 20px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.voiceQuestion span {
+  color: var(--react);
+}
+
+.voiceQuestion p {
+  margin: 7px 0 0;
+  font-size: clamp(0.92rem, 1.5vw, 1.3rem);
+  font-weight: 620;
+}
+
+.waveform {
+  position: absolute;
+  top: 43%;
+  left: 7%;
+  width: 68%;
+  overflow: visible;
+}
+
+.waveform path {
+  fill: none;
+  stroke: var(--kairo);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 7;
+}
+
+.kairoReply {
+  position: absolute;
+  right: 7%;
+  bottom: 9%;
+  max-width: 60%;
+  padding: clamp(16px, 2.4vw, 26px);
+  border: 1px solid rgb(184 243 74 / 42%);
+  border-radius: 4px 20px 20px 20px;
+  background: rgb(184 243 74 / 9%);
+  color: #ffffff;
+  font-size: clamp(0.82rem, 1.25vw, 1.05rem);
+  line-height: 1.45;
+}
+
+.kairoReply span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--verify);
+}
+
+.artboard {
+  position: absolute;
+  top: 8%;
+  bottom: 8%;
+  left: 8%;
+  width: 54%;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #f2f0e9;
+  color: var(--ink);
+}
+
+.artboardLabel {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.posterCircle {
+  position: absolute;
+  top: 22%;
+  right: -14%;
+  width: 68%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--react);
+}
+
+.artboard strong {
+  position: absolute;
+  z-index: 2;
+  bottom: 14%;
+  left: 9%;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(2.3rem, 6vw, 6.8rem);
+  line-height: 0.77;
+  letter-spacing: -0.08em;
+}
+
+.artboard em {
+  position: absolute;
+  top: 17%;
+  right: 8%;
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.7rem;
+  font-style: normal;
+}
+
+.pointInk {
+  position: absolute;
+  z-index: 3;
+  top: 5%;
+  left: 14%;
+  width: 54%;
+  overflow: visible;
+}
+
+.pointInk path {
+  fill: none;
+  stroke: var(--kairo);
+  stroke-linecap: round;
+  stroke-width: 10;
+}
+
+.anchorNote {
+  position: absolute;
+  z-index: 4;
+  right: 5%;
+  bottom: 15%;
+  width: 40%;
+  padding: clamp(16px, 2.4vw, 28px);
+  border-radius: 18px 18px 4px 18px;
+  background: var(--notice);
+  color: var(--ink);
+  font-size: clamp(0.78rem, 1.2vw, 1rem);
+  font-weight: 620;
+  line-height: 1.4;
+}
+
+.anchorNote span {
+  display: block;
+  margin-bottom: 8px;
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.lessonHeading {
+  position: absolute;
+  top: 9%;
+  left: 8%;
+}
+
+.lessonHeading p {
+  margin: 7px 0 0;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(1.6rem, 3.6vw, 3.8rem);
+  font-weight: 580;
+  letter-spacing: -0.045em;
+}
+
+.lessonSteps {
+  position: absolute;
+  top: 27%;
+  right: 8%;
+  left: 8%;
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 10px;
+  list-style: none;
+}
+
+.lessonSteps li {
+  display: grid;
+  min-height: 84px;
+  padding: 14px 18px;
+  grid-template-columns: 40px 1fr 28px;
+  align-items: center;
+  border: 1px solid rgb(255 255 255 / 11%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 5%);
+}
+
+.lessonSteps li > span,
+.lessonSteps li > i {
+  color: rgb(255 255 255 / 42%);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: 0.68rem;
+  font-style: normal;
+}
+
+.lessonSteps li > i {
+  text-align: right;
+}
+
+.lessonSteps p {
+  display: grid;
+  margin: 0;
+  gap: 5px;
+}
+
+.lessonSteps b {
+  font-size: clamp(0.78rem, 1.2vw, 1rem);
+}
+
+.lessonSteps small {
+  color: rgb(255 255 255 / 45%);
+}
+
+.lessonSteps .doneStep {
+  opacity: 0.58;
+}
+
+.lessonSteps .doneStep > i,
+.lessonSteps .activeStep small {
+  color: var(--verify);
+}
+
+.lessonSteps .activeStep {
+  background: rgb(102 92 255 / 11%);
+}
+
+.verifyNote {
+  position: absolute;
+  right: 8%;
+  bottom: 5%;
+  color: var(--verify);
+  font-family: "Geist Mono Variable", monospace;
+  font-size: clamp(0.58rem, 0.9vw, 0.75rem);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tab:hover {
+    border-color: rgb(255 255 255 / 35%);
+    color: #ffffff;
+  }
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .explanation h2 {
+    max-width: 11ch;
+  }
+
+  .tabs {
+    display: flex;
+    width: calc(100vw - 20px);
+    padding-right: 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tab {
+    min-width: max-content;
+    flex: 0 0 auto;
+  }
+
+  .activeCopy {
+    min-height: auto;
+  }
+
+  .stage {
+    min-height: 500px;
+  }
+
+  .voiceQuestion,
+  .kairoReply {
+    max-width: 72%;
+  }
+
+  .artboard {
+    width: 68%;
+  }
+
+  .pointInk {
+    left: 10%;
+    width: 69%;
+  }
+
+  .anchorNote {
+    right: 4%;
+    width: 52%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sceneWindow,
+  .kairoReply,
+  .anchorNote,
+  .activeStep {
+    transform: none !important;
+  }
+}
