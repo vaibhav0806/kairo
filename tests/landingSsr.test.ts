@@ -44,11 +44,17 @@ describe('landing server rendering', () => {
     expect(html).not.toContain('Take over the task');
   });
 
-  test('does not render legacy photographic assets', () => {
+  test('renders the approved creator assets without legacy photography', () => {
     const html = renderToString(createElement(LandingPage));
     const assetUrls = collectAssetUrls(html);
 
-    expect(assetUrls).toEqual([]);
+    expect(assetUrls).toEqual([
+      '/hero/after-effects-workspace.webp',
+      '/hero/blender-viewport.webp',
+      '/hero/creator-editing.mp4',
+      '/hero/davinci-nodes.webp',
+      '/hero/figma-layout.webp'
+    ]);
     expect(html).not.toContain('/field-notes/');
     expect(html).not.toContain('/kairo-blender-preview.webp');
   });

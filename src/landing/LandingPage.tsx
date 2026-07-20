@@ -1,5 +1,7 @@
 import { AlphaInvitation } from './AlphaInvitation';
 import { FooterMark } from './FooterMark';
+import { HeaderAction } from './HeaderAction';
+import { HeaderNavigation } from './HeaderNavigation';
 import { Hero } from './Hero';
 import { GuidedLesson } from './violet-thread/GuidedLesson';
 import { ToolTravel } from './violet-thread/ToolTravel';
@@ -9,13 +11,11 @@ export function LandingPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <a className={styles.wordmark} href="#top" aria-label="Kairo home">kairo</a>
-        <nav aria-label="Landing page">
-          <a href="#understand">How Kairo sees</a>
-          <a href="#learn">Guided lesson</a>
-          <a href="#travel">Creative tools</a>
-        </nav>
-        <a className={styles.headerCta} href="#access">Request alpha access</a>
+        <div className={styles.brandLockup}>
+          <a className={styles.wordmark} href="#top" aria-label="Kairo home">kairo</a>
+        </div>
+        <HeaderNavigation />
+        <HeaderAction />
       </header>
       <main>
         <Hero />

@@ -72,11 +72,15 @@ test('submits one normalized alpha request', async ({ page }) => {
   expect(requests).toHaveLength(1);
 });
 
-test('keeps phone navigation visible without horizontal overflow', async ({ page }) => {
+test('keeps the mobile dock out of the hero and restores it afterward', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
 
   const nav = page.getByRole('navigation', { name: 'Landing page' });
+  await expect(nav).toBeHidden();
+  await page.locator('[data-hero-intro]').evaluate((element) =>
+    window.scrollTo({ top: element.getBoundingClientRect().bottom + window.scrollY })
+  );
   await expect(nav).toBeVisible();
   await expect(nav.getByRole('link')).toHaveCount(3);
   const geometry = await page.evaluate(() => ({
@@ -87,6 +91,46 @@ test('keeps phone navigation visible without horizontal overflow', async ({ page
   }));
   expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
   expect(geometry.bodyScrollWidth).toBeLessThanOrEqual(geometry.bodyClientWidth);
+});
+
+test('tracks the current section in the desktop navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+
+  const nav = page.getByRole('navigation', { name: 'Landing page' });
+  const sections = [
+    ['understand', 'How Kairo sees'],
+    ['learn', 'Guided lesson'],
+    ['travel', 'Creative tools']
+  ] as const;
+
+  for (const [id, label] of sections) {
+    await page.locator(`#${id}`).scrollIntoViewIfNeeded();
+    await expect(nav.getByRole('link', { name: label })).toHaveAttribute('aria-current', 'location');
+    await expect(nav.locator('[aria-current="location"]')).toHaveCount(1);
+  }
+});
+
+test('keeps every mobile dock target tappable at narrow widths', async ({ page }) => {
+  for (const width of [320, 390, 768]) {
+    await page.setViewportSize({ width, height: width === 320 ? 568 : 844 });
+    await page.goto('/');
+    await page.locator('#understand').scrollIntoViewIfNeeded();
+
+    const nav = page.getByRole('navigation', { name: 'Landing page' });
+    await expect(nav).toBeVisible();
+
+    const geometry = await nav.getByRole('link').evaluateAll((links) =>
+      links.map((link) => {
+        const bounds = link.getBoundingClientRect();
+        return { height: bounds.height, left: bounds.left, right: bounds.right };
+      })
+    );
+
+    expect(geometry.every(({ height }) => height >= 44)).toBe(true);
+    expect(geometry.every(({ left, right }) => left >= 0 && right <= width)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
 });
 
 test('keeps copy static when reduced motion is requested', async ({ page }) => {
