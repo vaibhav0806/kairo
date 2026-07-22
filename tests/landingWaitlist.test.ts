@@ -36,9 +36,11 @@ describe('landing waitlist', () => {
     render(createElement(WaitlistForm));
     const input = screen.getByLabelText('Email address');
     const note = screen.getByText('We’ll use your email only to contact you about Kairo early access.');
+    const privacy = screen.getByRole('link', { name: 'Privacy' });
 
     expect(note.id).toBe('waitlist-note');
     expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(note.id);
+    expect(privacy.getAttribute('href')).toBe('/privacy');
   });
 
   test('keeps and focuses invalid input with accessible error state', () => {

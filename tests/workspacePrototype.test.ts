@@ -88,23 +88,11 @@ describe('Violet Thread prototype', () => {
     expect(onVerified).toHaveBeenCalledTimes(1);
   });
 
-  test('carries verified context into the next chapter', () => {
-    vi.useFakeTimers();
+  test('renders the focused context scene without the retired synthetic lesson', () => {
     render(createElement(WorkspacePrototype));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select the abrupt stop' }));
-    act(() => vi.advanceTimersByTime(160));
-    const handle = screen.getByRole('slider', { name: 'Adjust the outgoing easing handle' });
-    fireEvent.change(handle, { target: { value: '72' } });
-    fireEvent.pointerUp(handle);
-    expect(document.querySelector('[data-workspace-phase="verified"]')).toBeTruthy();
-
-    act(() => vi.advanceTimersByTime(420));
-    expect(document.querySelector('[data-thread-state="travel"]')).toBeTruthy();
-    act(() => vi.advanceTimersByTime(560));
-
-    expect(document.querySelector('[data-workspace-phase="understand"]')).toBeTruthy();
     expect(document.querySelector('[data-context-active="true"]')).toBeTruthy();
-    expect(screen.getByText('What Kairo understood')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Kairo sees what you mean.' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Select the abrupt stop' })).toBeNull();
   });
 });

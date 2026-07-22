@@ -1,309 +1,320 @@
 .travel {
-  padding: clamp(104px, 13vw, 184px) clamp(20px, 5vw, 80px);
+  position: relative;
+  padding: clamp(72px, 7vw, 104px) 0;
   overflow: clip;
-  background: #f2ede1;
-  color: #111216;
+  border-top: 1px solid rgb(11 13 18 / 8%);
+  background: #f7f9fd;
+  color: #0b0d12;
 }
 
-.heading {
+.content {
   display: grid;
-  max-width: 1280px;
-  margin: 0 auto clamp(56px, 8vw, 104px);
-  grid-template-columns: minmax(170px, 0.35fr) minmax(0, 1fr);
-  gap: 18px clamp(28px, 6vw, 88px);
+  width: 100%;
+  justify-items: center;
+  text-align: center;
 }
 
-.heading > p {
-  padding-top: 0.65rem;
-  color: var(--kairo);
-  font-family: "Geist Mono Variable", monospace;
-  font-size: 0.7rem;
-  font-weight: 660;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+.copy {
+  display: grid;
+  width: min(1040px, calc(100% - 28px));
+  justify-items: center;
+  row-gap: clamp(28px, 2.5vw, 34px);
 }
 
-.heading h2 {
-  max-width: 14ch;
+.copy h2 {
+  max-width: 1040px;
   margin: 0;
   font-family: "Bricolage Grotesque Variable", sans-serif;
-  font-size: clamp(3rem, 7vw, 7.4rem);
+  font-size: clamp(3.2rem, 5vw, 5rem);
   font-weight: 630;
-  line-height: 0.88;
-  letter-spacing: -0.066em;
+  line-height: 0.98;
+  letter-spacing: -0.065em;
   text-wrap: balance;
 }
 
-.heading > span {
-  max-width: 660px;
-  grid-column: 2;
-  color: #5e5b56;
-  font-size: clamp(1rem, 1.4vw, 1.22rem);
-  line-height: 1.6;
-}
-
-.toolRail {
-  display: grid;
-  max-width: 1280px;
+.description {
+  max-width: 620px;
   margin: 0 auto;
-  grid-template-columns: repeat(4, 1fr);
-  border: 1px solid rgb(17 18 22 / 14%);
-  border-bottom: 0;
-  background: rgb(255 253 247 / 54%);
+  color: #555d6c;
+  font-size: clamp(1rem, 1.35vw, 1.18rem);
+  line-height: 1.58;
+  text-wrap: balance;
 }
 
-.toolRail button {
+.fieldViewport {
   position: relative;
-  display: grid;
-  min-height: 92px;
-  padding: 16px 18px;
-  grid-template-columns: 38px 1fr;
-  gap: 4px 8px;
-  border: 0;
-  border-right: 1px solid rgb(17 18 22 / 12%);
-  background: transparent;
-  color: #111216;
-  cursor: pointer;
-  text-align: left;
-}
-
-.toolRail button:last-child { border-right: 0; }
-
-.toolRail button::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  background: var(--kairo);
-  content: '';
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 100ms cubic-bezier(0, 0, 0.2, 1);
-}
-
-.toolRail button[aria-selected='true']::after { transform: scaleX(1); }
-
-.travel[data-tool-selection-instant='true'] .toolRail button::after { transition: none; }
-
-.toolRail button > span {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  grid-row: 1 / 3;
-  place-items: center;
-  border: 1px solid rgb(17 18 22 / 24%);
-  font-family: "Geist Mono Variable", monospace;
-  font-size: 0.64rem;
-}
-
-.toolRail button b { align-self: end; font-size: 0.88rem; }
-.toolRail button small { color: #6f6a62; font-size: 0.67rem; }
-.toolRail button:focus-visible { z-index: 2; outline: 3px solid var(--kairo); outline-offset: -3px; }
-
-.workspace {
-  position: relative;
-  max-width: 1280px;
-  min-height: 700px;
-  margin: 0 auto;
+  width: 100vw;
+  height: clamp(340px, 29vw, 410px);
+  margin-top: clamp(38px, 4vw, 54px);
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 9%);
-  background: #0d0e11;
-  color: #f7f3e8;
   isolation: isolate;
+  touch-action: pan-y;
+  background:
+    radial-gradient(ellipse 46% 58% at 50% 52%, rgb(102 92 255 / 5%), transparent 72%);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 7%, #000 93%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 7%, #000 93%, transparent 100%);
+  mask-composite: intersect;
 }
 
-.workspaceBar {
-  position: relative;
-  z-index: 5;
-  display: grid;
-  min-height: 48px;
-  padding: 0 18px;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  border-bottom: 1px solid rgb(255 255 255 / 9%);
-  color: rgb(247 243 232 / 46%);
-  font-family: "Geist Mono Variable", monospace;
-  font-size: 0.62rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+.appPlane {
+  position: absolute;
+  inset: 0;
 }
 
-.workspaceBar b { color: var(--kairo); }
-.workspaceBar em { justify-self: end; font-style: normal; }
+.fieldNode {
+  --node-size: 58px;
+  --icon-size: 34px;
+  --node-opacity: 0.84;
 
-.sceneWindow {
-  position: relative;
+  position: absolute;
+  top: var(--field-top);
+  left: 0;
   z-index: 2;
-  display: grid;
-  min-height: 652px;
-  grid-template-columns: minmax(0, 1fr) 330px;
+  width: var(--node-size);
+  height: var(--node-size);
+  opacity: var(--node-opacity);
+  animation: app-field-drift var(--field-duration) linear var(--field-delay) infinite;
+  animation-play-state: paused;
+  will-change: transform;
 }
 
-.toolScene {
+.fieldNode[data-field-depth='near'] {
+  --node-size: 66px;
+  --icon-size: 40px;
+  --node-opacity: 1;
+
+  z-index: 3;
+}
+
+.fieldNode[data-field-depth='far'] {
+  --node-size: 50px;
+  --icon-size: 28px;
+  --node-opacity: 0.66;
+
+  z-index: 1;
+}
+
+.fieldViewport[data-field-motion='running'] .fieldNode {
+  animation-play-state: running;
+}
+
+.fieldViewport .fieldNode[data-active-held] {
+  animation-play-state: paused;
+}
+
+.fieldNode:has(.appChoice[aria-checked='true']),
+.fieldNode:has(.appChoice:focus-visible),
+.fieldNode:has(.appChoice:hover) {
+  z-index: 5;
+  opacity: 1;
+}
+
+.appChoice {
   position: relative;
-  min-width: 0;
-  margin: 30px;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 9%);
-  background: #15161a;
+  display: grid;
+  width: var(--node-size);
+  height: var(--node-size);
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  color: #0b0d12;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
-.poster,
-.videoFrame,
-.viewport,
-.figmaCanvas {
+.iconShell {
+  display: grid;
+  width: calc(var(--node-size) - 8px);
+  height: calc(var(--node-size) - 8px);
+  place-items: center;
+  border: 1px solid rgb(11 13 18 / 10%);
+  border-radius: 15px;
+  background: rgb(255 255 255 / 94%);
+  box-shadow:
+    0 11px 26px rgb(31 38 58 / 9%),
+    0 2px 5px rgb(31 38 58 / 5%);
+  transition:
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.iconShell img {
+  display: block;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  object-fit: contain;
+}
+
+.activeFrame {
   position: absolute;
-  top: 24px;
-  right: 24px;
-  left: 24px;
-  height: 42%;
-  overflow: hidden;
-  background: #eee8dc;
-  color: #111216;
+  inset: 3px;
+  z-index: 2;
+  border: 2px solid #665cff;
+  border-radius: 17px;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px rgb(102 92 255 / 11%);
 }
 
-.poster {
-  display: flex;
-  padding: 24px;
-  align-items: end;
-  justify-content: space-between;
-  font-family: "Bricolage Grotesque Variable", sans-serif;
+.appChoice[aria-checked='true'] .iconShell {
+  border-color: rgb(102 92 255 / 48%);
+  box-shadow:
+    0 15px 32px rgb(31 38 58 / 13%),
+    0 2px 6px rgb(31 38 58 / 6%);
 }
 
-.poster span { font-size: clamp(2.6rem, 5vw, 5.6rem); font-weight: 720; letter-spacing: -0.07em; }
-.poster b { max-width: 5ch; font-size: 1rem; }
+.appChoice:focus-visible {
+  outline: 3px solid rgb(102 92 255 / 70%);
+  outline-offset: 4px;
+}
 
-.graph,
-.nodeGraph {
+.activeLabel {
+  min-height: 1.5em;
+  margin: 0;
+  padding: clamp(18px, 1.8vw, 24px) 14px 0;
+  color: #5f6675;
+  font-family: "Geist Mono Variable", monospace;
+  font-size: clamp(0.72rem, 0.85vw, 0.8rem);
+  line-height: 1.5;
+}
+
+.screenReaderSummary {
   position: absolute;
-  right: 24px;
-  bottom: 24px;
-  left: 24px;
-  height: 44%;
-  padding: 14px;
-  background: #0a0b0d;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
-
-.graph > span,
-.nodeGraph > span,
-.videoFrame > span,
-.viewport > span,
-.figmaCanvas > span,
-.transformPanel > span,
-.layoutPanel > span {
-  font-family: "Geist Mono Variable", monospace;
-  font-size: 0.58rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.graph svg { width: 100%; height: calc(100% - 12px); }
-.grid { fill: none; stroke: rgb(255 255 255 / 7%); }
-.coralPath { fill: none; stroke: var(--react); stroke-width: 5; }
-.handleLine { stroke: rgb(255 255 255 / 42%); stroke-width: 2; }
-.problemPoint { fill: var(--react); }
-.handlePoint { fill: var(--kairo); stroke: #ffffff; stroke-width: 2; }
-
-.videoFrame { padding: 18px; background: linear-gradient(135deg, #55656d, #c49a79); }
-.videoFrame b { position: absolute; right: 20px; bottom: 16px; font-size: 3rem; opacity: 0.42; }
-.nodeGraph { height: 46%; }
-.node { position: absolute; z-index: 2; bottom: 27%; left: 8%; display: grid; width: 92px; height: 82px; padding: 12px; border: 1px solid rgb(255 255 255 / 18%); background: #292a30; }
-.node small { color: rgb(247 243 232 / 56%); }
-.gradeNode { left: 40%; border-color: var(--react); }
-.outputNode { right: 4%; left: auto; }
-.nodeGraph svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.nodeGraph path { fill: none; stroke: var(--kairo); stroke-width: 4; }
-.nodeGraph .brokenEdge { stroke: var(--react); stroke-dasharray: 8 8; }
-.nodeGraph circle { fill: var(--react); }
-
-.viewport { bottom: 24px; height: auto; background: linear-gradient(160deg, #34353a, #17181c); color: #ffffff; }
-.object { position: absolute; top: 34%; left: 42%; width: 130px; height: 130px; transform: rotate(24deg) skew(-8deg); background: #c4b9a7; box-shadow: 26px 30px 0 rgb(0 0 0 / 22%); }
-.object i { position: absolute; width: 8px; height: 8px; background: var(--kairo); }
-.object i:nth-child(1) { top: -4px; left: -4px; }
-.object i:nth-child(2) { top: -4px; right: -4px; }
-.object i:nth-child(3) { right: -4px; bottom: -4px; }
-.object i:nth-child(4) { bottom: -4px; left: -4px; }
-.gizmo { position: absolute; top: 48%; left: 51%; font-family: "Geist Mono Variable", monospace; }
-.gizmo i { position: absolute; left: 0; color: var(--react); font-style: normal; transform: translateX(74px); }
-.gizmo b { position: absolute; color: var(--verify); transform: translateY(-70px); }
-.gizmo em { position: absolute; color: #72a8ff; font-style: normal; transform: translate(-42px, 52px); }
-.transformPanel,
-.layoutPanel { position: absolute; z-index: 3; top: 48px; right: 0; bottom: 0; width: 210px; padding: 18px; border-left: 1px solid rgb(255 255 255 / 10%); background: #1b1c20; }
-.transformPanel p,
-.layoutPanel p { display: flex; min-height: 42px; margin: 12px 0 0; padding: 0 10px; align-items: center; justify-content: space-between; background: rgb(255 255 255 / 5%); }
-.transformPanel p[data-axis='wrong'] { border: 1px solid var(--react); }
-.transformPanel p[data-axis='target'] { color: var(--verify); }
-.transformPanel i,
-.layoutPanel i { font-style: normal; }
-
-.figmaCanvas { right: 234px; bottom: 24px; height: auto; }
-.layoutFrame { position: absolute; top: 42%; left: 14%; display: flex; align-items: center; border: 2px solid var(--kairo); }
-.layoutFrame i,
-.layoutFrame b,
-.layoutFrame em { display: inline-flex; min-height: 48px; padding: 0 18px; align-items: center; border: 1px solid rgb(102 92 255 / 35%); font-style: normal; }
-.figmaCanvas small { position: absolute; top: 58%; left: 45%; color: var(--react); font-family: "Geist Mono Variable", monospace; }
-.zeroGap { border: 1px solid var(--react); color: var(--react); }
-
-.kairoPanel {
-  display: flex;
-  padding: 34px 28px;
-  flex-direction: column;
-  border-left: 1px solid rgb(255 255 255 / 9%);
-  background: #17181c;
-}
-
-.kairoPanel > span,
-.kairoPanel small {
-  color: rgb(247 243 232 / 48%);
-  font-family: "Geist Mono Variable", monospace;
-  font-size: 0.6rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.kairoPanel h3 { margin: 48px 0 28px; font-family: "Bricolage Grotesque Variable", sans-serif; font-size: 2.3rem; line-height: 0.98; letter-spacing: -0.05em; }
-.kairoPanel > div { display: grid; padding: 18px 0; grid-template-columns: 30px 1fr; border-top: 1px solid rgb(255 255 255 / 12%); }
-.kairoPanel > div i { color: var(--kairo); font-style: normal; }
-.kairoPanel > div p { margin: 0; color: rgb(247 243 232 / 70%); line-height: 1.5; }
-.kairoPanel > div b { display: block; margin-bottom: 8px; color: #ffffff; }
-.kairoPanel small { margin-top: auto; color: var(--verify); }
-.thread { z-index: 4; opacity: 0.7; }
 
 @media (hover: hover) and (pointer: fine) {
-  .toolRail button:hover { background: rgb(102 92 255 / 6%); }
+  .fieldNode:has(.appChoice:hover) {
+    animation-play-state: paused;
+  }
+
+  .appChoice:hover .iconShell {
+    border-color: rgb(102 92 255 / 42%);
+    box-shadow:
+      0 17px 34px rgb(31 38 58 / 13%),
+      0 2px 6px rgb(31 38 58 / 6%);
+    transform: translateY(-2px) scale(1.06);
+  }
 }
 
 @media (max-width: 900px) {
-  .toolRail { grid-template-columns: repeat(2, 1fr); }
-  .toolRail button:nth-child(2) { border-right: 0; }
-  .sceneWindow { grid-template-columns: 1fr; }
-  .toolScene { min-height: 560px; }
-  .kairoPanel { min-height: 300px; border-top: 1px solid rgb(255 255 255 / 9%); border-left: 0; }
-  .workspace { min-height: 950px; }
+  .fieldViewport {
+    height: 340px;
+  }
+
+  .fieldNode[data-tablet-hidden] {
+    display: none;
+  }
 }
 
-@media (max-width: 620px) {
-  .heading { display: block; }
-  .heading h2 { margin-top: 18px; }
-  .heading > span { display: block; margin-top: 24px; }
-  .toolRail { display: flex; overflow-x: auto; scrollbar-width: none; }
-  .toolRail button { min-width: 210px; min-height: 84px; }
-  .workspace { min-height: 850px; }
-  .workspaceBar { grid-template-columns: 1fr auto; }
-  .workspaceBar b { display: none; }
-  .toolScene { min-height: 480px; margin: 14px; }
-  .poster, .videoFrame, .viewport, .figmaCanvas { top: 14px; right: 14px; left: 14px; }
-  .graph, .nodeGraph { right: 14px; bottom: 14px; left: 14px; }
-  .poster span { font-size: 2.8rem; }
-  .transformPanel, .layoutPanel { top: auto; right: 14px; bottom: 14px; width: 176px; height: 218px; }
-  .figmaCanvas { right: 14px; bottom: 246px; }
-  .layoutFrame { left: 5%; }
-  .layoutFrame i, .layoutFrame b, .layoutFrame em { padding: 0 8px; font-size: 0.72rem; }
-  .kairoPanel { padding: 26px 22px; }
-  .kairoPanel h3 { margin-top: 28px; font-size: 2rem; }
+@media (max-width: 700px) {
+  .travel {
+    padding: 64px 0 70px;
+  }
+
+  .copy h2 {
+    max-width: 520px;
+    font-size: clamp(2.25rem, 10.5vw, 2.85rem);
+    line-height: 1.06;
+  }
+
+  .copy h2 span {
+    display: block;
+  }
+
+  .copy {
+    row-gap: 28px;
+  }
+
+  .description {
+    max-width: 340px;
+    font-size: 0.96rem;
+    line-height: 1.65;
+  }
+
+  .fieldViewport {
+    height: 286px;
+    margin-top: 36px;
+    background:
+      radial-gradient(ellipse 72% 58% at 50% 52%, rgb(102 92 255 / 5%), transparent 74%);
+    -webkit-mask-image:
+      linear-gradient(to right, transparent 0%, #000 5%, #000 95%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 8%, #000 92%, transparent 100%);
+    mask-image:
+      linear-gradient(to right, transparent 0%, #000 5%, #000 95%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 8%, #000 92%, transparent 100%);
+  }
+
+  .fieldNode[data-mobile-hidden] {
+    display: none;
+  }
+
+  .fieldNode {
+    --node-size: 52px;
+    --icon-size: 31px;
+    --node-opacity: 0.84;
+
+    top: var(--field-mobile-top);
+    animation-duration: var(--field-mobile-duration);
+    animation-delay: var(--field-mobile-delay);
+  }
+
+  .fieldNode[data-field-depth='near'] {
+    --node-size: 58px;
+    --icon-size: 35px;
+  }
+
+  .fieldNode[data-field-depth='far'] {
+    --node-size: 48px;
+    --icon-size: 27px;
+    --node-opacity: 0.8;
+  }
+
+  .activeFrame {
+    inset: 2px;
+    border-radius: 15px;
+  }
+
+  .activeLabel {
+    padding-top: 18px;
+    color: #555d6c;
+    font-size: 0.72rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .toolRail button::after { transition: none; }
+  .fieldNode {
+    animation: none;
+    transform:
+      translate3d(calc(var(--field-static-x) * 1vw), 0, 0);
+    will-change: auto;
+  }
+
+  .appChoice,
+  .iconShell {
+    transition: none;
+  }
+}
+
+@keyframes app-field-drift {
+  from {
+    transform: translate3d(-84px, 0, 0);
+  }
+
+  to {
+    transform: translate3d(calc(100vw + 84px), var(--field-rise), 0);
+  }
 }

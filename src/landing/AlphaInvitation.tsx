@@ -1,16 +1,9 @@
 'use client';
 
+import { ArrowUpRight, GithubLogo } from '@phosphor-icons/react';
 import { useState } from 'react';
-import { VioletThread } from './violet-thread/VioletThread';
 import { WaitlistForm } from './WaitlistForm';
 import styles from './AlphaInvitation.module.css';
-
-const learnerNotes = [
-  'finally understand nodes',
-  'learn motion curves properly',
-  'stop guessing in Blender',
-  'get comfortable in Figma'
-] as const;
 
 export function AlphaInvitation() {
   const [submitted, setSubmitted] = useState(false);
@@ -22,35 +15,43 @@ export function AlphaInvitation() {
       aria-labelledby="access-title"
       data-invitation-complete={submitted}
     >
-      <div className={styles.copy}>
-        <p>Chapter 05 / Begin</p>
-        <h2 id="access-title">What have you been meaning to learn?</h2>
-        <span>
-          Kairo is early. Tell us which creative tool keeps slowing you down, and help shape the
-          tutor you would actually want beside you.
-        </span>
-      </div>
+      <div className={styles.stage}>
+        <div className={styles.copy}>
+          <h2 id="access-title">
+            Learn by doing.{' '}
+            <span>Built in the open.</span>
+          </h2>
+          <p className={styles.body}>
+            See how Kairo works, help shape how it teaches, and learn with the earliest version.
+          </p>
 
-      <aside className={styles.learnerNotes} aria-label="What creative learners want to learn">
-        {learnerNotes.map((note, index) => (
-          <span key={note} data-note={index + 1}>{note}</span>
-        ))}
-      </aside>
+          <div className={styles.founderNote}>
+            <span>Why we’re building it</span>
+            <p>We’re building Kairo for the moments tutorials miss: the exact place you get stuck.</p>
+          </div>
 
-      <div className={styles.formShell}>
-        <div className={styles.founderNote}>
-          <span>From the founder</span>
-          <p>Tell me what you’re learning and where you get stuck. That’s what we’ll build around.</p>
+          <a
+            className={styles.githubLink}
+            href="https://github.com/vaibhav0806/kairo-tutor"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <GithubLogo size={24} weight="fill" aria-hidden="true" />
+            <span>
+              <strong>Open source on GitHub</strong>
+            </span>
+            <ArrowUpRight size={20} aria-hidden="true" />
+          </a>
         </div>
-        <WaitlistForm onSubmitted={() => setSubmitted(true)} />
-      </div>
 
-      <VioletThread
-        state={submitted ? 'verify' : 'guide'}
-        profile="invitation"
-        className={styles.thread}
-        label={submitted ? 'Kairo completed the alpha invitation' : 'Kairo points to the alpha invitation'}
-      />
+        <div className={styles.formShell}>
+          <div className={styles.formIntro}>
+            <h3>Learn beside Kairo.</h3>
+            <p>Join the first group helping us make screen tutoring genuinely useful.</p>
+          </div>
+          <WaitlistForm onSubmitted={() => setSubmitted(true)} />
+        </div>
+      </div>
     </section>
   );
 }

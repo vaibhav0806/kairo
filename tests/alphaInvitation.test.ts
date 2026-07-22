@@ -13,19 +13,16 @@ afterEach(() => {
 beforeEach(() => installBrowserEnvironment());
 
 describe('AlphaInvitation', () => {
-  test('renders the Begin question and learner notes', () => {
+  test('renders the open-source invitation and real repository link', () => {
     render(createElement(AlphaInvitation));
-    expect(screen.getByRole('heading', { name: 'What have you been meaning to learn?' })).toBeTruthy();
-    for (const note of [
-      'finally understand nodes',
-      'learn motion curves properly',
-      'stop guessing in Blender',
-      'get comfortable in Figma'
-    ]) expect(screen.getByText(note)).toBeTruthy();
-    expect(document.querySelector('[data-thread-profile="invitation"]')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Learn by doing. Built in the open.' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Open source on GitHub/i }).getAttribute('href')).toBe(
+      'https://github.com/vaibhav0806/kairo-tutor'
+    );
+    expect(screen.getByText(/the exact place you get stuck/i)).toBeTruthy();
   });
 
-  test('completes the invitation Thread after a successful request', async () => {
+  test('completes the invitation after a successful request', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ok: true })));
     render(createElement(AlphaInvitation));
     fireEvent.change(screen.getByLabelText('Email address'), {
@@ -35,8 +32,7 @@ describe('AlphaInvitation', () => {
 
     const status = await screen.findByRole('status');
     expect(status.textContent).toContain('You’re on the list. Go make something.');
-    expect(document.querySelector('[data-thread-profile="invitation"]')?.getAttribute('data-thread-state'))
-      .toBe('verify');
+    expect(document.getElementById('access')?.getAttribute('data-invitation-complete')).toBe('true');
     expect(document.activeElement).toBe(status);
   });
 });

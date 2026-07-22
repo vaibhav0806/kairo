@@ -1,71 +1,62 @@
 .access {
   position: relative;
-  display: grid;
-  min-height: 860px;
-  padding: clamp(104px, 13vw, 184px) clamp(20px, 5vw, 80px);
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.62fr);
-  align-items: center;
-  gap: clamp(56px, 9vw, 136px);
+  padding: clamp(104px, 11vw, 156px) clamp(20px, 5vw, 80px);
   overflow: hidden;
-  background: #17181c;
-  color: #f7f3e8;
+  border-top: 1px solid rgb(11 13 18 / 9%);
+  background: var(--canvas);
+  color: var(--ink);
   isolation: isolate;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.72fr);
+  align-items: center;
+  gap: clamp(64px, 9vw, 144px);
 }
 
 .copy {
   position: relative;
-  z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
 }
 
-.copy > p {
-  margin: 0 0 24px;
-  color: var(--verify);
-  font-family: "Geist Mono Variable", monospace;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .copy h2 {
-  max-width: 9ch;
   margin: 0;
   font-family: "Bricolage Grotesque Variable", sans-serif;
-  font-size: clamp(3.4rem, 7.4vw, 8rem);
-  font-weight: 620;
-  line-height: 0.86;
-  letter-spacing: -0.066em;
+  font-size: clamp(3.8rem, 7vw, 7.6rem);
+  font-weight: 640;
+  line-height: 0.89;
+  letter-spacing: -0.068em;
   text-wrap: balance;
 }
 
-.copy > span {
-  max-width: 40rem;
-  margin-top: 30px;
-  color: rgb(247 243 232 / 66%);
-  font-size: clamp(1rem, 1.3vw, 1.16rem);
-  line-height: 1.62;
+.copy h2 span {
+  display: block;
+  color: var(--kairo);
 }
 
-.formShell {
-  position: relative;
-  z-index: 5;
-  padding: clamp(22px, 3vw, 36px);
-  border: 1px solid rgb(255 255 255 / 16%);
-  background: #0d0e11;
-  box-shadow: 0 32px 90px rgb(0 0 0 / 34%);
+.copy > .body {
+  max-width: 35rem;
+  margin: 68px 0 0;
+  color: var(--ink-muted);
+  font-size: clamp(1rem, 1.3vw, 1.16rem);
+  line-height: 1.58;
 }
 
 .founderNote {
-  margin-bottom: 32px;
-  padding-bottom: 26px;
-  border-bottom: 1px solid rgb(255 255 255 / 13%);
+  max-width: 34rem;
+  margin-top: 40px;
+  padding-left: 18px;
+  border-left: 3px solid var(--kairo);
 }
 
 .founderNote span {
-  color: var(--kairo);
+  color: var(--ink-muted);
   font-family: "Geist Mono Variable", monospace;
   font-size: 0.62rem;
   font-weight: 700;
@@ -74,84 +65,150 @@
 }
 
 .founderNote p {
-  margin: 10px 0 0;
-  color: rgb(247 243 232 / 72%);
-  font-size: 0.9rem;
+  margin: 8px 0 0;
+  color: var(--ink);
+  font-size: 0.94rem;
+  line-height: 1.52;
+}
+
+.githubLink {
+  display: inline-grid;
+  width: max-content;
+  min-height: 44px;
+  margin-top: 28px;
+  padding: 0;
+  grid-template-columns: auto auto auto;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-decoration: none;
+  gap: 9px;
+  transition:
+    color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.githubLink span {
+  min-width: 0;
+}
+
+.githubLink strong {
+  font-size: 0.88rem;
+  font-weight: 680;
+}
+
+.githubLink > svg:last-child {
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.formShell {
+  position: relative;
+  padding: clamp(28px, 3.3vw, 48px);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: #f4f2ff;
+  box-shadow: 11px 11px 0 var(--kairo);
+}
+
+.formIntro {
+  margin-bottom: 30px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid rgb(11 13 18 / 14%);
+}
+
+.formIntro h3 {
+  margin: 0;
+  font-family: "Bricolage Grotesque Variable", sans-serif;
+  font-size: clamp(2rem, 3.3vw, 3.35rem);
+  font-weight: 640;
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.formIntro p {
+  max-width: 30rem;
+  margin: 14px 0 0;
+  color: var(--ink-muted);
+  font-size: 0.92rem;
   line-height: 1.5;
 }
 
-.learnerNotes {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  pointer-events: none;
+.access[data-invitation-complete='true'] .formShell {
+  box-shadow: 11px 11px 0 var(--verify);
 }
 
-.learnerNotes span {
-  position: absolute;
-  display: block;
-  max-width: 230px;
-  padding: 14px 16px;
-  border: 1px solid rgb(17 18 22 / 12%);
-  background: #eee8dc;
-  box-shadow: 0 16px 42px rgb(0 0 0 / 22%);
-  color: #17181c;
-  font-family: "Geist Mono Variable", monospace;
-  font-size: 0.72rem;
-  line-height: 1.4;
-}
+@media (hover: hover) and (pointer: fine) {
+  .githubLink:hover {
+    color: var(--kairo);
+    transform: translateY(-1px);
+  }
 
-.learnerNotes span::before { content: '“'; }
-.learnerNotes span::after { content: '”'; }
-
-.learnerNotes span[data-note='1'] { top: 10%; right: 8%; transform: rotate(3deg); }
-.learnerNotes span[data-note='2'] { right: 37%; bottom: 9%; transform: rotate(-2deg); }
-.learnerNotes span[data-note='3'] { bottom: 14%; left: 6%; transform: rotate(2deg); }
-.learnerNotes span[data-note='4'] { top: 18%; left: 45%; transform: rotate(-3deg); }
-
-.thread {
-  z-index: 4;
-  opacity: 0.68;
-}
-
-.access[data-invitation-complete='true'] .learnerNotes span {
-  border-color: rgb(184 243 74 / 42%);
+  .githubLink:hover > svg:last-child {
+    transform: translate(2px, -2px);
+  }
 }
 
 @media (max-width: 900px) {
-  .access {
+  .stage {
     grid-template-columns: 1fr;
+    gap: 64px;
   }
 
-  .copy h2 { max-width: 11ch; }
-  .learnerNotes span[data-note='4'] { top: 48%; left: 4%; }
-  .learnerNotes span[data-note='2'] { right: 4%; bottom: 4%; }
+  .formShell {
+    width: min(100% - 10px, 680px);
+  }
 }
 
 @media (max-width: 620px) {
   .access {
-    min-height: auto;
-    padding-bottom: 120px;
+    padding-top: 112px;
+    padding-bottom: 104px;
   }
 
-  .copy h2 { font-size: clamp(3.8rem, 18vw, 5.8rem); }
-  .learnerNotes {
-    position: relative;
-    display: grid;
-    margin: 10px 0 24px;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+  .stage {
+    gap: 52px;
   }
-  .learnerNotes span,
-  .learnerNotes span[data-note] {
-    position: static;
-    display: block;
-    max-width: none;
+
+  .copy h2 {
+    font-size: clamp(2.25rem, 12vw, 4.25rem);
   }
-  .formShell { margin-top: 0; }
-  .learnerNotes span { max-width: 170px; padding: 10px 12px; font-size: 0.62rem; }
+
+  .copy > .body {
+    margin-top: 48px;
+  }
+
+  .founderNote {
+    margin-top: 32px;
+  }
+
+  .githubLink {
+    width: max-content;
+  }
+
+  .formShell {
+    width: calc(100% - 7px);
+    padding: 22px 20px 24px;
+    box-shadow: 7px 7px 0 var(--kairo);
+  }
+
+  .formIntro {
+    margin-bottom: 22px;
+    padding-bottom: 20px;
+  }
+
+  .access[data-invitation-complete='true'] .formShell {
+    box-shadow: 7px 7px 0 var(--verify);
+  }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .learnerNotes span { transform: none !important; }
+  .githubLink {
+    transition: none;
+  }
+
+  .githubLink:hover {
+    transform: none;
+  }
 }

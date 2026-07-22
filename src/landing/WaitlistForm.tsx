@@ -111,7 +111,8 @@ export function WaitlistForm({ onSubmitted }: WaitlistFormProps = {}) {
       <button type="submit" disabled={pending}>Request alpha access</button>
       {error ? <p id="waitlist-error" className={styles.error} role="alert">{error}</p> : null}
       <p id="waitlist-note" className={styles.note}>
-        We’ll use your email only to contact you about Kairo early access.
+        We’ll use your email only to contact you about Kairo early access.{' '}
+        <a href="/privacy">Privacy</a>
       </p>
     </form>
   );

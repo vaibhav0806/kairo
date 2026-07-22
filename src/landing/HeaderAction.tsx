@@ -8,7 +8,7 @@ import styles from './LandingPage.module.css';
 export function HeaderAction() {
   const reduceMotion = useReducedMotion();
   const [showAccess, setShowAccess] = useState(false);
-  const [heroVisible, setHeroVisible] = useState(true);
+  const [accessVisible, setAccessVisible] = useState(false);
 
   useEffect(() => {
     const heroAction = document.getElementById('hero-access-cta');
@@ -25,16 +25,16 @@ export function HeaderAction() {
   }, []);
 
   useEffect(() => {
-    const heroIntro = document.getElementById('hero-intro');
+    const access = document.getElementById('access');
 
-    if (!heroIntro || typeof IntersectionObserver === 'undefined') return;
+    if (!access || typeof IntersectionObserver === 'undefined') return;
 
     const observer = new IntersectionObserver(
-      ([entry]) => setHeroVisible(entry.isIntersecting),
-      { threshold: 0.05 }
+      ([entry]) => setAccessVisible(entry.isIntersecting),
+      { rootMargin: '-68px 0px 0px 0px', threshold: 0 }
     );
 
-    observer.observe(heroIntro);
+    observer.observe(access);
     return () => observer.disconnect();
   }, []);
 
@@ -44,9 +44,9 @@ export function HeaderAction() {
   const state = reduceMotion ? undefined : { opacity: 0, y: -5, scale: 0.97 };
 
   return (
-    <div className={styles.headerAction} data-hero-visible={heroVisible}>
+    <div className={styles.headerAction} data-access-visible={accessVisible}>
       <AnimatePresence initial={false} mode="wait">
-        {showAccess ? (
+        {accessVisible ? null : showAccess ? (
           <motion.a
             key="access"
             className={styles.headerCta}

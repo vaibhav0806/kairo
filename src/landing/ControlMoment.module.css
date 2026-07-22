@@ -54,8 +54,7 @@
     background-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.copy button:focus-visible,
-.footerMark:focus-visible {
+.copy button:focus-visible {
   outline: 3px solid var(--kairo);
   outline-offset: 4px;
 }
@@ -220,53 +219,12 @@
   background: var(--verify);
 }
 
-.footerMark {
-  display: grid;
-  padding: 20px;
-  place-items: center;
-  border: 0;
-  background: transparent;
-  color: #ffffff;
-  cursor: pointer;
-}
-
-.footerWordmark {
-  position: relative;
-  font-family: "Bricolage Grotesque Variable", sans-serif;
-  font-size: clamp(4rem, 11vw, 10rem);
-  font-weight: 620;
-  line-height: 0.8;
-  letter-spacing: -0.08em;
-}
-
-.footerWordmark svg {
-  position: absolute;
-  inset: -38% -16%;
-  width: 132%;
-  height: 176%;
-  overflow: visible;
-}
-
-.footerWordmark path {
-  fill: none;
-  stroke: var(--kairo);
-  stroke-linecap: round;
-  stroke-width: 5;
-}
-
-.footerPhrase {
-  margin-top: 34px;
-  color: var(--verify);
-  font-family: "Geist Mono Variable", monospace;
-  font-size: clamp(0.7rem, 1.2vw, 0.9rem);
-  letter-spacing: 0.05em;
-}
-
 @media (hover: hover) and (pointer: fine) {
   .copy button:hover {
     background: transparent;
     color: var(--ink);
   }
+
 }
 
 @media (max-width: 760px) {
@@ -277,6 +235,7 @@
   .panel {
     box-shadow: 8px 8px 0 var(--ink);
   }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -287,4 +246,5 @@
   .handle {
     transition: none;
   }
+
 }

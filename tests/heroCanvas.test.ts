@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { Hero } from '../src/landing/Hero';
@@ -12,9 +12,12 @@ beforeEach(() => installBrowserEnvironment());
 describe('HeroCanvas', () => {
   test('explains Kairo without requiring interaction', () => {
     render(createElement(Hero));
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Stuck? Point at it.');
-    expect(screen.getByText(/Ask out loud or point on-screen/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Request alpha access' }).getAttribute('href')).toBe(
+    const heroIntro = document.querySelector('[data-hero-intro]') as HTMLElement;
+    const hero = within(heroIntro);
+
+    expect(hero.getByRole('heading', { level: 1 }).textContent).toBe('Stuck? Point at it.');
+    expect(hero.getByText(/Ask out loud or point on-screen/)).toBeTruthy();
+    expect(hero.getByRole('link', { name: 'Request alpha access' }).getAttribute('href')).toBe(
       '#access'
     );
   });
@@ -52,7 +55,10 @@ describe('HeroCanvas', () => {
 
   test('uses honest filename captions for creator media', () => {
     render(createElement(Hero));
-    expect(screen.queryByText(/^live$/i)).toBeNull();
+    const workspace = screen.getByLabelText('Creator workspaces Kairo can understand');
+    const hero = within(workspace);
+
+    expect(hero.queryByText(/^live$/i)).toBeNull();
 
     for (const filename of [
       'editing-desk.mov',
@@ -61,7 +67,7 @@ describe('HeroCanvas', () => {
       'dashboard.fig',
       'grade-v4.drp',
     ]) {
-      expect(screen.getByText(filename).closest('button')).toBeNull();
+      expect(hero.getByText(filename).closest('button')).toBeNull();
     }
   });
 

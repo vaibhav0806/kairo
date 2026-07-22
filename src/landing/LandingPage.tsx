@@ -1,5 +1,4 @@
 import { AlphaInvitation } from './AlphaInvitation';
-import { FooterMark } from './FooterMark';
 import { HeaderAction } from './HeaderAction';
 import { HeaderNavigation } from './HeaderNavigation';
 import { Hero } from './Hero';
@@ -23,8 +22,15 @@ export function LandingPage() {
         <ToolTravel />
         <AlphaInvitation />
       </main>
-      <footer className={styles.footer}>
-        <FooterMark />
+      <footer className={styles.colophon}>
+        <p>end of screen.</p>
+        <nav aria-label="Legal">
+          <span>© 2026 Kairo</span>
+          <span className={styles.colophonLinks}>
+            <a href="/privacy">Privacy</a>
+            <a href="/license">License</a>
+          </span>
+        </nav>
       </footer>
     </div>
   );

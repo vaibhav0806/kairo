@@ -10,16 +10,18 @@ describe('LandingPage CSS Module selectors', () => {
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
   });
 
-  test('keeps mobile navigation available after the hero', () => {
+  test('removes phone navigation and keeps tablet navigation inline', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
-    const mobileRules = css.match(/@media \(max-width: 900px\)[\s\S]*?(?=@media|$)/)?.[0] ?? '';
+    const tabletRules = css.match(/@media \(min-width: 701px\) and \(max-width: 900px\)[\s\S]*?(?=@media|$)/)?.[0] ?? '';
+    const phoneRules = css.match(/@media \(max-width: 700px\)[\s\S]*?(?=@media|$)/)?.[0] ?? '';
 
-    expect(mobileRules).toContain('.header nav');
-    expect(mobileRules).toContain('position: fixed');
-    expect(mobileRules).toContain('max-width: calc(100vw - 24px)');
-    expect(mobileRules).toContain(".header:has(.headerAction[data-hero-visible='true']) nav");
-    expect(mobileRules).toContain('pointer-events: none');
-    expect(mobileRules).not.toMatch(/\.header nav\s*{[^}]*display:\s*none/s);
+    expect(tabletRules).toMatch(/\.header\s*{[^}]*grid-template-columns:\s*1fr auto 1fr/s);
+    expect(tabletRules).toMatch(/\.header nav\s*{[^}]*justify-self:\s*center/s);
+    const tabletNavRule = tabletRules.match(/\.header nav\s*{[^}]*\}/)?.[0] ?? '';
+    expect(tabletNavRule).not.toContain('position: fixed');
+    expect(tabletNavRule).not.toContain('bottom:');
+    expect(phoneRules).toMatch(/\.header nav\s*{[^}]*display:\s*none/s);
+    expect(phoneRules).toContain(".headerAction[data-access-visible='true']");
   });
 
   test('defines active-only artifact motion and a dedicated tablet composition', () => {
@@ -41,12 +43,12 @@ describe('LandingPage CSS Module selectors', () => {
 
   test('coordinates the navbar reveal and preserves mobile touch clearance', () => {
     const css = readFileSync('src/landing/LandingPage.module.css', 'utf8');
-    const mobileRules = css.match(/@media \(max-width: 900px\)[\s\S]*?(?=@media|$)/)?.[0] ?? '';
+    const tabletRules = css.match(/@media \(min-width: 701px\) and \(max-width: 900px\)[\s\S]*?(?=@media|$)/)?.[0] ?? '';
 
     expect(css).not.toContain('.header nav a:nth-child');
     expect(css).toContain(".header nav a[data-active='true']");
-    expect(mobileRules).toMatch(/\.header nav a\s*{[^}]*min-height:\s*44px/s);
-    expect(mobileRules).toMatch(/\.footer\s*{[^}]*padding-bottom:/s);
+    expect(tabletRules).toMatch(/\.header nav a\s*{[^}]*min-height:\s*44px/s);
+    expect(css).not.toMatch(/\.footer\s*\{/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.githubLink:hover[\s\S]*?transform:\s*none/s);
   });
 });

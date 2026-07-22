@@ -8,6 +8,8 @@ const links = [
   { id: 'travel', label: 'Creative tools' }
 ] as const;
 
+const observedIds = [...links.map(({ id }) => id), 'access'] as const;
+
 export function HeaderNavigation() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const intersections = useRef(new Map<string, IntersectionObserverEntry>());
@@ -15,8 +17,8 @@ export function HeaderNavigation() {
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return;
 
-    const sections = links
-      .map(({ id }) => document.getElementById(id))
+    const sections = observedIds
+      .map((id) => document.getElementById(id))
       .filter((section): section is HTMLElement => section !== null);
 
     if (sections.length === 0) return;
@@ -25,8 +27,8 @@ export function HeaderNavigation() {
       (entries) => {
         entries.forEach((entry) => intersections.current.set(entry.target.id, entry));
 
-        const active = links
-          .map(({ id }) => intersections.current.get(id))
+        const active = observedIds
+          .map((id) => intersections.current.get(id))
           .filter((entry): entry is IntersectionObserverEntry => Boolean(entry?.isIntersecting))
           .sort(
             (a, b) =>
@@ -36,7 +38,7 @@ export function HeaderNavigation() {
 
         setActiveId(active?.target.id ?? null);
       },
-      { rootMargin: '-68px 0px -78% 0px', threshold: 0 }
+      { rootMargin: '-68px 0px -65% 0px', threshold: 0 }
     );
 
     sections.forEach((section) => observer.observe(section));
@@ -44,7 +46,7 @@ export function HeaderNavigation() {
   }, []);
 
   return (
-    <nav aria-label="Landing page">
+    <nav aria-label="Landing page" data-active-section={activeId ?? undefined}>
       {links.map(({ id, label }) => {
         const active = activeId === id;
 

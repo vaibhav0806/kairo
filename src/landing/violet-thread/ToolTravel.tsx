@@ -1,202 +1,330 @@
 'use client';
 
-import { motion, useReducedMotion } from 'motion/react';
-import { useRef, useState } from 'react';
-import { SCENE_SPRING } from '../motion';
 import {
-  TOOL_PROBLEMS,
-  TOOL_TRAVEL_INITIAL_STATE,
-  selectTool,
-  toolIndexAfter,
-  type ToolId
+  LayoutGroup,
+  motion,
+  useInView,
+  useReducedMotion
+} from 'motion/react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FocusEvent,
+  type KeyboardEvent
+} from 'react';
+import {
+  APP_OPTIONS,
+  AUTO_DEMO_APP_IDS,
+  FIELD_OPTIONS,
+  FIELD_SLOTS,
+  INITIAL_APP_ID,
+  MOBILE_FIELD_DURATION,
+  appIndexAfter,
+  type AppId
 } from './toolTravelModel';
-import { VioletThread } from './VioletThread';
 import styles from './ToolTravel.module.css';
 
-function AfterEffectsScene() {
-  return (
-    <div className={`${styles.toolScene} ${styles.afterEffectsScene}`}>
-      <div className={styles.poster} aria-hidden="true"><span>MOVE</span><b>WITH INTENT</b></div>
-      <div className={styles.graph} aria-hidden="true">
-        <span>SPEED GRAPH / FINAL KEYFRAME</span>
-        <svg viewBox="0 0 560 220">
-          <path className={styles.grid} d="M28 182H532M28 122H532M28 62H532M140 22V198M252 22V198M364 22V198M476 22V198" />
-          <path className={styles.coralPath} d="M38 182C148 182 210 174 286 132S386 38 500 38" />
-          <path className={styles.handleLine} d="M500 38H402" />
-          <circle className={styles.problemPoint} cx="500" cy="38" r="8" />
-          <circle className={styles.handlePoint} cx="402" cy="38" r="7" />
-        </svg>
-      </div>
-    </div>
-  );
-}
+const PUCK_SPRING = {
+  type: 'spring',
+  stiffness: 340,
+  damping: 31,
+  mass: 0.74
+} as const;
 
-function DavinciScene() {
-  return (
-    <div className={`${styles.toolScene} ${styles.davinciScene}`}>
-      <div className={styles.videoFrame} aria-hidden="true"><span>COLOR PAGE / SHOT 04</span><b>BEFORE</b></div>
-      <div className={styles.nodeGraph} aria-hidden="true">
-        <span>NODE GRAPH</span>
-        <div className={styles.node}><b>01</b><small>Primary</small></div>
-        <div className={`${styles.node} ${styles.gradeNode}`}><b>02</b><small>Look</small></div>
-        <div className={`${styles.node} ${styles.outputNode}`}><b>OUT</b><small>Output</small></div>
-        <svg viewBox="0 0 540 220">
-          <path d="M126 112C184 112 186 112 244 112" />
-          <path className={styles.brokenEdge} d="M332 112C364 112 374 112 394 112" />
-          <circle cx="382" cy="112" r="7" />
-        </svg>
-      </div>
-    </div>
-  );
-}
-
-function BlenderScene() {
-  return (
-    <div className={`${styles.toolScene} ${styles.blenderScene}`}>
-      <div className={styles.viewport} aria-hidden="true">
-        <span>USER PERSPECTIVE / TRANSFORM</span>
-        <div className={styles.object}><i /><i /><i /><i /></div>
-        <div className={styles.gizmo}><i>X</i><b>Y</b><em>Z</em></div>
-      </div>
-      <div className={styles.transformPanel} aria-hidden="true">
-        <span>Transform</span>
-        <p data-axis="wrong"><i>X</i><b>2.48 m</b></p>
-        <p><i>Y</i><b>0.00 m</b></p>
-        <p data-axis="target"><i>Z</i><b>0.00 m</b></p>
-      </div>
-    </div>
-  );
-}
-
-function FigmaScene() {
-  return (
-    <div className={`${styles.toolScene} ${styles.figmaScene}`}>
-      <div className={styles.figmaCanvas} aria-hidden="true">
-        <span>AUTO LAYOUT / BUTTON ROW</span>
-        <div className={styles.layoutFrame}>
-          <i>Back</i><b>Continue</b><em>Save</em>
-        </div>
-        <small>Gap 0</small>
-      </div>
-      <div className={styles.layoutPanel} aria-hidden="true">
-        <span>Auto layout</span>
-        <p><i>Direction</i><b>↔</b></p>
-        <p className={styles.zeroGap}><i>Gap</i><b>0</b></p>
-        <p><i>Padding</i><b>12 · 18</b></p>
-      </div>
-    </div>
-  );
-}
-
-function ActiveToolScene({ tool }: { tool: ToolId }) {
-  if (tool === 'davinci') return <DavinciScene />;
-  if (tool === 'blender') return <BlenderScene />;
-  if (tool === 'figma') return <FigmaScene />;
-  return <AfterEffectsScene />;
-}
+const initialSlotApps = () => Object.fromEntries(
+  FIELD_SLOTS.map((slot) => [slot.id, slot.initialAppId])
+) as Record<string, AppId>;
 
 export function ToolTravel() {
-  const reducedMotion = useReducedMotion();
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const [state, setState] = useState(TOOL_TRAVEL_INITIAL_STATE);
-  const [instantSelection, setInstantSelection] = useState(false);
-  const activeIndex = TOOL_PROBLEMS.findIndex(({ id }) => id === state.activeTool);
-  const active = TOOL_PROBLEMS[activeIndex] ?? TOOL_PROBLEMS[0];
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const fieldViewportRef = useRef<HTMLDivElement | null>(null);
+  const choiceRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const pendingFocus = useRef<string | null>(null);
+  const manuallyInterrupted = useRef(false);
+  const recycleCursor = useRef(FIELD_SLOTS.length);
+  const autoCursor = useRef(0);
+  const slotAppsRef = useRef(initialSlotApps());
+  const [slotApps, setSlotApps] = useState(slotAppsRef.current);
+  const [activeSlotId, setActiveSlotId] = useState(FIELD_SLOTS[0]?.id ?? 'field-0');
+  const [activeOffsetX, setActiveOffsetX] = useState(0);
+  const [tourStep, setTourStep] = useState(0);
+  const [interactionPaused, setInteractionPaused] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const inView = useInView(sectionRef, { amount: 0.15 });
 
-  const chooseTool = (id: ToolId, instant: boolean) => {
-    setInstantSelection(instant);
-    setState((current) => selectTool(current, id));
+  slotAppsRef.current = slotApps;
+
+  const activeAppId = slotApps[activeSlotId] ?? INITIAL_APP_ID;
+  const activeOption = APP_OPTIONS.find(({ id }) => id === activeAppId) ?? APP_OPTIONS[0];
+  const fieldMotion = reduceMotion
+    ? 'reduced'
+    : !inView
+      ? 'offscreen'
+      : interactionPaused
+        ? 'interaction'
+        : 'running';
+  const universalMoment = Boolean(reduceMotion)
+    || (!manuallyInterrupted.current && (tourStep === 0 || tourStep % AUTO_DEMO_APP_IDS.length === 0));
+  const activeLabel = universalMoment
+    ? 'Kairo sees whatever you open.'
+    : `Kairo sees ${activeOption.name}.`;
+
+  const activeOffsetForSlot = useCallback((slotId: string) => {
+    const viewport = fieldViewportRef.current?.getBoundingClientRect();
+    const choice = choiceRefs.current[slotId]?.getBoundingClientRect();
+    if (!viewport || !choice || choice.width === 0 || choice.height === 0) return null;
+    if (choice.bottom <= viewport.top || choice.top >= viewport.bottom) return null;
+
+    const inset = Math.min(32, viewport.width * 0.08);
+    const safeLeft = viewport.left + inset;
+    const safeRight = viewport.right - inset;
+    if (choice.left < safeLeft) return safeLeft - choice.left;
+    if (choice.right > safeRight) return safeRight - choice.right;
+    return 0;
+  }, []);
+
+  const selectSlot = useCallback((slotId: string, manual = false) => {
+    if (manual) manuallyInterrupted.current = true;
+    setActiveOffsetX(activeOffsetForSlot(slotId) ?? 0);
+    setActiveSlotId(slotId);
+  }, [activeOffsetForSlot]);
+
+  useEffect(() => {
+    if (!pendingFocus.current) return;
+    choiceRefs.current[pendingFocus.current]?.focus();
+    pendingFocus.current = null;
+  }, [activeSlotId]);
+
+  useEffect(() => {
+    if (
+      !inView
+      || reduceMotion
+      || interactionPaused
+      || manuallyInterrupted.current
+    ) return;
+
+    const delay = tourStep === 0 ? 900 : 4200;
+    const timer = window.setTimeout(() => {
+      const orderedAutoApps = AUTO_DEMO_APP_IDS.map((_, index) => (
+        AUTO_DEMO_APP_IDS[(autoCursor.current + index) % AUTO_DEMO_APP_IDS.length]
+      ));
+      const targetSlot = orderedAutoApps
+        .map((targetApp) => FIELD_SLOTS.find((slot) => (
+          slotAppsRef.current[slot.id] === targetApp
+        )))
+        .find((slot) => {
+          if (!slot) return false;
+          const offset = activeOffsetForSlot(slot.id);
+          return offset !== null && Math.abs(offset) <= 12;
+        }) ?? FIELD_SLOTS.find((slot) => {
+          const offset = activeOffsetForSlot(slot.id);
+          return offset !== null && Math.abs(offset) <= 12;
+        });
+
+      if (targetSlot) {
+        const selectedApp = slotAppsRef.current[targetSlot.id];
+        const selectedAutoIndex = AUTO_DEMO_APP_IDS.findIndex((appId) => appId === selectedApp);
+        autoCursor.current = selectedAutoIndex >= 0
+          ? selectedAutoIndex + 1
+          : autoCursor.current + 1;
+        selectSlot(targetSlot.id);
+      }
+      setTourStep((current) => current + 1);
+    }, delay);
+
+    return () => window.clearTimeout(timer);
+  }, [activeOffsetForSlot, inView, interactionPaused, reduceMotion, selectSlot, tourStep]);
+
+  const chooseSlot = (slotId: string) => {
+    selectSlot(slotId, true);
   };
 
-  const chooseIndex = (index: number) => {
-    const next = TOOL_PROBLEMS[index];
+  const keyboardSlots = () => {
+    if (typeof window === 'undefined') return FIELD_SLOTS;
+    if (window.matchMedia('(max-width: 700px)').matches) return FIELD_SLOTS.slice(0, 20);
+    if (window.matchMedia('(max-width: 900px)').matches) return FIELD_SLOTS.slice(0, 22);
+    return FIELD_SLOTS;
+  };
+
+  const chooseIndex = (index: number, slots = FIELD_SLOTS) => {
+    const next = slots[index];
     if (!next) return;
-    chooseTool(next.id, true);
-    tabRefs.current[index]?.focus();
+    pendingFocus.current = next.id;
+    chooseSlot(next.id);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, slotId: string) => {
+    const availableSlots = keyboardSlots();
+    const currentIndex = availableSlots.findIndex(({ id }) => id === slotId);
+    const currentApp = slotApps[slotId] ?? INITIAL_APP_ID;
+    const availableApps = availableSlots.map((slot) => (
+      APP_OPTIONS.find(({ id }) => id === slotApps[slot.id])
+    )).filter((option): option is (typeof APP_OPTIONS)[number] => Boolean(option));
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      nextIndex = appIndexAfter(currentApp, 1, availableApps);
+    }
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = appIndexAfter(currentApp, -1, availableApps);
+    }
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = availableSlots.length - 1;
+    if (nextIndex === null || currentIndex < 0) return;
+    event.preventDefault();
+    chooseIndex(nextIndex, availableSlots);
+  };
+
+  const recycleSlot = (slotId: string) => {
+    if (
+      reduceMotion
+      || !inView
+      || interactionPaused
+      || slotId === activeSlotId
+    ) return;
+
+    setSlotApps((current) => {
+      const visibleApps = new Set(Object.values(current));
+      let nextOption = FIELD_OPTIONS[recycleCursor.current % FIELD_OPTIONS.length];
+      let attempts = 0;
+
+      while (nextOption && visibleApps.has(nextOption.id) && attempts < FIELD_OPTIONS.length) {
+        recycleCursor.current += 1;
+        attempts += 1;
+        nextOption = FIELD_OPTIONS[recycleCursor.current % FIELD_OPTIONS.length];
+      }
+
+      if (!nextOption || visibleApps.has(nextOption.id)) return current;
+      recycleCursor.current += 1;
+      return { ...current, [slotId]: nextOption.id };
+    });
+  };
+
+  const handleFieldBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setInteractionPaused(false);
+    }
   };
 
   return (
     <section
+      ref={sectionRef}
       id="travel"
       className={styles.travel}
       aria-labelledby="travel-title"
-      data-tool-selection-instant={instantSelection}
+      data-active-app={activeOption.id}
     >
-      <div className={styles.heading}>
-        <p>Chapter 04 / Travel</p>
-        <h2 id="travel-title">Different tools. The same way of getting unstuck.</h2>
-        <span>
-          Kairo reads the visible problem, anchors guidance to it, and lets you make the change—
-          whether the canvas is motion, color, 3D, or interface design.
-        </span>
-      </div>
-
-      <div className={styles.toolRail} role="tablist" aria-label="Creative tool problems">
-        {TOOL_PROBLEMS.map((tool, index) => (
-          <button
-            key={tool.id}
-            ref={(node) => { tabRefs.current[index] = node; }}
-            type="button"
-            role="tab"
-            id={`travel-tab-${tool.id}`}
-            aria-controls="travel-workspace"
-            aria-selected={state.activeTool === tool.id}
-            tabIndex={state.activeTool === tool.id ? 0 : -1}
-            onClick={(event) => chooseTool(tool.id, event.detail === 0)}
-            onKeyDown={(event) => {
-              let nextIndex: number | null = null;
-              if (event.key === 'ArrowRight') nextIndex = toolIndexAfter(state.activeTool, 1);
-              if (event.key === 'ArrowLeft') nextIndex = toolIndexAfter(state.activeTool, -1);
-              if (event.key === 'Home') nextIndex = 0;
-              if (event.key === 'End') nextIndex = TOOL_PROBLEMS.length - 1;
-              if (nextIndex === null) return;
-              event.preventDefault();
-              chooseIndex(nextIndex);
-            }}
-          >
-            <span aria-hidden="true">{tool.shortName}</span>
-            <b>{tool.name}</b>
-            <small>{tool.problem}</small>
-          </button>
-        ))}
-      </div>
-
-      <div
-        id="travel-workspace"
-        className={styles.workspace}
-        role="tabpanel"
-        aria-labelledby={`travel-tab-${state.activeTool}`}
-        data-tool={state.activeTool}
-      >
-        <div className={styles.workspaceBar}>
-          <span>Practice canvas / {active.name}</span>
-          <b>Kairo is viewing this scene</b>
-          <em>Problem 0{activeIndex + 1}</em>
+      <div className={styles.content} data-app-field data-in-view={inView}>
+        <div className={styles.copy}>
+          <h2 id="travel-title">
+            Kairo goes where <span>you create.</span>
+          </h2>
+          <p className={styles.description}>
+            Creative tools, code editors, dashboards, and anything else on your screen.
+          </p>
         </div>
 
-        <motion.div
-          key={state.activeTool}
-          className={styles.sceneWindow}
-          initial={reducedMotion || instantSelection ? false : { opacity: 0, transform: 'translateX(24px)' }}
-          animate={{ opacity: 1, transform: 'translateX(0px)' }}
-          transition={reducedMotion || instantSelection ? { duration: 0 } : SCENE_SPRING}
+        <div
+          ref={fieldViewportRef}
+          className={styles.fieldViewport}
+          data-infinite-app-field
+          data-field-motion={fieldMotion}
+          onFocusCapture={() => setInteractionPaused(true)}
+          onBlurCapture={handleFieldBlur}
         >
-          <ActiveToolScene tool={state.activeTool} />
-          <aside className={styles.kairoPanel}>
-            <span>You ask</span>
-            <h3>{active.question}</h3>
-            <div><i aria-hidden="true">↳</i><p><b>Kairo points here</b>{active.guidance}</p></div>
-            <small>You make the change. Kairo stays with you.</small>
-          </aside>
-        </motion.div>
+          <LayoutGroup id="tool-travel-field">
+            <div
+              className={styles.appPlane}
+              role="radiogroup"
+              aria-label="Choose an app"
+              data-app-plane
+            >
+              {FIELD_SLOTS.map((slot) => {
+                const appId = slotApps[slot.id] ?? slot.initialAppId;
+                const app = APP_OPTIONS.find(({ id }) => id === appId) ?? APP_OPTIONS[0];
+                const active = slot.id === activeSlotId;
 
-        <VioletThread
-          state="attach"
-          profile="tool-travel"
-          className={styles.thread}
-          label={`Kairo points to the ${active.problem}`}
-        />
+                return (
+                  <div
+                    key={slot.id}
+                    className={styles.fieldNode}
+                    data-field-node={slot.id}
+                    data-field-depth={slot.depth}
+                    data-tablet-hidden={slot.tabletHidden ? '' : undefined}
+                    data-mobile-hidden={slot.mobileHidden ? '' : undefined}
+                    data-active-held={active && !universalMoment ? '' : undefined}
+                    style={{
+                      '--field-top': `${slot.top}%`,
+                      '--field-static-x': slot.staticX,
+                      '--field-duration': `${slot.duration}s`,
+                      '--field-mobile-duration': `${MOBILE_FIELD_DURATION}s`,
+                      '--field-delay': `-${slot.delay}s`,
+                      '--field-mobile-delay': `-${slot.mobileDelay}s`,
+                      '--field-mobile-top': `${slot.mobileTop}%`,
+                      '--field-rise': `${slot.rise}px`
+                    } as CSSProperties}
+                    onAnimationIteration={() => recycleSlot(slot.id)}
+                  >
+                    <motion.button
+                      ref={(node) => { choiceRefs.current[slot.id] = node; }}
+                      type="button"
+                      role="radio"
+                      className={styles.appChoice}
+                      aria-label={app.name}
+                      aria-checked={active}
+                      tabIndex={active ? 0 : -1}
+                      title={app.name}
+                      data-app-choice={app.id}
+                      animate={{
+                        x: active ? activeOffsetX : 0,
+                        y: active ? -3 : 0,
+                        scale: active ? 1.04 : 1
+                      }}
+                      transition={reduceMotion ? { duration: 0 } : PUCK_SPRING}
+                      onClick={() => chooseSlot(slot.id)}
+                      onFocus={() => chooseSlot(slot.id)}
+                      onKeyDown={(event) => handleKeyDown(event, slot.id)}
+                    >
+                      <span className={styles.iconShell}>
+                        <img
+                          src={app.icon}
+                          alt=""
+                          width="40"
+                          height="40"
+                          decoding="async"
+                          aria-hidden="true"
+                          data-app-icon
+                        />
+                      </span>
+                      {active ? (
+                        <motion.span
+                          layoutId="tool-travel-kairo-puck"
+                          className={styles.activeFrame}
+                          data-kairo-puck
+                          data-active-app={app.id}
+                          aria-hidden="true"
+                          transition={reduceMotion ? { duration: 0 } : PUCK_SPRING}
+                        />
+                      ) : null}
+                    </motion.button>
+                  </div>
+                );
+              })}
+            </div>
+          </LayoutGroup>
+        </div>
+
+        <p className={styles.activeLabel} data-kairo-puck-label>
+          {activeLabel}
+        </p>
       </div>
+
+      <p className={styles.screenReaderSummary}>
+        Kairo can guide you inside creative apps, code editors, browsers, data tools,
+        and whatever you open next.
+      </p>
     </section>
   );
 }

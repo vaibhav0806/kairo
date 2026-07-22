@@ -12,6 +12,23 @@ afterEach(cleanup);
 beforeEach(() => installBrowserEnvironment());
 
 describe('landing page', () => {
+  test('ends with a quiet legal colophon after the alpha invitation', () => {
+    render(createElement(LandingPage));
+
+    const access = document.getElementById('access');
+    const main = document.querySelector('main');
+    const footer = screen.getByRole('contentinfo');
+
+    expect(document.querySelector('[data-kairo-signature]')).toBeNull();
+    expect(main?.lastElementChild).toBe(access);
+    expect(footer.textContent).toContain('end of screen.');
+    expect(footer.textContent).toContain('© 2026 Kairo');
+    expect(within(footer).getByRole('link', { name: 'Privacy' }).getAttribute('href')).toBe('/privacy');
+    expect(within(footer).getByRole('link', { name: 'License' }).getAttribute('href')).toBe('/license');
+    expect(footer.textContent).not.toContain('Request alpha access');
+    expect(within(footer).queryByRole('link', { name: /GitHub/i })).toBeNull();
+  });
+
   test('renders the Living Canvas chapters in order', () => {
     const html = renderToStaticMarkup(createElement(LandingPage));
     const markers = [
@@ -19,19 +36,21 @@ describe('landing page', () => {
       'id="understand"',
       'id="learn"',
       'id="travel"',
-      'id="access"',
-      '<footer'
+      'id="access"'
     ];
     const positions = markers.map((marker) => html.indexOf(marker));
 
     positions.forEach((position) => expect(position).toBeGreaterThan(-1));
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(html).toContain('Stuck? Point at it.');
-    expect(html).toContain('You don’t have to explain the whole screen.');
-    expect(html).toContain('Guidance that waits for you.');
-    expect(html).toContain('Different tools. The same way of getting unstuck.');
-    expect(html).toContain('What have you been meaning to learn?');
-    expect(html).toContain('Your hands stay on the tool.');
+    expect(html).toContain('Kairo sees what you mean.');
+    expect(html).toContain('You make the move.');
+    expect(html).toContain('Kairo goes where');
+    expect(html).toContain('you create.');
+    expect(html).toContain('anything else on your screen');
+    expect(html).toContain('Learn by doing.');
+    expect(html).toContain('Built in the open.');
+    expect(html).toContain('Kairo gives one next move, waits while you try it, then checks the result.');
     expect(html).not.toContain('id="product-moments"');
     expect(html).not.toContain('id="capabilities"');
     expect(html).not.toContain('data-field-notes');
@@ -85,10 +104,12 @@ describe('landing page', () => {
     render(createElement(LandingPage));
     const header = screen.getByRole('banner');
     const heroAction = document.getElementById('hero-access-cta');
+    const accessSection = document.getElementById('access');
 
-    if (!heroAction) throw new Error('Missing hero access action');
+    if (!heroAction || !accessSection) throw new Error('Missing landing action targets');
 
     expect(observe).toHaveBeenCalledWith(heroAction);
+    expect(observe).toHaveBeenCalledWith(accessSection);
     expect(within(header).getByRole('link', { name: 'Kairo on GitHub' })).toBeTruthy();
 
     const heroActionCallback = callbacks.get(heroAction)?.[0];
@@ -109,15 +130,30 @@ describe('landing page', () => {
       expect(access.querySelector('svg')).toBeTruthy();
       expect(access.textContent).not.toContain('↗');
     });
+
+    act(() => {
+      callbacks.get(accessSection)?.forEach((callback) => callback(
+        [{ target: accessSection, isIntersecting: true }] as unknown as IntersectionObserverEntry[],
+        {} as IntersectionObserver
+      ));
+    });
+
+    await waitFor(() => {
+      expect(within(header).queryByRole('link', { name: 'Request alpha access' })).toBeNull();
+      expect(within(header).queryByRole('link', { name: 'Kairo on GitHub' })).toBeNull();
+    });
   });
 
   test('marks only the current learning section in the navigation', async () => {
-    const callbacks = new Map<Element, IntersectionObserverCallback>();
+    const callbacks = new Map<Element, IntersectionObserverCallback[]>();
 
     class IntersectionObserverMock {
       constructor(private callback: IntersectionObserverCallback) {}
 
-      observe = (target: Element) => callbacks.set(target, this.callback);
+      observe = (target: Element) => callbacks.set(
+        target,
+        [...(callbacks.get(target) ?? []), this.callback]
+      );
       unobserve = vi.fn();
       disconnect = vi.fn();
       takeRecords = () => [];
@@ -135,25 +171,27 @@ describe('landing page', () => {
     const nav = screen.getByRole('navigation', { name: 'Landing page' });
     const understand = document.getElementById('understand');
     const learn = document.getElementById('learn');
+    const access = document.getElementById('access');
 
-    if (!understand || !learn) throw new Error('Missing learning sections');
+    if (!understand || !learn || !access) throw new Error('Missing landing sections');
 
     act(() => {
-      callbacks.get(understand)?.(
-        [{ target: understand, isIntersecting: true }] as unknown as IntersectionObserverEntry[],
-        {} as IntersectionObserver
-      );
+      callbacks.get(understand)?.forEach((callback) => callback(
+          [{ target: understand, isIntersecting: true }] as unknown as IntersectionObserverEntry[],
+          {} as IntersectionObserver
+        ));
     });
 
     expect(
       within(nav).getByRole('link', { name: 'How Kairo sees' }).getAttribute('aria-current')
     ).toBe('location');
+    expect(nav.getAttribute('data-active-section')).toBe('understand');
 
     act(() => {
-      callbacks.get(learn)?.(
-        [{ target: learn, isIntersecting: true }] as unknown as IntersectionObserverEntry[],
-        {} as IntersectionObserver
-      );
+      callbacks.get(learn)?.forEach((callback) => callback(
+          [{ target: learn, isIntersecting: true }] as unknown as IntersectionObserverEntry[],
+          {} as IntersectionObserver
+        ));
     });
 
     expect(within(nav).getAllByRole('link').filter((link) => link.hasAttribute('aria-current')))
@@ -161,6 +199,19 @@ describe('landing page', () => {
     expect(
       within(nav).getByRole('link', { name: 'Guided lesson' }).getAttribute('aria-current')
     ).toBe('location');
+    expect(nav.getAttribute('data-active-section')).toBe('learn');
+
+    act(() => {
+      callbacks.get(access)?.forEach((callback) => callback(
+          [{ target: access, isIntersecting: true }] as unknown as IntersectionObserverEntry[],
+          {} as IntersectionObserver
+        ));
+    });
+
+    expect(nav.getAttribute('data-active-section')).toBe('access');
+    expect(within(nav).getAllByRole('link').some((link) => link.hasAttribute('aria-current')))
+      .toBe(false);
+
   });
 
   test('validates the waitlist email field', () => {

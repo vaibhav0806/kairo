@@ -2,23 +2,30 @@
 
 import { render, screen } from '@testing-library/react';
 import { createElement } from 'react';
-import { afterEach, expect, test } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { afterEach, beforeEach, expect, test } from 'vitest';
 import { ContextLayers } from '../src/landing/violet-thread/ContextLayers';
+import { installBrowserEnvironment } from './helpers/browserEnvironment';
 
 afterEach(() => {
   document.body.innerHTML = '';
 });
+beforeEach(() => installBrowserEnvironment({ reducedMotion: true }));
 
-test('connects the four shared context artifacts with the Violet Thread', () => {
+test('connects one authentic workspace question to a Kairo response', () => {
   render(createElement(ContextLayers, { active: true }));
 
-  for (const label of [
-    'What you said',
-    'What is visible',
-    'What you pointed at',
-    'What Kairo understood'
-  ]) {
-    expect(screen.getByText(label)).toBeTruthy();
-  }
-  expect(document.querySelector('[data-thread-profile="context"]')).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Kairo sees what you mean.' })).toBeTruthy();
+  expect(screen.getByText('“Where are the preview controls?”')).toBeTruthy();
+  expect(screen.getByText('Open Preview in the right dock. That panel holds the playback controls.')).toBeTruthy();
+  expect(screen.getByRole('img', { name: 'After Effects motion study with timeline layers and Preview controls in the right dock' })).toBeTruthy();
+  expect(document.querySelector('[data-context-phase="complete"]')).toBeTruthy();
+  expect(screen.queryByText(/Chapter/)).toBeNull();
+});
+
+test('styles playback as status until replay becomes available', () => {
+  const css = readFileSync('src/landing/violet-thread/ContextLayers.module.css', 'utf8');
+
+  expect(css).toMatch(/\.replay\s*\{[^}]*color:\s*#626a78;[^}]*cursor:\s*default;/s);
+  expect(css).toMatch(/\.replay:not\(:disabled\)\s*\{[^}]*border-bottom:[^}]*cursor:\s*pointer;/s);
 });

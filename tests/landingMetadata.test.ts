@@ -44,6 +44,21 @@ describe('landing metadata and brand', () => {
     expect(page).not.toContain('./cursor');
   });
 
+  test('ships truthful privacy and interim license routes', () => {
+    const privacy = readFileSync('src/app/privacy/page.tsx', 'utf8');
+    const license = readFileSync('src/app/license/page.tsx', 'utf8');
+
+    expect(privacy).toContain('Privacy notice');
+    expect(privacy).toContain('email address');
+    expect(privacy).toContain('early access');
+    expect(privacy).toContain('July 22, 2026');
+    expect(privacy).toContain('href="/license"');
+    expect(license).toContain('License status');
+    expect(license).toContain('has not selected a software license yet');
+    expect(license).toContain('default copyright');
+    expect(license).toContain('href="/privacy"');
+  });
+
   test('ships a Next.js website-only dependency graph', () => {
     const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
       scripts: Record<string, string>;
