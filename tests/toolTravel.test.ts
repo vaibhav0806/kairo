@@ -91,6 +91,29 @@ describe('ToolTravel', () => {
     ).toBe(true);
   });
 
+  test('previews Kairo on hover without changing the committed selection', () => {
+    render(createElement(ToolTravel));
+    const region = screen.getByRole('region', { name: 'Kairo goes where you create.' });
+    const field = within(region).getByRole('radiogroup', { name: 'Choose an app' });
+    const afterEffects = within(field).getByRole('radio', { name: 'After Effects' });
+    const blender = within(field).getByRole('radio', { name: 'Blender' });
+
+    fireEvent.mouseEnter(blender);
+
+    expect(region.getAttribute('data-active-app')).toBe('blender');
+    expect(region.querySelector('[data-kairo-puck]')?.getAttribute('data-active-app')).toBe('blender');
+    expect(region.querySelector('[data-kairo-puck-label]')?.textContent).toContain('Blender');
+    expect(blender.getAttribute('aria-checked')).toBe('false');
+    expect(afterEffects.getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.mouseLeave(blender);
+
+    expect(region.getAttribute('data-active-app')).toBe('after-effects');
+    expect(region.querySelector('[data-kairo-puck-label]')?.textContent).toContain(
+      'whatever you open'
+    );
+  });
+
   test('supports roving keyboard selection in the field order', () => {
     render(createElement(ToolTravel));
     const field = screen.getByRole('radiogroup', { name: 'Choose an app' });

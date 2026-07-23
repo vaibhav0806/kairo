@@ -50,6 +50,8 @@ export function ToolTravel() {
   const [slotApps, setSlotApps] = useState(slotAppsRef.current);
   const [activeSlotId, setActiveSlotId] = useState(FIELD_SLOTS[0]?.id ?? 'field-0');
   const [activeOffsetX, setActiveOffsetX] = useState(0);
+  const [hoveredSlotId, setHoveredSlotId] = useState<string | null>(null);
+  const [hoverOffsetX, setHoverOffsetX] = useState(0);
   const [tourStep, setTourStep] = useState(0);
   const [interactionPaused, setInteractionPaused] = useState(false);
   const reduceMotion = useReducedMotion();
@@ -57,7 +59,9 @@ export function ToolTravel() {
 
   slotAppsRef.current = slotApps;
 
-  const activeAppId = slotApps[activeSlotId] ?? INITIAL_APP_ID;
+  const visualSlotId = hoveredSlotId ?? activeSlotId;
+  const visualOffsetX = hoveredSlotId ? hoverOffsetX : activeOffsetX;
+  const activeAppId = slotApps[visualSlotId] ?? INITIAL_APP_ID;
   const activeOption = APP_OPTIONS.find(({ id }) => id === activeAppId) ?? APP_OPTIONS[0];
   const fieldMotion = reduceMotion
     ? 'reduced'
@@ -66,8 +70,10 @@ export function ToolTravel() {
       : interactionPaused
         ? 'interaction'
         : 'running';
-  const universalMoment = Boolean(reduceMotion)
-    || (!manuallyInterrupted.current && (tourStep === 0 || tourStep % AUTO_DEMO_APP_IDS.length === 0));
+  const universalMoment = hoveredSlotId === null && (
+    Boolean(reduceMotion)
+    || (!manuallyInterrupted.current && (tourStep === 0 || tourStep % AUTO_DEMO_APP_IDS.length === 0))
+  );
   const activeLabel = universalMoment
     ? 'Kairo sees whatever you open.'
     : `Kairo sees ${activeOption.name}.`;
@@ -140,6 +146,19 @@ export function ToolTravel() {
 
   const chooseSlot = (slotId: string) => {
     selectSlot(slotId, true);
+  };
+
+  const previewSlot = (slotId: string) => {
+    setHoverOffsetX(activeOffsetForSlot(slotId) ?? 0);
+    setHoveredSlotId(slotId);
+    setInteractionPaused(true);
+  };
+
+  const clearPreview = () => {
+    setHoveredSlotId(null);
+    setInteractionPaused(
+      fieldViewportRef.current?.contains(document.activeElement) ?? false
+    );
   };
 
   const keyboardSlots = () => {
@@ -244,7 +263,8 @@ export function ToolTravel() {
               {FIELD_SLOTS.map((slot) => {
                 const appId = slotApps[slot.id] ?? slot.initialAppId;
                 const app = APP_OPTIONS.find(({ id }) => id === appId) ?? APP_OPTIONS[0];
-                const active = slot.id === activeSlotId;
+                const selected = slot.id === activeSlotId;
+                const active = slot.id === visualSlotId;
 
                 return (
                   <div
@@ -273,16 +293,18 @@ export function ToolTravel() {
                       role="radio"
                       className={styles.appChoice}
                       aria-label={app.name}
-                      aria-checked={active}
-                      tabIndex={active ? 0 : -1}
+                      aria-checked={selected}
+                      tabIndex={selected ? 0 : -1}
                       title={app.name}
                       data-app-choice={app.id}
                       animate={{
-                        x: active ? activeOffsetX : 0,
+                        x: active ? visualOffsetX : 0,
                         y: active ? -3 : 0,
                         scale: active ? 1.04 : 1
                       }}
                       transition={reduceMotion ? { duration: 0 } : PUCK_SPRING}
+                      onMouseEnter={() => previewSlot(slot.id)}
+                      onMouseLeave={clearPreview}
                       onClick={() => chooseSlot(slot.id)}
                       onFocus={() => chooseSlot(slot.id)}
                       onKeyDown={(event) => handleKeyDown(event, slot.id)}
