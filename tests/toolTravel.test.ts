@@ -97,8 +97,10 @@ describe('ToolTravel', () => {
     const field = within(region).getByRole('radiogroup', { name: 'Choose an app' });
     const afterEffects = within(field).getByRole('radio', { name: 'After Effects' });
     const blender = within(field).getByRole('radio', { name: 'Blender' });
+    const blenderSlot = blender.closest('[data-field-node]');
 
-    fireEvent.mouseEnter(blender);
+    expect(blenderSlot).toBeTruthy();
+    fireEvent.mouseEnter(blenderSlot!);
 
     expect(region.getAttribute('data-active-app')).toBe('blender');
     expect(region.querySelector('[data-kairo-puck]')?.getAttribute('data-active-app')).toBe('blender');
@@ -106,7 +108,7 @@ describe('ToolTravel', () => {
     expect(blender.getAttribute('aria-checked')).toBe('false');
     expect(afterEffects.getAttribute('aria-checked')).toBe('true');
 
-    fireEvent.mouseLeave(blender);
+    fireEvent.mouseLeave(blenderSlot!);
 
     expect(region.getAttribute('data-active-app')).toBe('after-effects');
     expect(region.querySelector('[data-kairo-puck-label]')?.textContent).toContain(

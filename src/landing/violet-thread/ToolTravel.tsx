@@ -286,6 +286,8 @@ export function ToolTravel() {
                       '--field-rise': `${slot.rise}px`
                     } as CSSProperties}
                     onAnimationIteration={() => recycleSlot(slot.id)}
+                    onMouseEnter={() => previewSlot(slot.id)}
+                    onMouseLeave={clearPreview}
                   >
                     <motion.button
                       ref={(node) => { choiceRefs.current[slot.id] = node; }}
@@ -303,8 +305,6 @@ export function ToolTravel() {
                         scale: active ? 1.04 : 1
                       }}
                       transition={reduceMotion ? { duration: 0 } : PUCK_SPRING}
-                      onMouseEnter={() => previewSlot(slot.id)}
-                      onMouseLeave={clearPreview}
                       onClick={() => chooseSlot(slot.id)}
                       onFocus={() => chooseSlot(slot.id)}
                       onKeyDown={(event) => handleKeyDown(event, slot.id)}
