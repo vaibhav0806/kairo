@@ -91,16 +91,19 @@ describe('ToolTravel', () => {
     ).toBe(true);
   });
 
-  test('previews Kairo on hover without changing the committed selection', () => {
+  test('keeps the hover preview until the pointer leaves the section', () => {
     render(createElement(ToolTravel));
     const region = screen.getByRole('region', { name: 'Kairo goes where you create.' });
     const field = within(region).getByRole('radiogroup', { name: 'Choose an app' });
     const afterEffects = within(field).getByRole('radio', { name: 'After Effects' });
     const blender = within(field).getByRole('radio', { name: 'Blender' });
+    const grafana = within(field).getByRole('radio', { name: 'Grafana' });
     const blenderSlot = blender.closest('[data-field-node]');
+    const grafanaSlot = grafana.closest('[data-field-node]');
 
     expect(blenderSlot).toBeTruthy();
-    fireEvent.mouseEnter(blenderSlot!);
+    expect(grafanaSlot).toBeTruthy();
+    fireEvent.pointerEnter(blenderSlot!, { pointerType: 'mouse' });
 
     expect(region.getAttribute('data-active-app')).toBe('blender');
     expect(region.querySelector('[data-kairo-puck]')?.getAttribute('data-active-app')).toBe('blender');
@@ -108,7 +111,17 @@ describe('ToolTravel', () => {
     expect(blender.getAttribute('aria-checked')).toBe('false');
     expect(afterEffects.getAttribute('aria-checked')).toBe('true');
 
-    fireEvent.mouseLeave(blenderSlot!);
+    fireEvent.pointerOut(blenderSlot!, { pointerType: 'mouse', relatedTarget: region });
+
+    expect(region.getAttribute('data-active-app')).toBe('blender');
+    expect(region.querySelector('[data-kairo-puck-label]')?.textContent).toContain('Blender');
+
+    fireEvent.pointerEnter(grafanaSlot!, { pointerType: 'mouse' });
+
+    expect(region.getAttribute('data-active-app')).toBe('grafana');
+    expect(region.querySelector('[data-kairo-puck-label]')?.textContent).toContain('Grafana');
+
+    fireEvent(region, new Event('pointerleave'));
 
     expect(region.getAttribute('data-active-app')).toBe('after-effects');
     expect(region.querySelector('[data-kairo-puck-label]')?.textContent).toContain(

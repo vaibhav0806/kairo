@@ -154,12 +154,19 @@ export function ToolTravel() {
     setInteractionPaused(true);
   };
 
-  const clearPreview = () => {
+  const clearPreview = useCallback(() => {
     setHoveredSlotId(null);
     setInteractionPaused(
       fieldViewportRef.current?.contains(document.activeElement) ?? false
     );
-  };
+  }, []);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    section.addEventListener('pointerleave', clearPreview);
+    return () => section.removeEventListener('pointerleave', clearPreview);
+  }, [clearPreview]);
 
   const keyboardSlots = () => {
     if (typeof window === 'undefined') return FIELD_SLOTS;
@@ -286,8 +293,7 @@ export function ToolTravel() {
                       '--field-rise': `${slot.rise}px`
                     } as CSSProperties}
                     onAnimationIteration={() => recycleSlot(slot.id)}
-                    onMouseEnter={() => previewSlot(slot.id)}
-                    onMouseLeave={clearPreview}
+                    onPointerEnter={() => previewSlot(slot.id)}
                   >
                     <motion.button
                       ref={(node) => { choiceRefs.current[slot.id] = node; }}
